@@ -7,6 +7,12 @@
 ## 2025-05-03 - Avoid array mapping and sorting for Min/Max
 **Learning:** Found a performance bottleneck where an array was mapped and then sorted (`arr.map(fn).sort()`) just to extract the minimum and maximum elements. This creates unnecessary O(N) memory allocations and O(N log N) computational overhead.
 **Action:** Replace `map().sort()` when extracting extremes by using a single loop (`for...of`) to track min and max values. This executes in O(N) time with O(1) space.
+## 2025-05-02 - Eliminate array allocations in snippet generation
+**Learning:** Found a performance bottleneck where `scoreSnippetWindow` was frequently calculating hits via `collectTermHits(...).length`, unnecessarily allocating arrays of match objects. Similarly, `termHits.map().sort()[0]` was used to find the best window, allocating intermediate arrays and adding O(N log N) overhead on every search query.
+**Action:** Replace map/sort pipelines with single-pass `for` loops tracking the max/min elements. When only counts are needed (like term hits), use a counting `while` loop with `indexOf` to avoid array allocations completely.
+## 2024-05-19 - Avoid redundant computations for session-level properties in row loops
+**Learning:** In FTS results, multiple hit rows often belong to the same session. Computing session-level properties (like checking if the query phrase exists in the title or cwd) for every row is redundant and causes unnecessary string allocations and substring searches.
+**Action:** Move session-level derivations into the initialization block of the grouping map (`if (!existing)`) so they are computed exactly once per session, not once per row.
 ## 2025-02-18 - Avoid array allocations via string.split() and filter() for simple existence checks
 **Learning:** Found that using `query.trim().split(/\s+/).filter(Boolean).length >= 2` to test if a string contains multiple tokens is unnecessarily slow because it allocates an array for the split and another for the filter, taking ~78ms per 100k ops instead of ~8.5ms for a direct regex match.
 **Action:** When doing simple existence checks (like "does this string have at least two words?"), use `/\s/.test(trimmedString)` instead of splitting and filtering. It operates without array allocations and is approximately 10x faster.
