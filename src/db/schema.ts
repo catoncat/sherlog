@@ -121,10 +121,15 @@ function ensureSessionsFtsTable(db: Db): void {
 }
 
 function ensureTextColumn(db: Db, tableName: string, columnName: string): void {
+  const identifierRegex = /^[a-zA-Z0-9_]+$/;
+  if (!identifierRegex.test(tableName) || !identifierRegex.test(columnName)) {
+    throw new Error(`Invalid table or column name: ${tableName}.${columnName}`);
+  }
+
   const columns = db
-    .prepare(`PRAGMA table_info(${tableName})`)
+    .prepare(`PRAGMA table_info("${tableName}")`)
     .all() as Array<{ name?: string }>;
 
   if (columns.some((column) => column.name === columnName)) return;
-  db.exec(`ALTER TABLE ${tableName} ADD COLUMN ${columnName} TEXT NOT NULL DEFAULT ''`);
+  db.exec(`ALTER TABLE "${tableName}" ADD COLUMN "${columnName}" TEXT NOT NULL DEFAULT ''`);
 }
