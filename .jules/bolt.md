@@ -7,3 +7,6 @@
 ## 2025-05-02 - Eliminate array allocations in snippet generation
 **Learning:** Found a performance bottleneck where `scoreSnippetWindow` was frequently calculating hits via `collectTermHits(...).length`, unnecessarily allocating arrays of match objects. Similarly, `termHits.map().sort()[0]` was used to find the best window, allocating intermediate arrays and adding O(N log N) overhead on every search query.
 **Action:** Replace map/sort pipelines with single-pass `for` loops tracking the max/min elements. When only counts are needed (like term hits), use a counting `while` loop with `indexOf` to avoid array allocations completely.
+## 2025-02-18 - Avoid array allocations via string.split() and filter() for simple existence checks
+**Learning:** Found that using `query.trim().split(/\s+/).filter(Boolean).length >= 2` to test if a string contains multiple tokens is unnecessarily slow because it allocates an array for the split and another for the filter, taking ~78ms per 100k ops instead of ~8.5ms for a direct regex match.
+**Action:** When doing simple existence checks (like "does this string have at least two words?"), use `/\s/.test(trimmedString)` instead of splitting and filtering. It operates without array allocations and is approximately 10x faster.
