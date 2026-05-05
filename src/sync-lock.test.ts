@@ -60,6 +60,28 @@ describe("tryRemoveStaleLock", () => {
     expect(removed).toBe(false);
     expect(existsSync(lockPath)).toBe(true);
   });
+
+  test("returns true when the lock file contains malformed JSON", () => {
+    const lockPath = makeLockPath();
+    const expected = { pid: 4242, createdAt: "2026-04-27T00:00:00.000Z" };
+    writeFileSync(lockPath, "{ malformed JSON");
+
+    const removed = tryRemoveStaleLock(lockPath, expected);
+
+    expect(removed).toBe(true);
+    expect(existsSync(lockPath)).toBe(true);
+  });
+
+  test("returns true when the lock file contains valid JSON but invalid structure", () => {
+    const lockPath = makeLockPath();
+    const expected = { pid: 4242, createdAt: "2026-04-27T00:00:00.000Z" };
+    writeFileSync(lockPath, JSON.stringify({ pid: "not a number" }));
+
+    const removed = tryRemoveStaleLock(lockPath, expected);
+
+    expect(removed).toBe(true);
+    expect(existsSync(lockPath)).toBe(true);
+  });
 });
 
 function makeLockPath(): string {
