@@ -70,39 +70,13 @@ export async function syncSessions(options: SyncOptions = {}): Promise<SyncSumma
     };
 
     try {
-      for (const file of sourceSnapshot.files) {
-        const filePath = file.filePath;
-        try {
-          const indexed = getIndexedSessionMeta(db, filePath);
-          if (isUnchanged(indexed, file.mtimeMs, file.size)) {
-            summary.skipped += 1;
-            unchangedFilePaths.add(filePath);
-            continue;
-          }
-
-          const parsed = await parseCodexSession(filePath);
-          if (parsed.kind === "filtered") {
-            operations.push({ kind: "filtered", filePath });
-            continue;
-          }
-          if (parsed.kind === "skipped") {
-            summary.skipped += 1;
-            continue;
-          }
-
-          operations.push({
-            kind: "replace",
-            filePath,
-            session: parsed.session,
-            rawFileMtime: file.mtimeMs,
-            rawFileSize: file.size,
-            pathDate: file.pathDate ?? "",
-            isUpdate: Boolean(indexed),
-          });
-        } catch (error) {
-          recordSyncError(summary, filePath, error);
-        }
-      }
+      await collectSyncOperations(
+        db,
+        sourceSnapshot.files,
+        operations,
+        unchangedFilePaths,
+        summary
+      );
 
       if (summary.errors > 0 && !options.bestEffort) {
         throw new SyncError(summary);
@@ -136,6 +110,48 @@ export async function syncSessions(options: SyncOptions = {}): Promise<SyncSumma
       db.close();
     }
   });
+}
+
+async function collectSyncOperations(
+  db: ReturnType<typeof openWriteDb>,
+  files: readonly { filePath: string; mtimeMs: number; size: number; pathDate: string | null }[],
+  operations: SyncOperation[],
+  unchangedFilePaths: Set<string>,
+  summary: SyncSummary
+): Promise<void> {
+  for (const file of files) {
+    const filePath = file.filePath;
+    try {
+      const indexed = getIndexedSessionMeta(db, filePath);
+      if (isUnchanged(indexed, file.mtimeMs, file.size)) {
+        summary.skipped += 1;
+        unchangedFilePaths.add(filePath);
+        continue;
+      }
+
+      const parsed = await parseCodexSession(filePath);
+      if (parsed.kind === "filtered") {
+        operations.push({ kind: "filtered", filePath });
+        continue;
+      }
+      if (parsed.kind === "skipped") {
+        summary.skipped += 1;
+        continue;
+      }
+
+      operations.push({
+        kind: "replace",
+        filePath,
+        session: parsed.session,
+        rawFileMtime: file.mtimeMs,
+        rawFileSize: file.size,
+        pathDate: file.pathDate ?? "",
+        isUpdate: Boolean(indexed),
+      });
+    } catch (error) {
+      recordSyncError(summary, filePath, error);
+    }
+  }
 }
 
 function isUnchanged(
