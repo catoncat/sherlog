@@ -10,14 +10,26 @@ const INTERNAL_MARKERS = [
   ">>> APPROVAL REQUEST START",
 ];
 
+interface ParseState {
+  eventMessages: ParsedMessage[];
+  compactMessages: string[];
+  reasoningSummaries: string[];
+  sessionUuid: string;
+  cwd: string;
+  model: string;
+  filteredMessageCount: number;
+}
+
 export async function parseCodexSession(filePath: string): Promise<ParseSessionResult> {
-  const eventMessages: ParsedMessage[] = [];
-  const compactMessages: string[] = [];
-  const reasoningSummaries: string[] = [];
-  let sessionUuid = extractSessionUuid(filePath);
-  let cwd = "";
-  let model = "";
-  let filteredMessageCount = 0;
+  const state: ParseState = {
+    eventMessages: [],
+    compactMessages: [],
+    reasoningSummaries: [],
+    sessionUuid: extractSessionUuid(filePath),
+    cwd: "",
+    model: "",
+    filteredMessageCount: 0,
+  };
 
   const lineReader = createInterface({
     input: createReadStream(filePath, { encoding: "utf8" }),
@@ -35,64 +47,19 @@ export async function parseCodexSession(filePath: string): Promise<ParseSessionR
       continue;
     }
 
-    const timestamp = typeof record.timestamp === "string" ? record.timestamp : "";
-    const type = typeof record.type === "string" ? record.type : "";
-    const payload = isRecord(record.payload) ? record.payload : null;
-    if (!timestamp || !type || !payload) continue;
-
-    if (type === "session_meta") {
-      if (!sessionUuid && typeof payload.id === "string") sessionUuid = payload.id;
-      if (typeof payload.cwd === "string") cwd = payload.cwd;
-      continue;
-    }
-
-    if (type === "turn_context") {
-      if (typeof payload.model === "string") model = payload.model;
-      if (!cwd && typeof payload.cwd === "string") cwd = payload.cwd;
-      continue;
-    }
-
-    if (type === "compacted") {
-      const message = typeof payload.message === "string" ? payload.message.trim() : "";
-      if (message) compactMessages.push(message);
-      continue;
-    }
-
-    if (type === "response_item" && payload.type === "reasoning") {
-      reasoningSummaries.push(...extractReasoningSummaryText(payload.summary));
-      continue;
-    }
-
-    if (type !== "event_msg") continue;
-    const msgType = typeof payload.type === "string" ? payload.type : "";
-    if (msgType !== "user_message" && msgType !== "agent_message") continue;
-    const messageText = typeof payload.message === "string" ? payload.message.trim() : "";
-    if (!messageText) continue;
-
-    if (looksInternal(messageText)) {
-      filteredMessageCount += 1;
-      continue;
-    }
-
-    eventMessages.push({
-      role: msgType === "user_message" ? "user" : "assistant",
-      contentText: messageText,
-      timestamp,
-      seq: eventMessages.length,
-      sourceKind: "event_msg",
-    });
+    processRecord(record, state);
   }
 
-  if (filteredMessageCount > 0 && eventMessages.length === 0) return { kind: "filtered" };
-  if (!sessionUuid || eventMessages.length === 0) return { kind: "skipped" };
+  if (state.filteredMessageCount > 0 && state.eventMessages.length === 0) return { kind: "filtered" };
+  if (!state.sessionUuid || state.eventMessages.length === 0) return { kind: "skipped" };
 
-  const title = firstUserMessage(eventMessages) ?? "(no title)";
+  const title = firstUserMessage(state.eventMessages) ?? "(no title)";
 
   // OPTIMIZATION: Track min/max timestamps in a single O(N) pass.
   // Avoids O(N) array allocation from map() and O(N log N) overhead from sort().
   let minTimestamp: string | null = null;
   let maxTimestamp: string | null = null;
-  for (const message of eventMessages) {
+  for (const message of state.eventMessages) {
     const ts = message.timestamp;
     if (!ts) continue;
     if (!minTimestamp || ts < minTimestamp) minTimestamp = ts;
@@ -102,19 +69,68 @@ export async function parseCodexSession(filePath: string): Promise<ParseSessionR
   return {
     kind: "parsed",
     session: {
-      sessionUuid,
+      sessionUuid: state.sessionUuid,
       filePath,
       title,
-      summaryText: buildSessionSummary(eventMessages),
-      compactText: buildCompactText(compactMessages),
-      reasoningSummaryText: buildReasoningSummaryText(reasoningSummaries),
-      cwd,
-      model,
+      summaryText: buildSessionSummary(state.eventMessages),
+      compactText: buildCompactText(state.compactMessages),
+      reasoningSummaryText: buildReasoningSummaryText(state.reasoningSummaries),
+      cwd: state.cwd,
+      model: state.model,
       startedAt: minTimestamp ?? new Date().toISOString(),
       endedAt: maxTimestamp ?? new Date().toISOString(),
-      messages: eventMessages,
+      messages: state.eventMessages,
     },
   };
+}
+
+function processRecord(record: Record<string, unknown>, state: ParseState): void {
+  const timestamp = typeof record.timestamp === "string" ? record.timestamp : "";
+  const type = typeof record.type === "string" ? record.type : "";
+  const payload = isRecord(record.payload) ? record.payload : null;
+  if (!timestamp || !type || !payload) return;
+
+  if (type === "session_meta") {
+    if (!state.sessionUuid && typeof payload.id === "string") state.sessionUuid = payload.id;
+    if (typeof payload.cwd === "string") state.cwd = payload.cwd;
+    return;
+  }
+
+  if (type === "turn_context") {
+    if (typeof payload.model === "string") state.model = payload.model;
+    if (!state.cwd && typeof payload.cwd === "string") state.cwd = payload.cwd;
+    return;
+  }
+
+  if (type === "compacted") {
+    const message = typeof payload.message === "string" ? payload.message.trim() : "";
+    if (message) state.compactMessages.push(message);
+    return;
+  }
+
+  if (type === "response_item" && payload.type === "reasoning") {
+    state.reasoningSummaries.push(...extractReasoningSummaryText(payload.summary));
+    return;
+  }
+
+  if (type !== "event_msg") return;
+  const msgType = typeof payload.type === "string" ? payload.type : "";
+  if (msgType !== "user_message" && msgType !== "agent_message") return;
+  const messageText = typeof payload.message === "string" ? payload.message.trim() : "";
+  if (!messageText) return;
+
+  if (looksInternal(messageText)) {
+    state.filteredMessageCount += 1;
+    return;
+  }
+
+  state.eventMessages.push({
+    role: msgType === "user_message" ? "user" : "assistant",
+    contentText: messageText,
+    timestamp,
+    seq: state.eventMessages.length,
+    sourceKind: "event_msg",
+  });
 }
 
 function extractSessionUuid(filePath: string): string {
