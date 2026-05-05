@@ -1,6 +1,16 @@
 import type { Db } from "./shared";
 
 export function ensureSchema(db: Db): void {
+  ensureSessionsTable(db);
+  ensureMessagesTable(db);
+  ensureMessagesFtsTable(db);
+  ensureSessionsFtsTable(db);
+  ensureCoverageTable(db);
+
+  dropLegacyTrigramTable(db);
+}
+
+function ensureSessionsTable(db: Db): void {
   db.exec(`
     CREATE TABLE IF NOT EXISTS sessions (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -30,6 +40,10 @@ export function ensureSchema(db: Db): void {
   ensureTextColumn(db, "sessions", "path_date");
   ensureTextColumn(db, "sessions", "source_root");
 
+  db.exec("CREATE INDEX IF NOT EXISTS idx_sessions_started_at ON sessions(started_at DESC)");
+}
+
+function ensureMessagesTable(db: Db): void {
   db.exec(`
     CREATE TABLE IF NOT EXISTS messages (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -45,8 +59,9 @@ export function ensureSchema(db: Db): void {
   `);
 
   db.exec("CREATE INDEX IF NOT EXISTS idx_messages_session_seq ON messages(session_uuid, seq)");
-  db.exec("CREATE INDEX IF NOT EXISTS idx_sessions_started_at ON sessions(started_at DESC)");
+}
 
+function ensureMessagesFtsTable(db: Db): void {
   db.exec(`
     CREATE VIRTUAL TABLE IF NOT EXISTS messages_fts USING fts5(
       content_text,
@@ -57,11 +72,6 @@ export function ensureSchema(db: Db): void {
       tokenize='unicode61 remove_diacritics 1'
     )
   `);
-
-  ensureSessionsFtsTable(db);
-  ensureCoverageTable(db);
-
-  dropLegacyTrigramTable(db);
 }
 
 function ensureCoverageTable(db: Db): void {
