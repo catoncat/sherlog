@@ -121,6 +121,11 @@ function ensureSessionsFtsTable(db: Db): void {
 }
 
 function ensureTextColumn(db: Db, tableName: string, columnName: string): void {
+  const identifierRegex = /^[a-zA-Z0-9_]+$/;
+  if (!identifierRegex.test(tableName) || !identifierRegex.test(columnName)) {
+    throw new Error(`Invalid table or column name: ${tableName}.${columnName}`);
+  }
+
   const columns = db
     .prepare("SELECT name FROM pragma_table_info(?)")
     .all(tableName) as Array<{ name?: string }>;
