@@ -89,9 +89,20 @@ function readCwdMetadata(filePath: string): string {
     const buffer = Buffer.allocUnsafe(CWD_SCAN_BYTES);
     const bytesRead = readSync(fd, buffer, 0, CWD_SCAN_BYTES, 0);
     const prefix = buffer.subarray(0, bytesRead).toString("utf8");
-    for (const rawLine of prefix.split("\n")) {
+    let cursor = 0;
+    while (cursor < prefix.length) {
+      let end = prefix.indexOf("\n", cursor);
+      if (end === -1) end = prefix.length;
+
+      const rawLine = prefix.slice(cursor, end);
+      cursor = end + 1;
+
+      // Fast path: avoid JSON.parse on lines that clearly aren't cwd events
+      if (!rawLine.includes('"session_meta"') && !rawLine.includes('"turn_context"')) continue;
+
       const line = rawLine.trim();
       if (!line) continue;
+
       let record: Record<string, unknown>;
       try {
         record = JSON.parse(line) as Record<string, unknown>;

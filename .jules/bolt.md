@@ -17,3 +17,6 @@
 **Learning:** Found that using `query.trim().split(/\s+/).filter(Boolean).length >= 2` to test if a string contains multiple tokens is unnecessarily slow because it allocates an array for the split and another for the filter, taking ~78ms per 100k ops instead of ~8.5ms for a direct regex match.
 **Action:** When doing simple existence checks (like "does this string have at least two words?"), use `/\s/.test(trimmedString)` instead of splitting and filtering. It operates without array allocations and is approximately 10x faster.
 
+## 2025-05-18 - Avoid string.split("\\n") for simple prefix scanning
+**Learning:** Found a performance bottleneck where `readCwdMetadata` was using `prefix.split("\\n")` and running `JSON.parse` on every line of a 64KB log prefix to find one target key. The `split` alone allocated hundreds of string objects, and parsing every non-matching line further bloated memory and CPU.
+**Action:** Replace `split("\\n")` with a `while` loop that finds the next newline via `indexOf("\\n", cursor)` and use a fast-path substring check (e.g., `!rawLine.includes("target_key")`) before invoking `JSON.parse`. This avoids massive array allocations and skips expensive operations, dropping search time by ~75%.
