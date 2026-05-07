@@ -119,39 +119,50 @@ async function collectSyncOperations(
   unchangedFilePaths: Set<string>,
   summary: SyncSummary
 ): Promise<void> {
-  for (const file of files) {
-    const filePath = file.filePath;
-    try {
-      const indexed = getIndexedSessionMeta(db, filePath);
-      if (isUnchanged(indexed, file.mtimeMs, file.size)) {
-        summary.skipped += 1;
-        unchangedFilePaths.add(filePath);
-        continue;
-      }
+  // OPTIMIZATION: Parse codex sessions concurrently to avoid I/O bottlenecks.
+  // We use a worker loop pattern to bound concurrency and prevent EMFILE errors.
+  const CONCURRENCY_LIMIT = 16;
+  let currentIndex = 0;
 
-      const parsed = await parseCodexSession(filePath);
-      if (parsed.kind === "filtered") {
-        operations.push({ kind: "filtered", filePath });
-        continue;
-      }
-      if (parsed.kind === "skipped") {
-        summary.skipped += 1;
-        continue;
-      }
+  const worker = async () => {
+    while (currentIndex < files.length) {
+      const file = files[currentIndex++];
+      const filePath = file.filePath;
+      try {
+        const indexed = getIndexedSessionMeta(db, filePath);
+        if (isUnchanged(indexed, file.mtimeMs, file.size)) {
+          summary.skipped += 1;
+          unchangedFilePaths.add(filePath);
+          continue;
+        }
 
-      operations.push({
-        kind: "replace",
-        filePath,
-        session: parsed.session,
-        rawFileMtime: file.mtimeMs,
-        rawFileSize: file.size,
-        pathDate: file.pathDate ?? "",
-        isUpdate: Boolean(indexed),
-      });
-    } catch (error) {
-      recordSyncError(summary, filePath, error);
+        const parsed = await parseCodexSession(filePath);
+        if (parsed.kind === "filtered") {
+          operations.push({ kind: "filtered", filePath });
+          continue;
+        }
+        if (parsed.kind === "skipped") {
+          summary.skipped += 1;
+          continue;
+        }
+
+        operations.push({
+          kind: "replace",
+          filePath,
+          session: parsed.session,
+          rawFileMtime: file.mtimeMs,
+          rawFileSize: file.size,
+          pathDate: file.pathDate ?? "",
+          isUpdate: Boolean(indexed),
+        });
+      } catch (error) {
+        recordSyncError(summary, filePath, error);
+      }
     }
-  }
+  };
+
+  const workers = Array.from({ length: Math.min(CONCURRENCY_LIMIT, files.length) }, () => worker());
+  await Promise.all(workers);
 }
 
 function isUnchanged(
