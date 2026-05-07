@@ -21,6 +21,37 @@ export function getIndexedSessionMeta(
   return row ?? null;
 }
 
+export function getIndexedSessionMetas(
+  db: Db,
+  filePaths: string[],
+): Map<string, { rawFileMtime: number; rawFileSize: number; indexVersion: string }> {
+  const map = new Map<string, { rawFileMtime: number; rawFileSize: number; indexVersion: string }>();
+  if (filePaths.length === 0) return map;
+
+  const chunkSize = 500;
+  for (let i = 0; i < filePaths.length; i += chunkSize) {
+    const chunk = filePaths.slice(i, i + chunkSize);
+    const placeholders = chunk.map(() => "?").join(",");
+    const rows = db
+      .prepare<string[], { file_path: string; rawFileMtime: number; rawFileSize: number; indexVersion: string }>(`
+        SELECT file_path, raw_file_mtime AS rawFileMtime, raw_file_size AS rawFileSize, index_version AS indexVersion
+        FROM sessions
+        WHERE file_path IN (${placeholders})
+      `)
+      .all(...chunk) as { file_path: string; rawFileMtime: number; rawFileSize: number; indexVersion: string }[];
+
+    for (const row of rows) {
+      map.set(row.file_path, {
+        rawFileMtime: row.rawFileMtime,
+        rawFileSize: row.rawFileSize,
+        indexVersion: row.indexVersion,
+      });
+    }
+  }
+
+  return map;
+}
+
 export function deleteSessionByFilePath(db: Db, filePath: string): void {
   const row = db
     .prepare<[string], { sessionUuid: string }>("SELECT session_uuid AS sessionUuid FROM sessions WHERE file_path = ? LIMIT 1")
