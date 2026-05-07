@@ -13,6 +13,21 @@ import type {
 
 const CWD_SCAN_BYTES = 64 * 1024;
 
+interface CollectSourceFilesOptions {
+  strict?: boolean;
+  requireCwdMetadata?: boolean;
+}
+
+export class SourceInventoryError extends Error {
+  readonly path: string;
+
+  constructor(path: string, operation: string, cause: unknown) {
+    super(`${operation} failed for ${path}: ${describeError(cause)}`);
+    this.name = "SourceInventoryError";
+    this.path = path;
+  }
+}
+
 export async function collectSourceInventory(root: string): Promise<SourceInventory> {
   const resolvedRoot = resolve(root);
   const files = await collectSourceFiles(resolvedRoot);
@@ -24,9 +39,12 @@ export async function collectSourceInventory(root: string): Promise<SourceInvent
   };
 }
 
-export async function collectSourceSnapshot(selector: Selector): Promise<SourceSnapshot> {
+export async function collectSourceSnapshot(selector: Selector, options: CollectSourceFilesOptions = {}): Promise<SourceSnapshot> {
   const canonical = canonicalizeSelector(selector);
-  const allFiles = await collectSourceFiles(canonical.root);
+  const allFiles = await collectSourceFiles(canonical.root, {
+    ...options,
+    requireCwdMetadata: options.requireCwdMetadata ?? (canonical.kind === "cwd" || canonical.kind === "cwd_date_range"),
+  });
   const files = allFiles.filter((file) => selectorContainsFile(canonical, file));
   return {
     selector: canonical,
@@ -36,9 +54,9 @@ export async function collectSourceSnapshot(selector: Selector): Promise<SourceS
   };
 }
 
-export async function collectSourceFiles(root: string): Promise<SourceFileMeta[]> {
+export async function collectSourceFiles(root: string, options: CollectSourceFilesOptions = {}): Promise<SourceFileMeta[]> {
   const files: SourceFileMeta[] = [];
-  await walkAsync(resolve(root), files);
+  await walkAsync(resolve(root), files, options);
   files.sort((a, b) => a.filePath.localeCompare(b.filePath));
   return files;
 }
@@ -51,11 +69,12 @@ export function extractPathDate(filePath: string): string | null {
   return null;
 }
 
-async function walkAsync(currentDir: string, files: SourceFileMeta[]): Promise<void> {
+async function walkAsync(currentDir: string, files: SourceFileMeta[], options: CollectSourceFilesOptions): Promise<void> {
   let dirHandle;
   try {
     dirHandle = await opendir(currentDir);
-  } catch {
+  } catch (error) {
+    if (options.strict) throw new SourceInventoryError(currentDir, "read directory", error);
     return;
   }
 
@@ -66,14 +85,14 @@ async function walkAsync(currentDir: string, files: SourceFileMeta[]): Promise<v
   for await (const entry of dirHandle) {
     const fullPath = `${currentDir}/${entry.name}`;
     if (entry.isDirectory()) {
-      await walkAsync(fullPath, files);
+      await walkAsync(fullPath, files, options);
       continue;
     }
     if (!entry.isFile() || !entry.name.endsWith(".jsonl")) continue;
 
     try {
       const stats = await stat(fullPath);
-      const cwd = await readCwdMetadataAsync(fullPath);
+      const cwd = await readCwdMetadataAsync(fullPath, options);
       files.push({
         filePath: fullPath,
         pathDate: extractPathDate(fullPath),
@@ -81,13 +100,14 @@ async function walkAsync(currentDir: string, files: SourceFileMeta[]): Promise<v
         mtimeMs: stats.mtimeMs,
         size: stats.size,
       });
-    } catch {
-      // Ignore
+    } catch (error) {
+      if (options.strict) throw error instanceof SourceInventoryError ? error : new SourceInventoryError(fullPath, "stat file", error);
+      continue;
     }
   }
 }
 
-async function readCwdMetadataAsync(filePath: string): Promise<string> {
+async function readCwdMetadataAsync(filePath: string, options: CollectSourceFilesOptions): Promise<string> {
   let fh = null;
   try {
     fh = await open(filePath, "r");
@@ -120,7 +140,8 @@ async function readCwdMetadataAsync(filePath: string): Promise<string> {
         return payload.cwd;
       }
     }
-  } catch {
+  } catch (error) {
+    if (options.strict && options.requireCwdMetadata) throw new SourceInventoryError(filePath, "read cwd metadata", error);
     return "";
   } finally {
     if (fh !== null) {
@@ -187,4 +208,9 @@ function fingerprintFiles(root: string, files: SourceFileMeta[]): string {
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
+}
+
+function describeError(error: unknown): string {
+  if (error instanceof Error) return error.message;
+  return String(error);
 }

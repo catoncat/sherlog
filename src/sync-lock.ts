@@ -179,7 +179,8 @@ export function readLockInfo(lockPath: string): ParsedLockInfo | "empty" | "lega
           return { pid: parsed.pid, createdAt: parsed.createdAt };
         }
       } catch {
-        // Ignore read errors for individual files
+        const filenameInfo = lockInfoFromFilename(file);
+        if (filenameInfo) return filenameInfo;
       }
     }
   }
@@ -189,6 +190,18 @@ export function readLockInfo(lockPath: string): ParsedLockInfo | "empty" | "lega
 
 function getInfoFilename(info: SyncLockInfo): string {
   return `${info.pid}-${new Date(info.createdAt).getTime()}.json`;
+}
+
+function lockInfoFromFilename(file: string): SyncLockInfo | null {
+  const match = file.match(/^(\d+)-(\d+)\.json$/);
+  if (!match) return null;
+  const pid = Number(match[1]);
+  const timestamp = Number(match[2]);
+  if (!Number.isSafeInteger(pid) || pid <= 0 || !Number.isSafeInteger(timestamp)) return null;
+  const date = new Date(timestamp);
+  if (Number.isNaN(date.getTime())) return null;
+  const createdAt = date.toISOString();
+  return { pid, createdAt };
 }
 
 function isProcessAlive(pid: number): boolean {

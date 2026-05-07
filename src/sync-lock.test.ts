@@ -2,7 +2,7 @@ import { afterEach, describe, expect, test } from "vitest";
 import { existsSync, mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { tryRemoveStaleLock } from "./sync-lock";
+import { readLockInfo, tryRemoveStaleLock } from "./sync-lock";
 
 const tempDirs: string[] = [];
 
@@ -141,6 +141,28 @@ describe("tryRemoveStaleLock", () => {
 
       expect(removed).toBe(true);
       expect(existsSync(lockPath)).toBe(false);
+    });
+
+    test("recovers stale directory locks whose JSON info file was partially written", () => {
+      const lockPath = makeLockPath();
+      const expected = { pid: 999_999, createdAt: "2026-04-27T00:00:00.000Z" };
+
+      mkdirSync(lockPath);
+      writeFileSync(join(lockPath, getInfoFilename(expected.pid, expected.createdAt)), "{ malformed JSON");
+
+      const parsed = readLockInfo(lockPath);
+      expect(parsed).toEqual(expected);
+      expect(parsed && parsed !== "empty" && parsed !== "legacy" && tryRemoveStaleLock(lockPath, parsed)).toBe(true);
+      expect(existsSync(lockPath)).toBe(false);
+    });
+
+    test("ignores malformed JSON info files with invalid filename timestamps", () => {
+      const lockPath = makeLockPath();
+      mkdirSync(lockPath);
+      writeFileSync(join(lockPath, "999999-999999999999999999999999.json"), "{ malformed JSON");
+
+      expect(() => readLockInfo(lockPath)).not.toThrow();
+      expect(readLockInfo(lockPath)).toBe("empty");
     });
   });
 });

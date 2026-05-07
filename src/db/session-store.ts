@@ -79,8 +79,8 @@ export function replaceSession(
 ): void {
   const tx = db.transaction(() => {
     const existing = db
-      .prepare<[string, string], { id: number }>("SELECT id FROM sessions WHERE session_uuid = ? OR file_path = ? LIMIT 1")
-      .get(session.sessionUuid, session.filePath) as { id: number } | undefined;
+      .prepare<[string, string], { id: number; sessionUuid: string }>("SELECT id, session_uuid AS sessionUuid FROM sessions WHERE session_uuid = ? OR file_path = ? LIMIT 1")
+      .get(session.sessionUuid, session.filePath) as { id: number; sessionUuid: string } | undefined;
 
     if (existing) {
       db.prepare(
@@ -143,8 +143,13 @@ export function replaceSession(
       .prepare<[string], { id: number }>("SELECT id FROM sessions WHERE session_uuid = ? LIMIT 1")
       .get(session.sessionUuid) as { id: number };
 
+    db.prepare("DELETE FROM messages_fts WHERE rowid IN (SELECT id FROM messages WHERE session_id = ?)").run(sessionRow.id);
+    db.prepare("DELETE FROM messages WHERE session_id = ?").run(sessionRow.id);
+    if (existing && existing.sessionUuid !== session.sessionUuid) {
+      db.prepare("DELETE FROM messages_fts WHERE session_uuid = ?").run(existing.sessionUuid);
+      db.prepare("DELETE FROM sessions_fts WHERE session_uuid = ?").run(existing.sessionUuid);
+    }
     db.prepare("DELETE FROM messages_fts WHERE session_uuid = ?").run(session.sessionUuid);
-    db.prepare("DELETE FROM messages WHERE session_uuid = ?").run(session.sessionUuid);
     db.prepare("DELETE FROM sessions_fts WHERE rowid = ? OR session_uuid = ?").run(sessionRow.id, session.sessionUuid);
 
     db.prepare(
