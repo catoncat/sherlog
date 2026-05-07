@@ -4,6 +4,7 @@ import {
   deleteSessionsForSelectorExceptFilePaths,
   deleteSessionByFilePath,
   getIndexedSessionMeta,
+  getIndexedSessionMetas,
   openWriteDb,
   replaceCoverage,
   replaceSession,
@@ -119,6 +120,10 @@ async function collectSyncOperations(
   unchangedFilePaths: Set<string>,
   summary: SyncSummary
 ): Promise<void> {
+  // Pre-fetch indexed session metadata for all files using batching to avoid N+1 queries
+  const filePaths = files.map((f) => f.filePath);
+  const indexedMetas = getIndexedSessionMetas(db, filePaths);
+
   // OPTIMIZATION: Parse codex sessions concurrently to avoid I/O bottlenecks.
   // We use a worker loop pattern to bound concurrency and prevent EMFILE errors.
   const CONCURRENCY_LIMIT = 16;
@@ -129,7 +134,7 @@ async function collectSyncOperations(
       const file = files[currentIndex++];
       const filePath = file.filePath;
       try {
-        const indexed = getIndexedSessionMeta(db, filePath);
+        const indexed = indexedMetas.get(filePath) ?? null;
         if (isUnchanged(indexed, file.mtimeMs, file.size)) {
           summary.skipped += 1;
           unchangedFilePaths.add(filePath);
