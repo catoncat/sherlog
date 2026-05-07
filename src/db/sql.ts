@@ -2,6 +2,7 @@ import type { Selector } from "../types";
 import type { Db, SqlParams } from "./shared";
 
 export function selectorWhereSql(selector: Selector, alias: string): { conditions: string[]; params: SqlParams } {
+  if (!/^[a-zA-Z0-9_]+$/.test(alias)) throw new Error("Invalid table alias");
   const conditions = [`(${alias}.file_path = ? OR ${alias}.file_path LIKE ? ESCAPE '\\')`];
   const params: SqlParams = [selector.root, `${escapeLike(selector.root)}/%`];
   if (selector.kind === "cwd" || selector.kind === "cwd_date_range") {
