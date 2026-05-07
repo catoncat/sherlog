@@ -5,13 +5,16 @@ import { getStatsCounts, listCoverageRecords, withReadDb } from "./db";
 import { selectorImplies } from "./selector";
 import type { CoverageInventoryStatus, CoverageRecord, RequestedCoverageStatus, Selector, StatusSummary } from "./types";
 
-export function collectStatus(options: { rootDir?: string; dbPath?: string; cwd?: string; selector?: Selector } = {}): StatusSummary {
+export async function collectStatus(options: { rootDir?: string; dbPath?: string; cwd?: string; selector?: Selector } = {}): Promise<StatusSummary> {
   const root = resolveCodexDir(options.rootDir);
   const dbPath = options.dbPath ?? DEFAULT_DB_PATH;
-  const sourceInventory = collectSourceInventory(root);
+  const sourceInventory = await collectSourceInventory(root);
   const index = collectIndexStatus(dbPath);
   const coverage = existsSync(dbPath) ? withReadDb(dbPath, (db) => listCoverageRecords(db)) : [];
-  const coverageStatus = coverage.map(toCoverageInventoryStatus);
+  const coverageStatus: CoverageInventoryStatus[] = [];
+  for (const record of coverage) {
+    coverageStatus.push(await toCoverageInventoryStatus(record));
+  }
   const summary: StatusSummary = {
     context: {
       cwd: options.cwd ?? process.cwd(),
@@ -24,7 +27,7 @@ export function collectStatus(options: { rootDir?: string; dbPath?: string; cwd?
     coverage: coverageStatus,
   };
   if (options.selector) {
-    summary.requestedCoverage = requestedCoverageStatus(options.selector, coverageStatus);
+    summary.requestedCoverage = await requestedCoverageStatus(options.selector, coverageStatus);
   }
   return summary;
 }
@@ -61,8 +64,8 @@ function collectIndexStatus(dbPath: string): StatusSummary["index"] {
   };
 }
 
-function toCoverageInventoryStatus(record: CoverageRecord): CoverageInventoryStatus {
-  const snapshot = collectSourceSnapshot(record.selector);
+async function toCoverageInventoryStatus(record: CoverageRecord): Promise<CoverageInventoryStatus> {
+  const snapshot = await collectSourceSnapshot(record.selector);
   const fresh = snapshot.fingerprint === record.sourceFingerprint
     && snapshot.fileCount === record.sourceFileCount
     && record.indexVersion === INDEX_VERSION;
@@ -74,11 +77,11 @@ function toCoverageInventoryStatus(record: CoverageRecord): CoverageInventorySta
   };
 }
 
-function requestedCoverageStatus(
+async function requestedCoverageStatus(
   selector: Selector,
   coverage: CoverageInventoryStatus[],
-): RequestedCoverageStatus {
-  const snapshot = collectSourceSnapshot(selector);
+): Promise<RequestedCoverageStatus> {
+  const snapshot = await collectSourceSnapshot(selector);
   const coveringSelectors = coverage.filter((entry) =>
     entry.indexVersion === INDEX_VERSION && selectorImplies(entry.selector, selector)
   );

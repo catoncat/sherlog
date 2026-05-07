@@ -32,38 +32,38 @@ describe("collectStatus", () => {
     }
   });
 
-  it("returns index.exists: false and empty coverage when DB does not exist", () => {
-    const status = collectStatus({ rootDir: tempDir, dbPath: join(tempDir, "nonexistent.db") });
+  it("returns index.exists: false and empty coverage when DB does not exist", async () => {
+    const status = await collectStatus({ rootDir: tempDir, dbPath: join(tempDir, "nonexistent.db") });
     expect(status.index.exists).toBe(false);
     expect(status.coverage).toEqual([]);
     expect(status.sourceInventory.totalFiles).toBe(1);
     expect(status.sourceInventory.cwdGroups[0].cwd).toBe("/test/project");
   });
 
-  it("returns index.exists: true and empty coverage when DB exists but has no coverage", () => {
+  it("returns index.exists: true and empty coverage when DB exists but has no coverage", async () => {
     // Create an empty db
     const db = openWriteDb(dbPath);
     db.close();
 
-    const status = collectStatus({ rootDir: tempDir, dbPath });
+    const status = await collectStatus({ rootDir: tempDir, dbPath });
     expect(status.index.exists).toBe(true);
     expect(status.coverage).toEqual([]);
   });
 
-  it("returns freshness: 'fresh' when coverage exactly matches source files", () => {
+  it("returns freshness: 'fresh' when coverage exactly matches source files", async () => {
     const db = openWriteDb(dbPath);
     const selector: Selector = { kind: "cwd", root: tempDir, cwd: "/test/project" };
-    const snapshot = collectSourceSnapshot(selector);
+    const snapshot = await collectSourceSnapshot(selector);
 
     replaceCoverage(db, selector, snapshot.fingerprint, snapshot.fileCount, 1, INDEX_VERSION);
     db.close();
 
-    const status = collectStatus({ rootDir: tempDir, dbPath });
+    const status = await collectStatus({ rootDir: tempDir, dbPath });
     expect(status.coverage.length).toBe(1);
     expect(status.coverage[0].freshness).toBe("fresh");
   });
 
-  it("returns freshness: 'stale' when coverage source fingerprint mismatches", () => {
+  it("returns freshness: 'stale' when coverage source fingerprint mismatches", async () => {
     const db = openWriteDb(dbPath);
     const selector: Selector = { kind: "cwd", root: tempDir, cwd: "/test/project" };
 
@@ -71,27 +71,27 @@ describe("collectStatus", () => {
     replaceCoverage(db, selector, "bad_fingerprint", 1, 1, INDEX_VERSION);
     db.close();
 
-    const status = collectStatus({ rootDir: tempDir, dbPath });
+    const status = await collectStatus({ rootDir: tempDir, dbPath });
     expect(status.coverage.length).toBe(1);
     expect(status.coverage[0].freshness).toBe("stale");
   });
 
-  it("calculates requestedCoverage correctly when requested selector has fresh coverage", () => {
+  it("calculates requestedCoverage correctly when requested selector has fresh coverage", async () => {
     const db = openWriteDb(dbPath);
     const selector: Selector = { kind: "cwd", root: tempDir, cwd: "/test/project" };
-    const snapshot = collectSourceSnapshot(selector);
+    const snapshot = await collectSourceSnapshot(selector);
 
     replaceCoverage(db, selector, snapshot.fingerprint, snapshot.fileCount, 1, INDEX_VERSION);
     db.close();
 
-    const status = collectStatus({ rootDir: tempDir, dbPath, selector });
+    const status = await collectStatus({ rootDir: tempDir, dbPath, selector });
     expect(status.requestedCoverage).toBeDefined();
     expect(status.requestedCoverage?.freshness).toBe("fresh");
     expect(status.requestedCoverage?.complete).toBe(true);
     expect(status.requestedCoverage?.recommendedAction).toBe("query");
   });
 
-  it("calculates requestedCoverage correctly when requested selector has stale coverage", () => {
+  it("calculates requestedCoverage correctly when requested selector has stale coverage", async () => {
     const db = openWriteDb(dbPath);
     const selector: Selector = { kind: "cwd", root: tempDir, cwd: "/test/project" };
 
@@ -99,19 +99,19 @@ describe("collectStatus", () => {
     replaceCoverage(db, selector, "bad_fingerprint", 1, 1, INDEX_VERSION);
     db.close();
 
-    const status = collectStatus({ rootDir: tempDir, dbPath, selector });
+    const status = await collectStatus({ rootDir: tempDir, dbPath, selector });
     expect(status.requestedCoverage).toBeDefined();
     expect(status.requestedCoverage?.freshness).toBe("stale");
     expect(status.requestedCoverage?.complete).toBe(false);
     expect(status.requestedCoverage?.recommendedAction).toBe("sync");
   });
 
-  it("calculates requestedCoverage correctly when requested selector has missing coverage", () => {
+  it("calculates requestedCoverage correctly when requested selector has missing coverage", async () => {
     const db = openWriteDb(dbPath);
     db.close();
 
     const selector: Selector = { kind: "cwd", root: tempDir, cwd: "/test/project" };
-    const status = collectStatus({ rootDir: tempDir, dbPath, selector });
+    const status = await collectStatus({ rootDir: tempDir, dbPath, selector });
 
     expect(status.requestedCoverage).toBeDefined();
     expect(status.requestedCoverage?.freshness).toBe("missing");

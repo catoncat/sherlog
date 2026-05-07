@@ -53,7 +53,7 @@ export async function syncSessions(options: SyncOptions = {}): Promise<SyncSumma
   const selector = canonicalizeSelector(options.selector ?? { kind: "all", root: resolveCodexDir(options.rootDir) });
   return withSyncLock(dbPath, async () => {
     const db = openWriteDb(dbPath);
-    const sourceSnapshot = collectSourceSnapshot(selector);
+    const sourceSnapshot = await collectSourceSnapshot(selector);
     const operations: SyncOperation[] = [];
     const unchangedFilePaths = new Set<string>();
 
@@ -84,7 +84,7 @@ export async function syncSessions(options: SyncOptions = {}): Promise<SyncSumma
       }
 
       if (!options.bestEffort) {
-        const afterSnapshot = collectSourceSnapshot(selector);
+        const afterSnapshot = await collectSourceSnapshot(selector);
         if (afterSnapshot.fingerprint !== sourceSnapshot.fingerprint) {
           recordSyncError(summary, "(selector)", new Error("source changed during strict sync"));
           throw new SyncError(summary);
