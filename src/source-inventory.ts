@@ -121,8 +121,8 @@ function readCwdMetadata(filePath: string): string {
     if (fd !== null) {
       try {
         closeSync(fd);
-      } catch {
-        // Ignore inventory-only close failures.
+      } catch (err) {
+        console.warn(`Failed to close file ${filePath} during inventory scan:`, err);
       }
     }
   }
