@@ -126,8 +126,8 @@ async function readCwdMetadataAsync(filePath: string): Promise<string> {
     if (fh !== null) {
       try {
         await fh.close();
-      } catch {
-        // Ignore inventory-only close failures.
+      } catch (err) {
+        console.warn(`Failed to close file ${filePath} during inventory scan:`, err);
       }
     }
   }
