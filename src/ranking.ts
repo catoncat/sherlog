@@ -75,7 +75,11 @@ interface SessionAggregate {
 
 export function rerankHits(rows: RawHitRow[], query: string, limit: number): FindResult[] {
   const profile = classifyQueryProfile(query);
-  const now = Date.now();
+  const grouped = aggregateRows(rows, profile);
+  return rankAggregates(grouped, profile, limit);
+}
+
+function aggregateRows(rows: RawHitRow[], profile: QueryProfile): Map<string, SessionAggregate> {
   const grouped = new Map<string, SessionAggregate>();
 
   for (const row of rows) {
@@ -83,49 +87,61 @@ export function rerankHits(rows: RawHitRow[], query: string, limit: number): Fin
     const existing = grouped.get(row.sessionUuid);
 
     if (!existing) {
-      // OPTIMIZATION: title and cwd are identical for all rows of the same session.
-      // Computing them only once per sessionUuid avoids redundant string allocations,
-      // .toLowerCase() conversions, and .includes() term matching overhead.
-      const rowTitleLower = row.title.toLowerCase();
-      const rowCwdLower = row.cwd.toLowerCase();
-      const titlePhrase = profile.normalizedQuery.length > 0
-        && (profile.isPathLikeCommand
-          ? containsBoundedPhrase(rowTitleLower, profile.normalizedQuery)
-          : rowTitleLower.includes(profile.normalizedQuery));
-      const titleTermHits = countMatchedTerms(rowTitleLower, profile.terms);
-      const cwdTermHits = countMatchedTerms(rowCwdLower, profile.terms);
-
-      grouped.set(row.sessionUuid, {
-        row,
-        bestRow: row,
-        bestDisplayRow: row,
-        bestRowSignalScore: signalScore,
-        bestDisplayRowSignalScore: signalScore,
-        hitCount: 1,
-        sessionHitCount: row.matchSource === "session" ? 1 : 0,
-        userHitCount: row.matchRole === "user" ? 1 : 0,
-        titlePhrase,
-        titleTermHits,
-        cwdTermHits,
-      });
-      continue;
-    }
-
-    existing.hitCount += 1;
-    if (row.matchSource === "session") existing.sessionHitCount += 1;
-    if (row.matchRole === "user") existing.userHitCount += 1;
-    // titlePhrase, titleTermHits, and cwdTermHits are session-level constants,
-    // so we don't need to update them for subsequent rows of the same session.
-    if (signalScore > existing.bestRowSignalScore) {
-      existing.bestRow = row;
-      existing.bestRowSignalScore = signalScore;
-    }
-    if (shouldUseDisplayRow(existing.bestDisplayRow, row, existing.bestDisplayRowSignalScore, signalScore)) {
-      existing.bestDisplayRow = row;
-      existing.bestDisplayRowSignalScore = signalScore;
+      grouped.set(row.sessionUuid, createSessionAggregate(row, profile, signalScore));
+    } else {
+      updateSessionAggregate(existing, row, signalScore);
     }
   }
 
+  return grouped;
+}
+
+function createSessionAggregate(row: RawHitRow, profile: QueryProfile, signalScore: number): SessionAggregate {
+  // OPTIMIZATION: title and cwd are identical for all rows of the same session.
+  // Computing them only once per sessionUuid avoids redundant string allocations,
+  // .toLowerCase() conversions, and .includes() term matching overhead.
+  const rowTitleLower = row.title.toLowerCase();
+  const rowCwdLower = row.cwd.toLowerCase();
+  const titlePhrase = profile.normalizedQuery.length > 0
+    && (profile.isPathLikeCommand
+      ? containsBoundedPhrase(rowTitleLower, profile.normalizedQuery)
+      : rowTitleLower.includes(profile.normalizedQuery));
+  const titleTermHits = countMatchedTerms(rowTitleLower, profile.terms);
+  const cwdTermHits = countMatchedTerms(rowCwdLower, profile.terms);
+
+  return {
+    row,
+    bestRow: row,
+    bestDisplayRow: row,
+    bestRowSignalScore: signalScore,
+    bestDisplayRowSignalScore: signalScore,
+    hitCount: 1,
+    sessionHitCount: row.matchSource === "session" ? 1 : 0,
+    userHitCount: row.matchRole === "user" ? 1 : 0,
+    titlePhrase,
+    titleTermHits,
+    cwdTermHits,
+  };
+}
+
+function updateSessionAggregate(existing: SessionAggregate, row: RawHitRow, signalScore: number): void {
+  existing.hitCount += 1;
+  if (row.matchSource === "session") existing.sessionHitCount += 1;
+  if (row.matchRole === "user") existing.userHitCount += 1;
+  // titlePhrase, titleTermHits, and cwdTermHits are session-level constants,
+  // so we don't need to update them for subsequent rows of the same session.
+  if (signalScore > existing.bestRowSignalScore) {
+    existing.bestRow = row;
+    existing.bestRowSignalScore = signalScore;
+  }
+  if (shouldUseDisplayRow(existing.bestDisplayRow, row, existing.bestDisplayRowSignalScore, signalScore)) {
+    existing.bestDisplayRow = row;
+    existing.bestDisplayRowSignalScore = signalScore;
+  }
+}
+
+function rankAggregates(grouped: Map<string, SessionAggregate>, profile: QueryProfile, limit: number): FindResult[] {
+  const now = Date.now();
   const ranked = Array.from(grouped.values())
     .map((aggregate) => ({
       aggregate,
