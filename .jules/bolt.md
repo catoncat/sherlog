@@ -29,3 +29,6 @@
 **Action:** When iterating over file lists or large arrays, use chunking and bulk lookup maps instead of sequential queries to avoid N+1 anti-patterns.
 
 ## 2024-05-07 - [Concurrent Codex Parsing Optimization] **Learning:** [Using a bounded worker pool in `collectSyncOperations` rather than awaiting promises sequentially eliminates I/O bottlenecks without causing EMFILE errors, utilizing Node's asynchronous event loop properly while processing files.] **Action:** [When processing large number of files that require reading and JSON parsing asynchronously, use an array of bounded workers executing a while loop fetching the next item, rather than `Promise.all` over all items or sequential awaiting.]
+## 2024-05-24 - JSON Parsing Fast Path in Log File Parsing
+**Learning:** `JSON.parse` is significantly slower than string matching operations (like `.includes()`). In `src/parser.ts`, the application iterates over every line in Codex session log files, running `JSON.parse` on all of them, when only lines containing `"event_msg"`, `"session_meta"`, `"turn_context"`, `"compacted"`, or `"response_item"` are relevant.
+**Action:** When processing large text files line-by-line where only a subset of lines contain relevant JSON, use `.includes()` substring checks to verify the presence of required keys before falling back to the expensive `JSON.parse` operation.

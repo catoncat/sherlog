@@ -37,6 +37,17 @@ export async function parseCodexSession(filePath: string): Promise<ParseSessionR
   });
 
   for await (const line of lineReader) {
+    // Fast path: avoid expensive JSON.parse for lines that clearly don't contain relevant events
+    if (
+      !line.includes('"event_msg"') &&
+      !line.includes('"session_meta"') &&
+      !line.includes('"turn_context"') &&
+      !line.includes('"compacted"') &&
+      !line.includes('"response_item"')
+    ) {
+      continue;
+    }
+
     const trimmed = line.trim();
     if (!trimmed) continue;
 
