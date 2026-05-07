@@ -1,5 +1,4 @@
-import { closeSync, openSync, readSync, readdirSync, statSync } from "node:fs";
-import type { Dirent } from "node:fs";
+import { opendir, stat, open } from "node:fs/promises";
 import { relative, resolve } from "node:path";
 import { createHash } from "node:crypto";
 import { canonicalizeSelector, selectorContainsFile } from "./selector";
@@ -14,9 +13,9 @@ import type {
 
 const CWD_SCAN_BYTES = 64 * 1024;
 
-export function collectSourceInventory(root: string): SourceInventory {
+export async function collectSourceInventory(root: string): Promise<SourceInventory> {
   const resolvedRoot = resolve(root);
-  const files = collectSourceFiles(resolvedRoot);
+  const files = await collectSourceFiles(resolvedRoot);
   return {
     root: resolvedRoot,
     totalFiles: files.length,
@@ -25,9 +24,10 @@ export function collectSourceInventory(root: string): SourceInventory {
   };
 }
 
-export function collectSourceSnapshot(selector: Selector): SourceSnapshot {
+export async function collectSourceSnapshot(selector: Selector): Promise<SourceSnapshot> {
   const canonical = canonicalizeSelector(selector);
-  const files = collectSourceFiles(canonical.root).filter((file) => selectorContainsFile(canonical, file));
+  const allFiles = await collectSourceFiles(canonical.root);
+  const files = allFiles.filter((file) => selectorContainsFile(canonical, file));
   return {
     selector: canonical,
     fingerprint: fingerprintFiles(canonical.root, files),
@@ -36,9 +36,9 @@ export function collectSourceSnapshot(selector: Selector): SourceSnapshot {
   };
 }
 
-export function collectSourceFiles(root: string): SourceFileMeta[] {
+export async function collectSourceFiles(root: string): Promise<SourceFileMeta[]> {
   const files: SourceFileMeta[] = [];
-  walk(resolve(root), files);
+  await walkAsync(resolve(root), files);
   files.sort((a, b) => a.filePath.localeCompare(b.filePath));
   return files;
 }
@@ -51,43 +51,48 @@ export function extractPathDate(filePath: string): string | null {
   return null;
 }
 
-function walk(currentDir: string, files: SourceFileMeta[]): void {
-  let entries: Dirent<string>[];
+async function walkAsync(currentDir: string, files: SourceFileMeta[]): Promise<void> {
+  let dirHandle;
   try {
-    entries = readdirSync(currentDir, { withFileTypes: true });
+    dirHandle = await opendir(currentDir);
   } catch {
     return;
   }
 
-  for (const entry of entries) {
+  // OPTIMIZATION: Process directory entries sequentially using `for await`.
+  // Avoids unbounded concurrency (like `Promise.all` over an array of async tasks)
+  // that would trigger EMFILE errors on massive directory trees while
+  // keeping the Node event loop responsive.
+  for await (const entry of dirHandle) {
     const fullPath = `${currentDir}/${entry.name}`;
     if (entry.isDirectory()) {
-      walk(fullPath, files);
+      await walkAsync(fullPath, files);
       continue;
     }
     if (!entry.isFile() || !entry.name.endsWith(".jsonl")) continue;
 
     try {
-      const stats = statSync(fullPath);
+      const stats = await stat(fullPath);
+      const cwd = await readCwdMetadataAsync(fullPath);
       files.push({
         filePath: fullPath,
         pathDate: extractPathDate(fullPath),
-        cwd: readCwdMetadata(fullPath),
+        cwd,
         mtimeMs: stats.mtimeMs,
         size: stats.size,
       });
     } catch {
-      continue;
+      // Ignore
     }
   }
 }
 
-function readCwdMetadata(filePath: string): string {
-  let fd: number | null = null;
+async function readCwdMetadataAsync(filePath: string): Promise<string> {
+  let fh = null;
   try {
-    fd = openSync(filePath, "r");
+    fh = await open(filePath, "r");
     const buffer = Buffer.allocUnsafe(CWD_SCAN_BYTES);
-    const bytesRead = readSync(fd, buffer, 0, CWD_SCAN_BYTES, 0);
+    const { bytesRead } = await fh.read(buffer, 0, CWD_SCAN_BYTES, 0);
     const prefix = buffer.subarray(0, bytesRead).toString("utf8");
     let cursor = 0;
     while (cursor < prefix.length) {
@@ -118,9 +123,9 @@ function readCwdMetadata(filePath: string): string {
   } catch {
     return "";
   } finally {
-    if (fd !== null) {
+    if (fh !== null) {
       try {
-        closeSync(fd);
+        await fh.close();
       } catch {
         // Ignore inventory-only close failures.
       }

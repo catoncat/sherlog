@@ -20,3 +20,6 @@
 ## 2025-05-18 - Avoid string.split("\\n") for simple prefix scanning
 **Learning:** Found a performance bottleneck where `readCwdMetadata` was using `prefix.split("\\n")` and running `JSON.parse` on every line of a 64KB log prefix to find one target key. The `split` alone allocated hundreds of string objects, and parsing every non-matching line further bloated memory and CPU.
 **Action:** Replace `split("\\n")` with a `while` loop that finds the next newline via `indexOf("\\n", cursor)` and use a fast-path substring check (e.g., `!rawLine.includes("target_key")`) before invoking `JSON.parse`. This avoids massive array allocations and skips expensive operations, dropping search time by ~75%.
+## 2025-06-25 - Avoid synchronous file system operations on large directories
+**Learning:** Found that using synchronous node:fs methods (like `readdirSync` and `statSync`) to recursively walk large directory structures blocks the Node.js event loop, causing severe latency spikes (e.g., ~2000ms blocks on 100k files).
+**Action:** Use asynchronous `node:fs/promises` methods (like `opendir` and `stat`) and yield to the event loop. To avoid unbounded concurrency issues like EMFILE, use sequential await loops instead of `Promise.all()` arrays over directories.

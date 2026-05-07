@@ -46,10 +46,10 @@ program
   .option("--selector <json>", "检查指定 selector 的 coverage/freshness（只读，不同步）")
   .option("--db <path>", "覆盖默认数据库路径", DEFAULT_DB_PATH)
   .option("--json", "输出 JSON")
-  .action((options) => {
+  .action(async (options) => {
     try {
       const selector = optionalSelector(options.selector);
-      const status = collectStatus({ rootDir: options.root, dbPath: options.db, cwd: process.cwd(), selector: selector ?? undefined });
+      const status = await collectStatus({ rootDir: options.root, dbPath: options.db, cwd: process.cwd(), selector: selector ?? undefined });
       if (options.json) {
         console.log(JSON.stringify(status, null, 2));
         return;

@@ -13,7 +13,7 @@ afterEach(() => {
 });
 
 describe("source inventory", () => {
-  test("returns path dates and cwd groups without indexing content", () => {
+  test("returns path dates and cwd groups without indexing content", async () => {
     const base = mkdtempSync(join(tmpdir(), "cxs-source-inventory-"));
     tempDirs.push(base);
     const root = join(base, "sessions");
@@ -27,7 +27,7 @@ describe("source inventory", () => {
       ].join("\n"),
     );
 
-    const inventory = collectSourceInventory(root);
+    const inventory = await collectSourceInventory(root);
 
     expect(inventory.totalFiles).toBe(1);
     expect(inventory.pathDateRange).toEqual({ from: "2026-04-22", to: "2026-04-22" });
@@ -36,7 +36,7 @@ describe("source inventory", () => {
     ]);
   });
 
-  test("builds selector snapshots from raw source metadata", () => {
+  test("builds selector snapshots from raw source metadata", async () => {
     const base = mkdtempSync(join(tmpdir(), "cxs-source-snapshot-"));
     tempDirs.push(base);
     const root = join(base, "sessions");
@@ -57,7 +57,7 @@ describe("source inventory", () => {
       ].join("\n"),
     );
 
-    const snapshot = collectSourceSnapshot({ kind: "cwd", root, cwd: "/tmp/alpha" });
+    const snapshot = await collectSourceSnapshot({ kind: "cwd", root, cwd: "/tmp/alpha" });
 
     expect(snapshot.fileCount).toBe(1);
     expect(snapshot.files[0]?.cwd).toBe("/tmp/alpha");
