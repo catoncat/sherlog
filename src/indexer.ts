@@ -1,5 +1,6 @@
 import { DEFAULT_DB_PATH, INDEX_VERSION, ensureDataDir, resolveCodexDir } from "./env";
 import {
+  cleanupMismatchedMessagesForSelector,
   countSessionsForSelector,
   deleteSessionsForSelectorExceptFilePaths,
   deleteSessionByFilePath,
@@ -11,7 +12,7 @@ import {
 } from "./db";
 import { parseCodexSession } from "./parser";
 import { canonicalizeSelector } from "./selector";
-import { collectSourceSnapshot } from "./source-inventory";
+import { SourceInventoryError, collectSourceSnapshot } from "./source-inventory";
 import { withSyncLock } from "./sync-lock";
 import type { CoverageWriteSummary, ParsedSession, Selector, SyncErrorDetail, SyncSummary } from "./types";
 
@@ -52,8 +53,14 @@ export async function syncSessions(options: SyncOptions = {}): Promise<SyncSumma
   const dbPath = options.dbPath ?? DEFAULT_DB_PATH;
   const selector = canonicalizeSelector(options.selector ?? { kind: "all", root: resolveCodexDir(options.rootDir) });
   return withSyncLock(dbPath, async () => {
+    let sourceSnapshot;
+    try {
+      sourceSnapshot = await collectSourceSnapshot(selector, { strict: true });
+    } catch (error) {
+      const summary = sourceUnavailableSummary(selector, error);
+      throw new SyncError(summary);
+    }
     const db = openWriteDb(dbPath);
-    const sourceSnapshot = await collectSourceSnapshot(selector);
     const operations: SyncOperation[] = [];
     const unchangedFilePaths = new Set<string>();
 
@@ -84,7 +91,13 @@ export async function syncSessions(options: SyncOptions = {}): Promise<SyncSumma
       }
 
       if (!options.bestEffort) {
-        const afterSnapshot = await collectSourceSnapshot(selector);
+        let afterSnapshot;
+        try {
+          afterSnapshot = await collectSourceSnapshot(selector, { strict: true });
+        } catch (error) {
+          recordSyncError(summary, sourceErrorPath(selector, error), error);
+          throw new SyncError(summary);
+        }
         if (afterSnapshot.fingerprint !== sourceSnapshot.fingerprint) {
           recordSyncError(summary, "(selector)", new Error("source changed during strict sync"));
           throw new SyncError(summary);
@@ -209,6 +222,7 @@ function applyOperations(
       currentFilePath = operation.filePath;
       applyOperation(db, operation, selector.root);
     }
+    cleanupMismatchedMessagesForSelector(db, selector);
     summary.removed += deleteSessionsForSelectorExceptFilePaths(db, selector, retainedFilePaths);
     const indexedSessionCount = countSessionsForSelector(db, selector);
     const record = replaceCoverage(
@@ -319,4 +333,25 @@ function skippedCoverage(
     indexedSessionCount: 0,
     reason,
   };
+}
+
+function sourceUnavailableSummary(selector: Selector, error: unknown): SyncSummary {
+  const summary: SyncSummary = {
+    scanned: 0,
+    added: 0,
+    updated: 0,
+    skipped: 0,
+    filtered: 0,
+    removed: 0,
+    errors: 0,
+    errorDetails: [],
+    selector,
+    coverage: skippedCoverage(selector, "", 0, "source_unavailable"),
+  };
+  recordSyncError(summary, sourceErrorPath(selector, error), error);
+  return summary;
+}
+
+function sourceErrorPath(selector: Selector, error: unknown): string {
+  return error instanceof SourceInventoryError ? error.path : selector.root;
 }

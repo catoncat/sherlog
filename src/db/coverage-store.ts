@@ -86,24 +86,46 @@ export function deleteSessionsForSelectorExceptFilePaths(
   retainedFilePaths: Set<string>,
 ): number {
   const where = selectorWhereSql(selector, "sessions");
-  const params = [...where.params];
-  const retained = [...retainedFilePaths];
-  const retainedClause = retained.length > 0
-    ? ` AND sessions.file_path NOT IN (${retained.map(() => "?").join(", ")})`
-    : "";
-  params.push(...retained);
   const rows = db
-    .prepare(`
-      SELECT session_uuid AS sessionUuid
+    .prepare<typeof where.params, { sessionUuid: string; filePath: string }>(`
+      SELECT session_uuid AS sessionUuid, file_path AS filePath
       FROM sessions
-      WHERE ${where.conditions.join(" AND ")}${retainedClause}
+      WHERE ${where.conditions.join(" AND ")}
     `)
-    .all(...params) as Array<{ sessionUuid: string }>;
+    .all(...where.params) as Array<{ sessionUuid: string; filePath: string }>;
 
+  let removed = 0;
   for (const row of rows) {
+    if (retainedFilePaths.has(row.filePath)) continue;
     deleteSessionByUuid(db, row.sessionUuid);
+    removed += 1;
   }
-  return rows.length;
+  return removed;
+}
+
+export function cleanupMismatchedMessagesForSelector(db: Db, selector: Selector): number {
+  const where = selectorWhereSql(selector, "s");
+  const conditions = [...where.conditions, "m.session_uuid != s.session_uuid"];
+  const predicate = conditions.join(" AND ");
+  db.prepare<typeof where.params>(`
+    DELETE FROM messages_fts
+    WHERE rowid IN (
+      SELECT m.id
+      FROM messages m
+      JOIN sessions s ON s.id = m.session_id
+      WHERE ${predicate}
+    )
+  `).run(...where.params);
+  const result = db.prepare<typeof where.params>(`
+    DELETE FROM messages
+    WHERE id IN (
+      SELECT m.id
+      FROM messages m
+      JOIN sessions s ON s.id = m.session_id
+      WHERE ${predicate}
+    )
+  `).run(...where.params);
+  return Number(result.changes);
 }
 
 export function coverageEntriesForSession(db: Db, session: SessionRecord): CoverageRecord[] {

@@ -157,6 +157,76 @@ describe("syncSessions", () => {
     ]);
   });
 
+  test("strict sync refuses an unavailable source root instead of deleting indexed rows", async () => {
+    const base = mkdtempSync(join(tmpdir(), "cxs-indexer-missing-root-"));
+    tempDirs.push(base);
+    const root = join(base, "sessions");
+    const day = join(root, "2026", "04", "22");
+    mkdirSync(day, { recursive: true });
+
+    writeFileSync(
+      join(day, "rollout-2026-04-22T12-00-00-44444444-4444-4444-8444-444444444444.jsonl"),
+      [
+        line("session_meta", { id: "44444444-4444-4444-8444-444444444444", cwd: "/tmp/missing-root" }),
+        line("event_msg", { type: "user_message", message: "keep this indexed row" }),
+      ].join("\n"),
+    );
+
+    const dbPath = join(base, "index.sqlite");
+    const selector = { kind: "all" as const, root };
+    await syncSessions({ dbPath, selector });
+
+    rmSync(root, { recursive: true, force: true });
+    const failure = await syncSessions({ dbPath, selector }).catch((error) => error);
+
+    expect(failure).toBeInstanceOf(SyncError);
+    expect(failure.summary.errors).toBe(1);
+    expect(failure.summary.coverage.written).toBe(false);
+    expect(failure.summary.coverage.reason).toBe("source_unavailable");
+    expect(failure.summary.errorDetails[0]?.filePath).toBe(root);
+
+    const db = openReadDb(dbPath);
+    const sessions = db.prepare("SELECT session_uuid AS sessionUuid FROM sessions").all() as Array<{ sessionUuid: string }>;
+    const coverage = db.prepare("SELECT source_file_count AS sourceFileCount FROM coverage").get() as { sourceFileCount: number };
+    db.close();
+
+    expect(sessions).toEqual([{ sessionUuid: "44444444-4444-4444-8444-444444444444" }]);
+    expect(coverage.sourceFileCount).toBe(1);
+  });
+
+  test("strict sync does not create a new index database when the source root is unavailable", async () => {
+    const base = mkdtempSync(join(tmpdir(), "cxs-indexer-missing-root-new-db-"));
+    tempDirs.push(base);
+    const root = join(base, "missing-sessions");
+    const dbPath = join(base, "index.sqlite");
+
+    const failure = await syncSessions({
+      dbPath,
+      selector: { kind: "all", root },
+    }).catch((error) => error);
+
+    expect(failure).toBeInstanceOf(SyncError);
+    expect(failure.summary.coverage.reason).toBe("source_unavailable");
+    expect(existsSync(dbPath)).toBe(false);
+  });
+
+  test("cwd selector refuses unreadable cwd metadata instead of writing false coverage", async () => {
+    const { dbPath, sessionsRoot, badFilePath } = createFixture();
+
+    const failure = await syncSessions({
+      dbPath,
+      selector: { kind: "cwd", root: sessionsRoot, cwd: "/tmp/bad" },
+    }).catch((error) => error);
+
+    expect(failure).toBeInstanceOf(SyncError);
+    expect(failure.summary.errors).toBe(1);
+    expect(failure.summary.coverage.written).toBe(false);
+    expect(failure.summary.coverage.reason).toBe("source_unavailable");
+    expect(failure.summary.errorDetails[0]?.filePath).toBe(badFilePath);
+
+    expect(existsSync(dbPath)).toBe(false);
+  });
+
   test("strict sync rebuilds legacy rows missing path_date before date-range coverage", async () => {
     const base = mkdtempSync(join(tmpdir(), "cxs-indexer-legacy-path-date-"));
     tempDirs.push(base);

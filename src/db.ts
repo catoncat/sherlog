@@ -7,6 +7,7 @@ export { getStatsCounts, getTopCwds } from "./db/stats-store";
 export {
   coverageEntriesForSession,
   coverageStatusForSelector,
+  cleanupMismatchedMessagesForSelector,
   countSessionsForSelector,
   deleteSessionsForSelectorExceptFilePaths,
   listCoverageRecords,
