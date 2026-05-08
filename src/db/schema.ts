@@ -122,9 +122,11 @@ function ensureSessionsFtsTable(db: Db): void {
 
 function ensureTextColumn(db: Db, tableName: string, columnName: string): void {
   const columns = db
-    .prepare(`PRAGMA table_info(${tableName})`)
-    .all() as Array<{ name?: string }>;
+    .prepare("SELECT name FROM pragma_table_info(?)")
+    .all(tableName) as Array<{ name?: string }>;
 
   if (columns.some((column) => column.name === columnName)) return;
-  db.exec(`ALTER TABLE ${tableName} ADD COLUMN ${columnName} TEXT NOT NULL DEFAULT ''`);
+
+  const quoteId = (id: string) => `"${id.replace(/"/g, '""')}"`;
+  db.exec(`ALTER TABLE ${quoteId(tableName)} ADD COLUMN ${quoteId(columnName)} TEXT NOT NULL DEFAULT ''`);
 }
