@@ -1,5 +1,5 @@
 import { opendir, stat, open } from "node:fs/promises";
-import { relative, resolve } from "node:path";
+import { relative, resolve, sep } from "node:path";
 import { createHash } from "node:crypto";
 import { canonicalizeSelector, selectorContainsFile } from "./selector";
 import type {
@@ -190,10 +190,21 @@ function dateRange(values: Array<string | null>): DateRange {
 
 function fingerprintFiles(root: string, files: SourceFileMeta[]): string {
   const hash = createHash("sha256");
-  hash.update(resolve(root));
+  const resolvedRoot = resolve(root);
+  hash.update(resolvedRoot);
+
+  // OPTIMIZATION: Avoid using `node:path`'s `relative()` function in a loop over large datasets.
+  // Pre-calculate the root prefix with a trailing separator and use `String.prototype.slice()`
+  // to extract relative paths.
+  const rootPrefix = resolvedRoot.endsWith(sep) ? resolvedRoot : `${resolvedRoot}${sep}`;
+  const rootPrefixLen = rootPrefix.length;
+
   for (const file of files) {
     hash.update("\0");
-    hash.update(relative(root, file.filePath));
+    const relPath = file.filePath.startsWith(rootPrefix)
+      ? file.filePath.slice(rootPrefixLen)
+      : relative(root, file.filePath);
+    hash.update(relPath);
     hash.update("\0");
     hash.update(String(file.mtimeMs));
     hash.update("\0");
