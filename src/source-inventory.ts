@@ -1,5 +1,5 @@
 import { opendir, stat, open } from "node:fs/promises";
-import { relative, resolve, sep } from "node:path";
+import { resolve, sep } from "node:path";
 import { createHash } from "node:crypto";
 import { canonicalizeSelector, selectorContainsFile } from "./selector";
 import type {
@@ -194,17 +194,15 @@ function fingerprintFiles(root: string, files: SourceFileMeta[]): string {
   hash.update(resolvedRoot);
 
   // OPTIMIZATION: Avoid using `node:path`'s `relative()` function in a loop over large datasets.
-  // Pre-calculate the root prefix with a trailing separator and use `String.prototype.slice()`
-  // to extract relative paths.
+  // `files` come from collectSourceFiles(resolve(root)), so each filePath is already
+  // an absolute path under resolvedRoot. Pre-calculate the root prefix once and
+  // extract relative paths with String.prototype.slice().
   const rootPrefix = resolvedRoot.endsWith(sep) ? resolvedRoot : `${resolvedRoot}${sep}`;
   const rootPrefixLen = rootPrefix.length;
 
   for (const file of files) {
     hash.update("\0");
-    const relPath = file.filePath.startsWith(rootPrefix)
-      ? file.filePath.slice(rootPrefixLen)
-      : relative(root, file.filePath);
-    hash.update(relPath);
+    hash.update(file.filePath.slice(rootPrefixLen));
     hash.update("\0");
     hash.update(String(file.mtimeMs));
     hash.update("\0");

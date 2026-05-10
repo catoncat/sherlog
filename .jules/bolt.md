@@ -34,5 +34,5 @@
 **Action:** When processing large text files line-by-line where only a subset of lines contain relevant JSON, use `.includes()` substring checks to verify the presence of required keys before falling back to the expensive `JSON.parse` operation.
 
 ## 2025-02-18 - Avoid path.relative() in tight loops over absolute paths
-**Learning:** Found that using `node:path.relative()` inside a loop over thousands of absolute paths (`fingerprintFiles`) adds significant computational overhead because it performs deep path normalization and splitting on every call.
-**Action:** When calculating relative paths for an array of known absolute file paths within a common root directory, pre-calculate the root prefix (with a trailing separator) and use `String.prototype.slice()` for an O(1) substring extraction. Fallback to `path.relative()` only for paths that don't match the prefix exactly.
+**Learning:** Found that using `node:path.relative()` inside a loop over thousands of absolute paths (`fingerprintFiles`) adds significant computational overhead because it performs deep path normalization and splitting on every call. In this code path, source files are collected under the resolved root, so every fingerprinted path is already an absolute path with the same prefix.
+**Action:** Pre-calculate the root prefix (with a trailing separator) and use `String.prototype.slice()` for an O(1) substring extraction instead of calling `path.relative()` for each file.
