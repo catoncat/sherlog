@@ -4,15 +4,15 @@
 
 | 症状 | 先跑 | 处理 |
 | --- | --- | --- |
-| `find` 零结果但用户坚持存在 | `status --selector '<json>' --json` | 看目标 selector 的 `requestedCoverage`；必要时 `sync --selector`；再带 selector 查询 |
-| `sync` 非零退出带 per-file errors | `sync --selector '<json>' --json 2>&1` | 看 `errorDetails[]`；默认严格模式；只在允许部分成功时加 `--best-effort` |
-| `sync` 返回 `selector_required` | 原命令补 `--selector` | selector 必须显式，不存在默认范围 |
-| `find/list/stats/read-*` 输出 `index_unavailable` | `status --json` | 索引还没建立；选择 selector 后 `sync --selector` |
+| `find` 零结果但用户坚持存在 | `status --cwd <path> --json` 或 `status --selector '<json>' --json` | 看目标范围的 `requestedCoverage`；必要时 `sync --cwd` / `sync --root` / `sync --selector`；再带同范围查询 |
+| `sync` 非零退出带 per-file errors | `sync --root <dir> --json 2>&1` 或 `sync --selector '<json>' --json 2>&1` | 看 `errorDetails[]`；默认严格模式；只在允许部分成功时加 `--best-effort` |
+| `sync` 返回 `selector_required` | 原命令补 `--root`、`--cwd` 或 `--selector` | sync 必须显式给范围；不需要把 root 写进 JSON |
+| `find/list/stats/read-*` 输出 `index_unavailable` | `status --json` | 索引还没建立；选择范围后 `sync --root` / `sync --cwd` / `sync --selector` |
 | `stats/list/find` 报 `database is locked` | 原命令重试一次 | 多半是 SQLite 忙；仍失败就先跳过 `stats` 直接读 |
 | 同一主题多条 uuid | `find -n 10 --json` | 按 `startedAt`、`cwd`、`matchCount` 选 |
 | 最新/最近 + 关键词被当前会话抢结果 | `find <query> --sort ended --exclude-session <uuid>` | 默认 `find` 是 relevance 排序；时间问题显式用 `--sort ended` 并排除 self-hit |
 | 中文/CJK 零结果 | 无 | 换至少两字中文、英文关键词，或先用 selector 缩范围 |
-| 用户问“最近本项目讨论了什么” | `status --selector '<cwd selector>' --json` | coverage fresh 直接 `list --selector`;缺失/stale 才同步 |
+| 用户问“最近本项目讨论了什么” | `status --cwd <abs_cwd> --json` | coverage fresh 直接 `list --selector '{"kind":"cwd","cwd":"..."}'`;缺失/stale 才同步 |
 | 用户说“在 X 项目里” | `status --json` | 从 `sourceInventory.cwdGroups` 选择 cwd selector |
 | 从其他 cwd 调用找不到 db | `stats --json` | 看 `dbPath`；必要时显式传 `--db` |
 
@@ -22,11 +22,11 @@
 "${CXS_BIN:-cxs}" status --json
 ```
 
-如果目标范围没有 fresh coverage，先同步明确 selector：
+如果目标范围没有 fresh coverage，先同步明确范围。cwd/root 用快捷方式，日期窗再用 selector：
 
 ```bash
-"${CXS_BIN:-cxs}" status --selector '{"kind":"cwd","root":"/Users/me/.codex/sessions","cwd":"/Users/me/work/foo"}' --json
-"${CXS_BIN:-cxs}" sync --selector '{"kind":"cwd","root":"/Users/me/.codex/sessions","cwd":"/Users/me/work/foo"}'
+"${CXS_BIN:-cxs}" status --cwd /Users/me/work/foo --json
+"${CXS_BIN:-cxs}" sync --cwd /Users/me/work/foo
 ```
 
 如果 `status --selector` 返回 `recommendedAction: "query"`，跳过 `sync`。
@@ -36,7 +36,7 @@
 ## Sync non-zero with per-file errors
 
 ```bash
-"${CXS_BIN:-cxs}" sync --selector '{"kind":"all","root":"/Users/me/.codex/sessions"}' --json 2>&1
+"${CXS_BIN:-cxs}" sync --root /Users/me/.codex/sessions --json 2>&1
 ```
 
 处理规则：
@@ -47,7 +47,7 @@
 
 ## index_unavailable
 
-`find` / `read-range` / `read-page` / `list` / `stats` 都读 cxs 自己的 SQLite 索引。第一次安装后还没跑过 `sync --selector` 时，这些命令会在 `--json` 模式下返回:
+`find` / `read-range` / `read-page` / `list` / `stats` 都读 cxs 自己的 SQLite 索引。第一次安装后还没跑过 `sync --root` / `sync --cwd` / `sync --selector` 时，这些命令会在 `--json` 模式下返回:
 
 ```json
 {
@@ -64,10 +64,10 @@
 
 ```bash
 "${CXS_BIN:-cxs}" status --json
-"${CXS_BIN:-cxs}" sync --selector '{"kind":"all","root":"/Users/me/.codex/sessions"}'
+"${CXS_BIN:-cxs}" sync --root /Users/me/.codex/sessions
 ```
 
-没有单独 `init` 命令；`sync --selector` 会创建并更新索引。
+没有单独 `init` 命令；`sync --root` / `sync --cwd` / `sync --selector` 会创建并更新索引。
 
 ## Database is locked or SQLITE_BUSY
 
@@ -77,13 +77,13 @@
 
 ## Current project discussion query
 
-用户问“最近本项目讨论了什么”时，默认先用当前 repo 绝对路径构造 cwd selector：
+用户问“最近本项目讨论了什么”时，默认先用当前 repo 绝对路径走 cwd shortcut：
 
 ```bash
 "${CXS_BIN:-cxs}" status --json
-"${CXS_BIN:-cxs}" status --selector '{"kind":"cwd","root":"/Users/me/.codex/sessions","cwd":"/absolute/path/to/current/repo"}' --json
-"${CXS_BIN:-cxs}" sync --selector '{"kind":"cwd","root":"/Users/me/.codex/sessions","cwd":"/absolute/path/to/current/repo"}' --json
-"${CXS_BIN:-cxs}" list --selector '{"kind":"cwd","root":"/Users/me/.codex/sessions","cwd":"/absolute/path/to/current/repo"}' --sort ended -n 8 --json
+"${CXS_BIN:-cxs}" status --cwd /absolute/path/to/current/repo --json
+"${CXS_BIN:-cxs}" sync --cwd /absolute/path/to/current/repo --json
+"${CXS_BIN:-cxs}" list --selector '{"kind":"cwd","cwd":"/absolute/path/to/current/repo"}' --sort ended -n 8 --json
 ```
 
 如果 `status --selector` 返回 `recommendedAction: "query"`，跳过 `sync`。
@@ -100,9 +100,10 @@
 用户问“最新一次 X / 最近哪个 session 提到 X”时:
 
 ```bash
-"${CXS_BIN:-cxs}" status --selector '{"kind":"cwd","root":"/Users/me/.codex/sessions","cwd":"/absolute/path/to/current/repo"}' --json
+"${CXS_BIN:-cxs}" status --cwd /absolute/path/to/current/repo --json
 # recommendedAction 为 "sync" 时才同步
-"${CXS_BIN:-cxs}" find "X" --selector '{"kind":"cwd","root":"/Users/me/.codex/sessions","cwd":"/absolute/path/to/current/repo"}' --sort ended --exclude-session <current_session_uuid> --json -n 5
+"${CXS_BIN:-cxs}" sync --cwd /absolute/path/to/current/repo --json
+"${CXS_BIN:-cxs}" find "X" --cwd /absolute/path/to/current/repo --sort ended --exclude-session <current_session_uuid> --json -n 5
 ```
 
 不要直接用默认 `find "X"` 下“最新”结论；默认排序是 relevance。

@@ -4,7 +4,7 @@
 
 `cxs` 是一个面向本机 Codex session 日志的渐进式检索 CLI，当前架构是：
 
-`status -> sync --selector -> message/session recall -> session heuristic rerank -> read-range/read-page`
+`status -> sync --root/--cwd/--selector -> message/session recall -> session heuristic rerank -> read-range/read-page`
 
 它已经可用，但仍是轻量 retrieval 后端，不是完整的 resource-level retrieval 系统。
 
@@ -105,7 +105,7 @@ SQLite 访问层当前已经按 reader / writer 分流：
 - `reasoning_summary_text` 解析 `response_item.reasoning.summary`
 - `sessions_fts(title + summary_text + compact_text + reasoning_summary_text)` session-level recall
 - strict / best-effort 两种 sync 语义
-- explicit selector sync
+- explicit sync scope (`--root` / `--cwd` / `--selector`, canonicalized to selector)
 - source inventory
 - complete coverage 记录
 - manual eval 导出
