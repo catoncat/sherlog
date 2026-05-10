@@ -193,19 +193,16 @@ function fingerprintFiles(root: string, files: SourceFileMeta[]): string {
   const resolvedRoot = resolve(root);
   hash.update(resolvedRoot);
 
-  // OPTIMIZATION: Use string slicing instead of `relative()` for building the fingerprint.
-  // We already know all files are under `resolvedRoot`. Computing `relative()`
-  // on every file involves heavy path parsing and normalization which dominates
-  // the CPU profile when fingerprinting tens or hundreds of thousands of files.
-  // Using a fast slice drops fingerprint generation time by ~65%.
+  // OPTIMIZATION: Avoid using `node:path`'s `relative()` function in a loop over large datasets.
+  // `files` come from collectSourceFiles(resolve(root)), so each filePath is already
+  // an absolute path under resolvedRoot. Pre-calculate the root prefix once and
+  // extract relative paths with String.prototype.slice().
   const rootPrefix = resolvedRoot.endsWith(sep) ? resolvedRoot : `${resolvedRoot}${sep}`;
-  const prefixLength = rootPrefix.length;
+  const rootPrefixLen = rootPrefix.length;
 
   for (const file of files) {
     hash.update("\0");
-    // `file.filePath` is already an absolute path under the resolved root since
-    // it was collected via `collectSourceFiles` starting from `resolve(root)`.
-    hash.update(file.filePath.slice(prefixLength));
+    hash.update(file.filePath.slice(rootPrefixLen));
     hash.update("\0");
     hash.update(String(file.mtimeMs));
     hash.update("\0");

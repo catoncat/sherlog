@@ -1,6 +1,7 @@
 import { Command } from "commander";
 import packageJson from "../package.json" with { type: "json" };
 import {
+  DEFAULT_CODEX_DIR,
   DEFAULT_DB_PATH,
   migrateLegacyCacheDirIfNeeded,
 } from "./env";
@@ -27,7 +28,7 @@ import {
   getMessageRange,
   listSessionSummaries,
 } from "./query";
-import { parseSelectorJson, SelectorParseError } from "./selector";
+import { canonicalizeSelector, parseSelectorJson, SelectorParseError } from "./selector";
 import { collectStatus } from "./status";
 import { SyncLockTimeoutError } from "./sync-lock";
 import type { FindSort, Selector, SessionListSort } from "./types";
@@ -42,13 +43,14 @@ program
 program
   .command("status")
   .description("返回执行上下文、source inventory、index 与 coverage 状态")
-  .option("--root <dir>", "覆盖默认 sessions 根目录")
+  .option("--root <dir>", "覆盖默认 sessions 根目录，也作为 selector 默认 root")
   .option("--selector <json>", "检查指定 selector 的 coverage/freshness（只读，不同步）")
+  .option("--cwd <path>", "检查指定 cwd selector 的 coverage/freshness")
   .option("--db <path>", "覆盖默认数据库路径", DEFAULT_DB_PATH)
   .option("--json", "输出 JSON")
   .action(async (options) => {
     try {
-      const selector = optionalSelector(options.selector);
+      const selector = optionalSelector(options);
       const status = await collectStatus({ rootDir: options.root, dbPath: options.db, cwd: process.cwd(), selector: selector ?? undefined });
       if (options.json) {
         console.log(JSON.stringify(status, null, 2));
@@ -67,13 +69,15 @@ program
 program
   .command("sync")
   .description("扫描并同步本地 Codex sessions 到 SQLite 索引")
+  .option("--root <dir>", "同步指定 sessions 根目录；也作为 selector 默认 root")
   .option("--selector <json>", "结构化同步范围 JSON")
+  .option("--cwd <path>", "同步指定 cwd selector")
   .option("--db <path>", "覆盖默认数据库路径", DEFAULT_DB_PATH)
   .option("--best-effort", "即使部分文件失败也继续写入可成功部分")
   .option("--json", "输出 JSON")
   .action(async (options) => {
     try {
-      const selector = requireSelector(options.selector);
+      const selector = requireSelector(options);
       const summary = await syncSessions({
         dbPath: options.db,
         selector,
@@ -115,7 +119,9 @@ program
   .command("find <query>")
   .description("搜索相关 session，返回最小必要命中")
   .option("-n, --limit <n>", "返回条数", "10")
+  .option("--root <dir>", "限定到指定 sessions 根目录；也作为 selector 默认 root")
   .option("--selector <json>", "结构化查询范围 JSON")
+  .option("--cwd <path>", "限定到指定 cwd selector")
   .option("--sort <key>", "排序键：relevance|ended|started", "relevance")
   .option("--exclude-session <uuid>", "排除指定 session_uuid；可重复", collectValues, [])
   .option("--db <path>", "覆盖默认数据库路径", DEFAULT_DB_PATH)
@@ -123,7 +129,7 @@ program
   .action((query, options) => {
     runReadCommand(Boolean(options.json), () => {
       const limit = parsePositiveInt(options.limit, 10);
-      const selector = optionalSelector(options.selector);
+      const selector = optionalSelector({ ...options, rootOnlySelector: true });
       const sort = normalizeFindSort(options.sort);
       const result = findSessions(options.db, query, limit, selector, {
         sort,
@@ -203,6 +209,7 @@ program
   .description("列出已索引的 session（不做全文检索）")
   .option("--cwd <needle>", "cwd 子串过滤（大小写不敏感）")
   .option("--since <iso>", "只看 ended_at >= 指定时间的 session")
+  .option("--root <dir>", "限定到指定 sessions 根目录；也作为 selector 默认 root")
   .option("--selector <json>", "结构化查询范围 JSON")
   .option("--sort <key>", "排序键：ended|started|messages", "ended")
   .option("-n, --limit <n>", "返回条数", "20")
@@ -211,7 +218,7 @@ program
   .action((options) => {
     runReadCommand(Boolean(options.json), () => {
       const sort = normalizeListSort(options.sort);
-      const selector = optionalSelector(options.selector);
+      const selector = optionalSelector({ selector: options.selector, root: options.root, rootOnlySelector: true });
       const result = listSessionSummaries(options.db, {
         cwd: options.cwd,
         since: options.since,
@@ -330,13 +337,26 @@ function emitSelectorError(error: SelectorParseError, jsonMode: boolean): void {
   process.exitCode = 1;
 }
 
-function requireSelector(value: string | undefined): Selector {
-  if (!value) {
-    throw new SelectorParseError("sync requires --selector with an explicit selector JSON object");
+function requireSelector(options: { selector?: string; root?: string; cwd?: string }): Selector {
+  const selector = optionalSelector({
+    selector: options.selector,
+    root: options.root,
+    cwd: options.cwd,
+    rootOnlySelector: true,
+  });
+  if (!selector) {
+    throw new SelectorParseError("sync requires --selector, --cwd, or --root with an explicit scope");
   }
-  return parseSelectorJson(value);
+  return selector;
 }
 
-function optionalSelector(value: string | undefined): Selector | null {
-  return value ? parseSelectorJson(value) : null;
+function optionalSelector(options: { selector?: string; root?: string; cwd?: string; rootOnlySelector?: boolean }): Selector | null {
+  if (options.selector && options.cwd) {
+    throw new SelectorParseError("--selector and --cwd cannot be combined");
+  }
+  const root = options.root ?? DEFAULT_CODEX_DIR;
+  if (options.selector) return parseSelectorJson(options.selector, { defaultRoot: root });
+  if (options.cwd) return canonicalizeSelector({ kind: "cwd", root, cwd: options.cwd });
+  if (options.rootOnlySelector && options.root) return canonicalizeSelector({ kind: "all", root });
+  return null;
 }

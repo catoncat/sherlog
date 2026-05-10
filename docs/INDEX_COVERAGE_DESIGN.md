@@ -40,7 +40,7 @@ cxs index 是唯一可用于回答内容问题的真相源。
 
 CLI 面向 agent 输出 facts，不输出解释性标签。
 
-禁止使用需要自然语言解释的 shortcut selector 或 shortcut status。
+禁止使用需要自然语言解释的 shortcut selector 或 shortcut status。CLI 可以提供确定性的 `--cwd` / `--root` shorthand，但它们必须在进入 coverage/index 流程前还原为明确 selector。
 
 所有状态必须能还原为明确 selector。
 
@@ -187,8 +187,8 @@ Coverage 可以蕴含更窄 selector。
 
 约束：
 
-- selector 必须显式
-- 无 selector 是错误
+- 同步范围必须显式；`--cwd` / `--root` 只是确定性 shorthand，进入实现前必须 canonicalize 成 selector
+- 无 selector/scope 是错误
 - 严格成功才写 complete coverage
 - strict sync 必须把 selector 范围内的 index 收敛成当前 source snapshot 的投影；source 中已不存在、已被过滤或已不再可解析成 session 的旧 row 必须在写 coverage 前删除
 - best-effort 不能产生 complete coverage
@@ -246,7 +246,7 @@ agent 使用 cxs 的标准流程：
 
 ```text
 status
-select sync selector
+select sync scope (canonical selector)
 sync
 find or list
 read-range or read-page

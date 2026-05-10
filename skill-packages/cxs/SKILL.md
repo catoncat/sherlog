@@ -37,9 +37,9 @@ npx skills add catoncat/cxs --full-depth --skill cxs -g -a codex -y
 | --- | --- | --- |
 | 用户问"之前 / 上次 / 我记得 / 我们讨论过" | `cxs status --json` | 先拿 source inventory 和 coverage |
 | 用户问"本机/这台 Mac 配过什么"、"有哪些服务器/VPS/节点/服务配置" | 先 `cxs status --json`,再用关键词 `服务器 VPS 节点 服务 域名 provider ssh sing-box launchd Cloudflare` 组合查 | 这类是本机配置考古,答案常在旧 Codex session 而不是当前 memory |
-| 用户问"本项目最近的对话" | 构造 `{"kind":"cwd",...}` selector 后先查 coverage,再 `list --sort ended` | 内容只从 cxs index 出来 |
-| 用户问"最新/最近 + 关键词" | 先确保 selector coverage,再 `find <query> --sort ended` | `find` 默认是相关性排序,不是时间排序 |
-| 用户给项目名 / cwd / 时间窗 | 显式构造 selector | cwd/date selector 比全文搜更稳 |
+| 用户问"本项目最近的对话" | `status --cwd <abs_cwd>` 查 coverage;必要时 `sync --cwd <abs_cwd>`;再 `list --selector '{"kind":"cwd","cwd":"<abs_cwd>"}' --sort ended` | 内容只从 cxs index 出来；selector JSON 不必手写 root |
+| 用户问"最新/最近 + 关键词" | 先确保 cwd/root coverage,再 `find <query> --cwd <abs_cwd> --sort ended` | `find` 默认是相关性排序,不是时间排序 |
+| 用户给项目名 / cwd / 时间窗 | cwd/root 用 `--cwd` / `--root` 快捷方式；日期窗才写 selector JSON | cwd/date selector 比全文搜更稳 |
 | 已锁定某 session,需要局部上下文 | `cxs read-range --seq` 或 `--query` | 局部扩窗,不冷启 `read-page` |
 
 **反例**(应该用别的工具):
@@ -54,12 +54,12 @@ npx skills add catoncat/cxs --full-depth --skill cxs -g -a codex -y
 ## 工作流心法
 
 - **status → ensure coverage → find/list → read-range → read-page**:先确定覆盖边界，再回答内容问题
-- `sync` 只是写入/更新 SQLite index 和 coverage;查找本身不需要 sync。只有目标 selector 的 coverage 缺失或 stale 时才 `sync --selector`
-- 用 `status --selector '<json>' --json` 检查目标范围；`requestedCoverage.recommendedAction === "query"` 时直接查，`"sync"` 时才同步
+- `sync` 只是写入/更新 SQLite index 和 coverage;查找本身不需要 sync。只有目标范围 coverage 缺失或 stale 时才 `sync --cwd <path>` / `sync --root <dir>` / `sync --selector`
+- 用 `status --cwd <path> --json` 或 `status --selector '<json>' --json` 检查目标范围；`requestedCoverage.recommendedAction === "query"` 时直接查，`"sync"` 时才同步
 - `stats.sessionCount` 很多不等于目标范围有 v6 complete coverage；fresh `{"kind":"all",...}` coverage 可以覆盖 cwd/date 子 selector
-- "最新/最近 + 关键词"不要直接把默认 `find` 结果当最新；用 `find <query> --selector ... --sort ended`，必要时 `--exclude-session <current_uuid>` 排除当前会话/self-hit
+- "最新/最近 + 关键词"不要直接把默认 `find` 结果当最新；用 `find <query> --cwd <path> --sort ended` 或 `find <query> --root <dir> --sort ended`，必要时 `--exclude-session <current_uuid>` 排除当前会话/self-hit
 - `matchSource = "session"` 时 `matchSeq = null`;这种命中先 `read-page` 抽样,**不要伪造 `read-range --seq`**
-- 用户给 cwd 但不确定 sync 状态 → `status --json`;根据 source inventory 构造 cwd selector;再 `status --selector`;缺失/stale 才 `sync --selector`
+- 用户给 cwd 但不确定 sync 状态 → `status --json`;确认绝对 cwd 后跑 `status --cwd <path>`;缺失/stale 才 `sync --cwd <path>`
 - `cwd` 只是候选过滤,不是主题真相;还要再看 `title`、`summaryText`、开头几条 message
 - 同主题可能多个 uuid;按 `cwd / startedAt / matchCount` 选,不要按 title 脑补去重
 
@@ -73,7 +73,7 @@ npx skills add catoncat/cxs --full-depth --skill cxs -g -a codex -y
 
 - `good`: 找到的 session/cwd/时间/上下文能支撑答案。
 - `query-refine`: 第一条 query 不理想，但通过改关键词、selector、`--sort ended`、`--exclude-session` 等正常使用方式解决了。
-- `coverage-issue`: 问题来自索引缺失/stale 或 selector 没覆盖；应说明需要 `status --selector` / `sync --selector`，不要归因给排序。
+- `coverage-issue`: 问题来自索引缺失/stale 或 selector 没覆盖；应说明需要 `status --cwd` / `sync --cwd` / `sync --root` / `status --selector` / `sync --selector`，不要归因给排序。
 - `skill-guidance-issue`: cxs CLI 没错，是 agent 没按 skill 流程用，比如把默认 `find` 当最新、伪造 `read-range --seq`、跳过 selector。
 - `dogfood-candidate`: 仍有可复现的不符合预期，例如 recall miss、明显错排、上下文窗口不对、session hit/message hit 行为让 agent 难以稳定使用。
 
@@ -93,8 +93,8 @@ npx skills add catoncat/cxs --full-depth --skill cxs -g -a codex -y
 ## 前置
 
 - 先 `status --json` 看 `context / sourceInventory / coverage`
-- 先用 `status --selector '<json>' --json` 看目标 selector 的 `requestedCoverage`
-- 索引不存在、读命令返回 `index_unavailable`、或 `requestedCoverage.recommendedAction === "sync"` → `sync --selector '<json>'`
+- 先用 `status --cwd <path> --json` / `status --selector '<json>' --json` 看目标范围的 `requestedCoverage`
+- 索引不存在、读命令返回 `index_unavailable`、或 `requestedCoverage.recommendedAction === "sync"` → `sync --cwd <path>` / `sync --root <dir>` / `sync --selector '<json>'`
 - `sync` 默认严格模式;只有用户接受部分成功才加 `--best-effort`;best-effort 不写 complete coverage
 - 从别的 cwd 调用时,若默认 db 不对,显式传 `--db`
 
@@ -108,4 +108,4 @@ npx skills add catoncat/cxs --full-depth --skill cxs -g -a codex -y
 - [`references/failure-cookbook.md`](references/failure-cookbook.md) — 错误症状速查 / `--json` error shape 速查
 - [`references/advanced-queries.md`](references/advanced-queries.md) — query 语义 / CJK 行为 / snippet 高亮
 
-# skill-sync: distributable cxs skill package, coverage-first recent-query workflow, 2026-04-30
+# skill-sync: distributable cxs skill package, coverage-first recent-query workflow, 2026-05-10

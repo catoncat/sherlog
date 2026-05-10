@@ -60,13 +60,13 @@ cxs status --json
 Check coverage for a project:
 
 ```bash
-cxs status --selector '{"kind":"cwd","root":"/Users/you/.codex/sessions","cwd":"/Users/you/work/project"}' --json
+cxs status --cwd /Users/you/work/project --json
 ```
 
 If `requestedCoverage.recommendedAction` is `"sync"`, build or refresh coverage:
 
 ```bash
-cxs sync --selector '{"kind":"cwd","root":"/Users/you/.codex/sessions","cwd":"/Users/you/work/project"}'
+cxs sync --cwd /Users/you/work/project
 ```
 
 Replace the example paths with your own absolute paths.
@@ -82,8 +82,8 @@ cxs read-page <sessionUuid> --offset 0 --limit 20
 You can run the same flow without global installation:
 
 ```bash
-npx @act0r/cxs@latest sync --selector '{"kind":"all","root":"/Users/you/.codex/sessions"}'
-npx @act0r/cxs@latest find "health check"
+npx @act0r/cxs@latest sync --root /Users/you/.codex/sessions
+npx @act0r/cxs@latest find "health check" --root /Users/you/.codex/sessions
 ```
 
 ## Commands
@@ -91,8 +91,8 @@ npx @act0r/cxs@latest find "health check"
 | Command | Purpose |
 | --- | --- |
 | `cxs status` | Show execution context, source inventory, index state, and coverage. `--selector` checks whether a target range is fresh. Does not write the index. |
-| `cxs sync --selector <json>` | Scan selected Codex sessions and update the SQLite index. This is the only write command. |
-| `cxs find <query>` | Search indexed sessions and return ranked session candidates with minimal snippets. Use `--sort ended` for "latest + keyword" queries. |
+| `cxs sync --root <dir>\|--cwd <path>\|--selector <json>` | Scan selected Codex sessions and update the SQLite index. This is the only write command. |
+| `cxs find <query>` | Search indexed sessions and return ranked session candidates with minimal snippets. Use `--root`, `--cwd`, and `--sort ended` for scoped "latest + keyword" queries. |
 | `cxs read-range <sessionUuid>` | Read a small message window around a matched sequence or in-session query. |
 | `cxs read-page <sessionUuid>` | Read a session page by offset and limit. |
 | `cxs list` | List indexed sessions without full-text search. |
@@ -103,8 +103,19 @@ cleanly if the index has not been created yet.
 
 ## Selectors
 
-`sync` requires an explicit selector. Query commands can also accept selectors to
-constrain already-indexed results.
+`sync` requires an explicit scope, but it no longer requires handwritten
+`root` inside selector JSON. Prefer these CLI shortcuts:
+
+```bash
+cxs sync --root /Users/you/.codex/sessions
+cxs sync --cwd /Users/you/work/project
+cxs find "health check" --cwd /Users/you/work/project --sort ended
+cxs list --root /Users/you/.codex/sessions --sort ended -n 10
+```
+
+Use full selector JSON for date ranges or advanced scopes. If you pass
+`--root`, the selector JSON may omit `root`; without `--root`, cxs uses the
+default Codex sessions root.
 
 ```text
 {"kind":"all","root":"/Users/you/.codex/sessions"}
@@ -117,12 +128,13 @@ Example list query scoped to one project:
 
 ```bash
 cxs list --selector '{"kind":"cwd","root":"/Users/you/.codex/sessions","cwd":"/Users/you/work/project"}' --sort ended -n 10
+cxs list --selector '{"kind":"cwd","cwd":"/Users/you/work/project"}' --sort ended -n 10
 ```
 
 Example latest keyword query, excluding the current self-hit:
 
 ```bash
-cxs find "xsearch" --selector '{"kind":"cwd","root":"/Users/you/.codex/sessions","cwd":"/Users/you/work/project"}' --sort ended --exclude-session <current_session_uuid> -n 5 --json
+cxs find "xsearch" --cwd /Users/you/work/project --sort ended --exclude-session <current_session_uuid> -n 5 --json
 ```
 
 `find` defaults to relevance sorting. Do not treat default `find` order as time
@@ -151,13 +163,14 @@ before complete coverage is written.
 Pass `--best-effort` only when you explicitly want successful files written
 despite failures; best-effort sync does not record complete coverage.
 
-`sync` is not required before every query. Use `status --selector` to check
-coverage first. A fresh `{"kind":"all", ...}` coverage record covers narrower
+`sync` is not required before every query. Use `status --cwd` or
+`status --selector` to check coverage first. A fresh `{"kind":"all", ...}`
+coverage record covers narrower
 selectors under the same root; a high `stats.sessionCount` only means rows exist
 and is not itself a freshness proof.
 
 Indexes created before `cxs-v6-selector-provenance` should be refreshed with
-`sync --selector` so date selectors and read coverage use the current
+`sync --root`, `sync --cwd`, or `sync --selector` so date selectors and read coverage use the current
 `path_date` and source-root provenance fields.
 
 Older `cxs <= 0.2.0` indexes stored under `~/.cache/cxs/` are migrated

@@ -106,6 +106,43 @@ describe("cxs cli", () => {
     expect(payload.requestedCoverage.sourceFileCount).toBe(1);
   });
 
+  test("status --cwd builds a cwd selector with --root", async () => {
+    const base = mkdtempSync(join(tmpdir(), "cxs-cli-status-cwd-shortcut-"));
+    tempDirs.push(base);
+    const root = join(base, "sessions");
+    const sessionsRoot = join(root, "2026", "04", "20");
+    mkdirSync(sessionsRoot, { recursive: true });
+    writeFileSync(
+      join(sessionsRoot, "rollout-2026-04-20T10-00-00-10101010-2020-4010-8010-101010101010.jsonl"),
+      [
+        line("session_meta", { id: "10101010-2020-4010-8010-101010101010", cwd: "/tmp/status-cwd-shortcut" }),
+        line("event_msg", { type: "user_message", message: "status cwd shortcut" }),
+      ].join("\n"),
+    );
+
+    const result = await runCli([
+      "status",
+      "--root",
+      root,
+      "--cwd",
+      "/tmp/status-cwd-shortcut",
+      "--db",
+      join(base, "missing.sqlite"),
+      "--json",
+    ]);
+
+    expect(result.exitCode).toBe(0);
+    const payload = JSON.parse(result.stdout) as {
+      requestedCoverage: { requested: { kind: string; root: string; cwd?: string }; sourceFileCount: number };
+    };
+    expect(payload.requestedCoverage.requested).toMatchObject({
+      kind: "cwd",
+      root,
+      cwd: "/tmp/status-cwd-shortcut",
+    });
+    expect(payload.requestedCoverage.sourceFileCount).toBe(1);
+  });
+
   test("sync requires an explicit selector", async () => {
     const base = mkdtempSync(join(tmpdir(), "cxs-cli-sync-selector-required-"));
     tempDirs.push(base);
@@ -157,6 +194,134 @@ describe("cxs cli", () => {
     expect(findPayload.coverage.complete).toBe(true);
     expect(findPayload.coverage.freshness).toBe("not_checked");
     expect(findPayload.results.map((result) => result.cwd)).toEqual(["/tmp/alpha"]);
+  });
+
+  test("sync and find support --cwd/--root without handwritten selector JSON", async () => {
+    const base = mkdtempSync(join(tmpdir(), "cxs-cli-cwd-shortcut-"));
+    tempDirs.push(base);
+    const root = join(base, "sessions");
+    const day = join(root, "2026", "04", "21");
+    mkdirSync(day, { recursive: true });
+    writeFileSync(
+      join(day, "rollout-2026-04-21T10-00-00-22222222-aaaa-4222-8222-222222222222.jsonl"),
+      [
+        line("session_meta", { id: "22222222-aaaa-4222-8222-222222222222", cwd: "/tmp/shortcut-alpha" }),
+        line("event_msg", { type: "user_message", message: "shortcut needle alpha" }),
+      ].join("\n"),
+    );
+    writeFileSync(
+      join(day, "rollout-2026-04-21T11-00-00-33333333-bbbb-4333-8333-333333333333.jsonl"),
+      [
+        line("session_meta", { id: "33333333-bbbb-4333-8333-333333333333", cwd: "/tmp/shortcut-beta" }),
+        line("event_msg", { type: "user_message", message: "shortcut needle beta" }),
+      ].join("\n"),
+    );
+
+    const dbPath = join(base, "index.sqlite");
+    const synced = await runCli(["sync", "--root", root, "--cwd", "/tmp/shortcut-alpha", "--db", dbPath, "--json"]);
+    expect(synced.exitCode).toBe(0);
+    const syncPayload = JSON.parse(synced.stdout) as { coverage: { selector: { kind: string; root: string; cwd?: string } } };
+    expect(syncPayload.coverage.selector).toMatchObject({ kind: "cwd", root, cwd: "/tmp/shortcut-alpha" });
+
+    const found = await runCli(["find", "shortcut needle", "--root", root, "--cwd", "/tmp/shortcut-alpha", "--db", dbPath, "--json"]);
+    expect(found.exitCode).toBe(0);
+    const findPayload = JSON.parse(found.stdout) as { results: Array<{ cwd: string }> };
+    expect(findPayload.results.map((result) => result.cwd)).toEqual(["/tmp/shortcut-alpha"]);
+  });
+
+  test("sync find and list support --root as an all-root selector shortcut", async () => {
+    const base = mkdtempSync(join(tmpdir(), "cxs-cli-root-shortcut-"));
+    tempDirs.push(base);
+    const rootA = join(base, "sessions-a");
+    const rootB = join(base, "sessions-b");
+    const dayA = join(rootA, "2026", "04", "21");
+    const dayB = join(rootB, "2026", "04", "21");
+    mkdirSync(dayA, { recursive: true });
+    mkdirSync(dayB, { recursive: true });
+    writeFileSync(
+      join(dayA, "rollout-2026-04-21T10-00-00-aaaaaaaa-1111-4aaa-8aaa-aaaaaaaaaaaa.jsonl"),
+      [
+        line("session_meta", { id: "aaaaaaaa-1111-4aaa-8aaa-aaaaaaaaaaaa", cwd: "/tmp/root-shortcut-alpha" }),
+        line("event_msg", { type: "user_message", message: "root shortcut shared needle alpha" }),
+      ].join("\n"),
+    );
+    writeFileSync(
+      join(dayB, "rollout-2026-04-21T11-00-00-bbbbbbbb-2222-4bbb-8bbb-bbbbbbbbbbbb.jsonl"),
+      [
+        line("session_meta", { id: "bbbbbbbb-2222-4bbb-8bbb-bbbbbbbbbbbb", cwd: "/tmp/root-shortcut-beta" }),
+        line("event_msg", { type: "user_message", message: "root shortcut shared needle beta" }),
+      ].join("\n"),
+    );
+
+    const dbPath = join(base, "index.sqlite");
+    const syncA = await runCli(["sync", "--root", rootA, "--db", dbPath, "--json"]);
+    expect(syncA.exitCode).toBe(0);
+    const syncPayload = JSON.parse(syncA.stdout) as { coverage: { selector: { kind: string; root: string } } };
+    expect(syncPayload.coverage.selector).toEqual({ kind: "all", root: rootA });
+
+    const syncB = await runCli(["sync", "--root", rootB, "--db", dbPath, "--json"]);
+    expect(syncB.exitCode).toBe(0);
+
+    const found = await runCli(["find", "root shortcut shared needle", "--root", rootB, "--db", dbPath, "--json"]);
+    expect(found.exitCode).toBe(0);
+    const findPayload = JSON.parse(found.stdout) as { results: Array<{ sessionUuid: string }> };
+    expect(findPayload.results.map((result) => result.sessionUuid)).toEqual(["bbbbbbbb-2222-4bbb-8bbb-bbbbbbbbbbbb"]);
+
+    const listed = await runCli(["list", "--root", rootB, "--db", dbPath, "--json"]);
+    expect(listed.exitCode).toBe(0);
+    const listPayload = JSON.parse(listed.stdout) as { results: Array<{ sessionUuid: string }> };
+    expect(listPayload.results.map((result) => result.sessionUuid)).toEqual(["bbbbbbbb-2222-4bbb-8bbb-bbbbbbbbbbbb"]);
+  });
+
+  test("selector JSON can omit root when --root is provided", async () => {
+    const base = mkdtempSync(join(tmpdir(), "cxs-cli-selector-default-root-"));
+    tempDirs.push(base);
+    const root = join(base, "sessions");
+    const day = join(root, "2026", "04", "21");
+    mkdirSync(day, { recursive: true });
+    writeFileSync(
+      join(day, "rollout-2026-04-21T10-00-00-44444444-aaaa-4444-8444-444444444444.jsonl"),
+      [
+        line("session_meta", { id: "44444444-aaaa-4444-8444-444444444444", cwd: "/tmp/selector-default-root" }),
+        line("event_msg", { type: "user_message", message: "default root needle" }),
+      ].join("\n"),
+    );
+
+    const dbPath = join(base, "index.sqlite");
+    const selectorWithoutRoot = JSON.stringify({ kind: "cwd", cwd: "/tmp/selector-default-root" });
+    const synced = await runCli(["sync", "--root", root, "--selector", selectorWithoutRoot, "--db", dbPath, "--json"]);
+    expect(synced.exitCode).toBe(0);
+
+    const found = await runCli(["find", "default root needle", "--root", root, "--selector", selectorWithoutRoot, "--db", dbPath, "--json"]);
+    expect(found.exitCode).toBe(0);
+    const payload = JSON.parse(found.stdout) as {
+      results: Array<{ sessionUuid: string }>;
+      coverage: { complete: boolean; coveringSelectors: Array<{ selector: { root: string } }> };
+    };
+    expect(payload.results[0]?.sessionUuid).toBe("44444444-aaaa-4444-8444-444444444444");
+    expect(payload.coverage.complete).toBe(true);
+    expect(payload.coverage.coveringSelectors[0]?.selector.root).toBe(root);
+  });
+
+  test("find rejects combining --selector and --cwd", async () => {
+    const base = mkdtempSync(join(tmpdir(), "cxs-cli-selector-cwd-conflict-"));
+    tempDirs.push(base);
+    const result = await runCli([
+      "find",
+      "needle",
+      "--selector",
+      JSON.stringify({ kind: "all", root: join(base, "sessions") }),
+      "--cwd",
+      "/tmp/project",
+      "--db",
+      join(base, "index.sqlite"),
+      "--json",
+    ]);
+
+    expect(result.exitCode).toBe(1);
+    const payload = JSON.parse(result.stdout) as { error: { code: string; message: string } };
+    expect(payload.error.code).toBe("invalid_selector");
+    expect(payload.error.message).toContain("cannot be combined");
   });
 
   test("status marks coverage stale when selected source files change", async () => {
