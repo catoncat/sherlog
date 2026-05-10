@@ -9,6 +9,14 @@ describe("selector", () => {
     });
   });
 
+  test("can fill a missing selector root from caller defaults", () => {
+    expect(canonicalizeSelector({ kind: "cwd", cwd: "/tmp/project" }, { defaultRoot: "/tmp/../tmp/cxs-root" })).toEqual({
+      kind: "cwd",
+      root: "/tmp/cxs-root",
+      cwd: "/tmp/project",
+    });
+  });
+
   test("rejects date ranges with fromDate after toDate", () => {
     expect(() =>
       canonicalizeSelector({

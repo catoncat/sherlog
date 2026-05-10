@@ -3,14 +3,18 @@ import type { Selector } from "./types";
 
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 
-export function parseSelectorJson(value: string): Selector {
+export interface SelectorDefaults {
+  defaultRoot?: string;
+}
+
+export function parseSelectorJson(value: string, defaults: SelectorDefaults = {}): Selector {
   let raw: unknown;
   try {
     raw = JSON.parse(value) as unknown;
   } catch (error) {
     throw new SelectorParseError(`invalid selector JSON: ${describeError(error)}`);
   }
-  return canonicalizeSelector(raw);
+  return canonicalizeSelector(raw, defaults);
 }
 
 export class SelectorParseError extends Error {
@@ -20,10 +24,10 @@ export class SelectorParseError extends Error {
   }
 }
 
-export function canonicalizeSelector(value: unknown): Selector {
+export function canonicalizeSelector(value: unknown, defaults: SelectorDefaults = {}): Selector {
   if (!isRecord(value)) throw new SelectorParseError("selector must be an object");
   const kind = value.kind;
-  const root = requireString(value.root, "root");
+  const root = requireString(value.root ?? defaults.defaultRoot, "root");
   const base = { root: resolve(root) };
 
   if (kind === "all") {
