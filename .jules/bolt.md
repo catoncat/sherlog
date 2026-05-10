@@ -36,3 +36,7 @@
 ## 2025-02-18 - Avoid path.relative() in tight loops over absolute paths
 **Learning:** Found that using `node:path.relative()` inside a loop over thousands of absolute paths (`fingerprintFiles`) adds significant computational overhead because it performs deep path normalization and splitting on every call. In this code path, source files are collected under the resolved root, so every fingerprinted path is already an absolute path with the same prefix.
 **Action:** Pre-calculate the root prefix (with a trailing separator) and use `String.prototype.slice()` for an O(1) substring extraction instead of calling `path.relative()` for each file.
+
+## 2024-05-10 - String replacement vs direct indexing
+**Learning:** Using `replace(/\r\n/g, "\n").trim()` in hot paths (like checking prefixes in thousands of strings) allocates many objects and takes ~1.5x longer than single `trim()` and character index checks in Node.js.
+**Action:** Avoid full-string regex replacements just to normalize line endings for prefix checks. Use `startsWith` followed by explicit length/boundary checks.
