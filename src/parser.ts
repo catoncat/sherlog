@@ -218,10 +218,17 @@ function normalizeSummaryText(text: string): string {
 }
 
 function looksInternal(text: string): boolean {
-  const normalized = text.replace(/\r\n/g, "\n").trim();
-  return INTERNAL_MARKERS.some((marker) =>
-    normalized === marker || normalized.startsWith(`${marker}\n`)
-  );
+  // OPTIMIZATION: Avoid expensive regex replace operations for string cleanup.
+  // The input text is already trimmed. We use startsWith and direct index
+  // checks to prevent unnecessary memory allocations from replace().
+  for (const marker of INTERNAL_MARKERS) {
+    if (text.startsWith(marker)) {
+      if (text.length === marker.length) return true;
+      const nextChar = text[marker.length];
+      if (nextChar === "\n" || nextChar === "\r") return true;
+    }
+  }
+  return false;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
