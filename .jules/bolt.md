@@ -36,3 +36,6 @@
 ## 2025-02-18 - Avoid path.relative() in tight loops over absolute paths
 **Learning:** Found that using `node:path.relative()` inside a loop over thousands of absolute paths (`fingerprintFiles`) adds significant computational overhead because it performs deep path normalization and splitting on every call. In this code path, source files are collected under the resolved root, so every fingerprinted path is already an absolute path with the same prefix.
 **Action:** Pre-calculate the root prefix (with a trailing separator) and use `String.prototype.slice()` for an O(1) substring extraction instead of calling `path.relative()` for each file.
+## 2025-05-19 - Avoid expensive regex string replace operations in hot loops
+**Learning:** Using a regular expression replace like `.replace(/\r\n/g, "\n")` on large blocks of text during file parsing creates intermediate string allocations and uses heavy regex machinery, slowing down parsing operations. The `looksInternal` function was heavily affected because it checked every single parsed line this way.
+**Action:** Replace full string normalization regex operations with a fast `trim()` and loop-based `startsWith()` or direct character indexing that targets the exact line-endings (`\n` and `\r\n`), reducing computational load and string allocations.
