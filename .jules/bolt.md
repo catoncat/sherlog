@@ -36,3 +36,7 @@
 ## 2025-02-18 - Avoid path.relative() in tight loops over absolute paths
 **Learning:** Found that using `node:path.relative()` inside a loop over thousands of absolute paths (`fingerprintFiles`) adds significant computational overhead because it performs deep path normalization and splitting on every call. In this code path, source files are collected under the resolved root, so every fingerprinted path is already an absolute path with the same prefix.
 **Action:** Pre-calculate the root prefix (with a trailing separator) and use `String.prototype.slice()` for an O(1) substring extraction instead of calling `path.relative()` for each file.
+
+## 2023-10-27 - Avoid regex replacement string allocation overhead for prefix scanning
+**Learning:** Found that using `text.replace(/\r\n/g, "\n").trim()` before matching `startsWith` and exact matches of `INTERNAL_MARKERS` inside `looksInternal` causes expensive string allocations spanning the entirety of the text to be processed, which occurs inside a hot-loop traversing every session file line.
+**Action:** Replace full-string regex replacements for prefix matching with `trim()` and use index checking to confirm prefix boundary conditions (e.g. `trimmed.length === marker.length` and `trimmed[marker.length] === "\n"`), avoiding scanning past the marker length and bypassing new string allocations for large payloads.
