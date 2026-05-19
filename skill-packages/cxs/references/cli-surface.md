@@ -12,7 +12,9 @@
 export CXS_BIN=/absolute/path/to/bin/cxs
 ```
 
-没有单独的 `init` 命令。首次安装后先跑 `status --json`，根据返回的 `context.root`、`sourceInventory.cwdGroups` 和问题范围选择 `--cwd` / `--root` / selector；再用 `status --cwd <path> --json` 或 `status --selector '<json>' --json` 检查 coverage。只有 `requestedCoverage.recommendedAction === "sync"` 时才跑对应的 `sync --cwd` / `sync --root` / `sync --selector`。
+没有单独的 `init` 命令。`status` 不是每次历史查询的固定第一步；它用于 coverage/freshness/source inventory/index availability。首次安装、索引不可用、目标 selector coverage 不明时,跑 `status --json`，根据返回的 `context.root`、`sourceInventory.cwdGroups` 和问题范围选择 `--cwd` / `--root` / selector；再用 `status --cwd <path> --json` 或 `status --selector '<json>' --json` 检查 coverage。只有 `requestedCoverage.recommendedAction === "sync"` 时才跑对应的 `sync --cwd` / `sync --root` / `sync --selector`。
+
+metadata-only 问题可以直接对 cxs SQLite index 做只读 projection,例如时间排序、数量、cwd 分布；内容判断仍必须回到 `read-page` / `read-range`。
 
 缺少 cxs 索引时,`find` / `read-range` / `read-page` / `list` / `stats --json` 返回:
 
@@ -22,7 +24,7 @@ export CXS_BIN=/absolute/path/to/bin/cxs
 
 ## status
 
-Purpose: 返回执行上下文、source inventory、index 状态和 coverage 状态。`status` 可以扫描 raw session metadata，但不回答内容问题、不写 index。
+Purpose: 返回执行上下文、source inventory、index 状态和 coverage 状态。`status` 可以扫描 raw session metadata，但不回答内容问题、不写 index,也不是 semantic recall 或 metadata projection 的通用入口。
 
 Example:
 
@@ -79,7 +81,7 @@ Example:
 
 ## find
 
-Purpose: 搜索相关 session，返回最小必要命中。
+Purpose: 搜索相关 session，返回最小必要命中。用于 semantic recall,不是数量/排序/分布这类 metadata projection 的默认工具。
 
 Example:
 
@@ -103,7 +105,7 @@ Options:
 
 ## read-range
 
-Purpose: 围绕命中点读取局部上下文。
+Purpose: 围绕命中点读取局部上下文。内容证据优先用它。
 
 Notes:
 
@@ -119,7 +121,7 @@ Example:
 
 ## read-page
 
-Purpose: 顺序分页读取某个 session 的消息。
+Purpose: 顺序分页读取某个 session 的消息。metadata projection 只能给候选;要确认"当时说了什么/是否有意义",用 `read-page` 或 `read-range`。
 
 Example:
 
@@ -129,7 +131,7 @@ Example:
 
 ## list
 
-Purpose: 列出已索引 session，不做全文检索。
+Purpose: 列出已索引 session，不做全文检索。适合简单 session listing；更复杂的 metadata projection 可以用只读 SQLite 查询 cxs index。
 
 Example:
 

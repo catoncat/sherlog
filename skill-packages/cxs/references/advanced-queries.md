@@ -56,6 +56,80 @@
 "${CXS_BIN:-cxs}" read-range <sessionUuid> --query "IME" --json
 ```
 
+## Read-only SQLite metadata projection
+
+当问题只需要 session metadata projection 时,可以直接只读查询 cxs SQLite index。SQLite 是加速投影工具,不是内容证据工具；最后仍用 `read-page` / `read-range` 验证内容。
+
+稳定可查字段只限:
+
+- `session_uuid`
+- `started_at`
+- `ended_at`
+- `cwd`
+- `title`
+- `summary_text`
+- `message_count`
+- `source_root`
+- `file_path`
+
+先拿 db path。这里用 `status` 只取 index 路径,不是把它当通用查询起手:
+
+```bash
+DB_PATH="$("${CXS_BIN:-cxs}" status --json | jq -r '.context.dbPath')"
+```
+
+最早 session 候选:
+
+```bash
+sqlite3 -readonly "$DB_PATH" \
+  "SELECT session_uuid, started_at, message_count, cwd, title
+   FROM sessions
+   WHERE message_count > 0
+   ORDER BY started_at ASC
+   LIMIT 20;"
+```
+
+某 cwd 下最近 session 候选:
+
+```bash
+sqlite3 -readonly "$DB_PATH" \
+  "SELECT session_uuid, ended_at, message_count, title
+   FROM sessions
+   WHERE cwd = '/absolute/path/to/repo'
+   ORDER BY ended_at DESC
+   LIMIT 20;"
+```
+
+按 cwd 聚合:
+
+```bash
+sqlite3 -readonly "$DB_PATH" \
+  "SELECT cwd, COUNT(*) AS sessions, SUM(message_count) AS messages, MAX(ended_at) AS latest
+   FROM sessions
+   GROUP BY cwd
+   ORDER BY sessions DESC
+   LIMIT 20;"
+```
+
+大 session 候选:
+
+```bash
+sqlite3 -readonly "$DB_PATH" \
+  "SELECT session_uuid, message_count, started_at, ended_at, cwd, title
+   FROM sessions
+   ORDER BY message_count DESC
+   LIMIT 20;"
+```
+
+拿到候选后验证内容:
+
+```bash
+"${CXS_BIN:-cxs}" read-page <sessionUuid> --offset 0 --limit 30 --json
+"${CXS_BIN:-cxs}" read-range <sessionUuid> --query "关键词" --before 4 --after 8 --json
+```
+
+不要在 metadata projection 里查询 raw Codex JSONL;正常历史检索的 metadata 和内容都应回到 cxs index / cxs read commands。
+
 ## 同 title 的多变体 session
 
 Codex resume/fork 可能产生多个 title 很像、但 `sessionUuid` 不同的 session。当前 `find` 会保留这些 distinct sessions，不会按 title 折叠。

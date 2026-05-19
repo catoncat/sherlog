@@ -1,112 +1,116 @@
 # Progressive Workflow
 
-## 默认流程
+## Core Rule
 
-1. `status --json` 拿 source inventory 和 coverage
-2. 选择明确范围,用 `status --cwd <path>` 或 `status --selector '<json>' --json` 检查 `requestedCoverage`
-3. 如果 `recommendedAction` 是 `"sync"` 才跑同范围 `sync --cwd` / `sync --root` / `sync --selector`;如果是 `"query"` 直接查
-4. `find` 或 `list` 拿候选 session 和命中锚点
-5. `read-range` 在最佳候选周围扩局部上下文
-6. `read-page` 只在局部窗口仍不够时翻整页
+Start by choosing the retrieval primitive, not by running a fixed command chain.
 
-硬规则：
+1. Metadata projection -> read-only SQLite/bash/jq over the cxs index.
+2. Semantic recall -> `find`.
+3. Content verification -> `read-range` / `read-page`.
+4. Coverage or freshness diagnosis -> `status`, then `sync` only when needed.
 
-- 没有 `sessionUuid` 时，不要冷启动 `read-page`
-- `sync` 只负责更新 index/coverage;查找不需要每次 sync
-- `sync` 默认保留已索引历史；raw JSONL 从 source snapshot 中消失后，不需要换 root 查询
-- 不要在日常查询前加 `--prune`;它只用于用户明确要求 cxs 丢弃 source 中已经消失的旧历史
-- 用户给了 `cwd` 或时间窗口:cwd/root 优先用 `--cwd` / `--root`;日期窗口用 selector JSON;先确认 coverage;缺失/stale 才同步;查询时继续带同一个范围
-- 用户问"最新/最近 + 关键词":不要用默认 `find` 当时间结论;用 `find <query> --sort ended`,并用 `--exclude-session <current_uuid>` 排除当前会话/self-hit
-- 已锁定 session 但锚点不对时，用 `read-range --query`
-- `cwd` 只是候选过滤，不是主题真相；还要再看 `title`、`summaryText` 和开头几条 message
+Hard rules:
 
-## Worked Scenario 1
+- cxs index is the normal history source of truth; do not query raw Codex JSONL or alternate source roots during normal retrieval.
+- Read-only SQLite can shortlist sessions, counts, dates, cwd distributions, and other stable metadata.
+- Stable session metadata fields are `session_uuid`, `started_at`, `ended_at`, `cwd`, `title`, `summary_text`, `message_count`, `source_root`, `file_path`.
+- Content claims require `read-range` or `read-page`.
+- `sync` only updates index/coverage; normal retrieval does not need `sync` unless coverage is missing or stale.
+- Do not use `sync --prune` for normal retrieval.
+- `find` default sort is relevance; use `--sort ended` only when the user's question is time-oriented.
+- `matchSource = "session"` means `matchSeq = null`; use `read-page` instead of inventing a seq.
+
+## Scenario 1: Metadata Projection
+
+用户说：`查下我们机器上最早的有意义的对话是哪个`
+
+先用只读 SQLite 快速列候选。这里只判断 metadata,不读 raw files:
+
+```bash
+DB_PATH="$("${CXS_BIN:-cxs}" status --json | jq -r '.context.dbPath')"
+sqlite3 -readonly "$DB_PATH" \
+  "SELECT session_uuid, started_at, message_count, cwd, title
+   FROM sessions
+   WHERE message_count > 0
+   ORDER BY started_at ASC
+   LIMIT 10;"
+```
+
+然后挑候选 session,用 cxs content primitive 验证是否"有意义":
+
+```bash
+"${CXS_BIN:-cxs}" read-page <sessionUuid> --offset 0 --limit 20 --json
+```
+
+不要用 `find` 或 broad `status` 去回答这种 metadata-first 问题。
+
+## Scenario 2: Semantic Recall
 
 用户说：`上次我配 cf tunnel 是怎么弄的`
 
+这类需要主题召回,用 `find`:
+
 ```bash
-"${CXS_BIN:-cxs}" status --json
-"${CXS_BIN:-cxs}" status --root /Users/me/.codex/sessions --selector '{"kind":"all"}' --json
-"${CXS_BIN:-cxs}" sync --root /Users/me/.codex/sessions --json
 "${CXS_BIN:-cxs}" find "cf tunnel" --root /Users/me/.codex/sessions --json -n 5
 ```
 
-如果 `status --selector` 返回 `recommendedAction: "query"`，跳过 `sync`。
+如果命令返回 `index_unavailable`,或者你需要确认目标范围 coverage,再用 `status` / `sync`:
 
-然后：
+```bash
+"${CXS_BIN:-cxs}" status --root /Users/me/.codex/sessions --selector '{"kind":"all"}' --json
+"${CXS_BIN:-cxs}" sync --root /Users/me/.codex/sessions --json
+```
+
+候选出来后读内容:
 
 ```bash
 "${CXS_BIN:-cxs}" read-range <sessionUuid> --seq <matchSeq> --before 4 --after 8 --json
 ```
 
-只有 `read-range` 还缺前情后果时，再：
+如果 `matchSeq` 是 `null`,改用:
 
 ```bash
 "${CXS_BIN:-cxs}" read-page <sessionUuid> --offset 0 --limit 40 --json
 ```
 
-## Worked Scenario 2
+## Scenario 3: Coverage Diagnosis
 
-用户说：`我记得前几天在 hammerspoon 那个 repo 里试过 IME 切换`
+用户说：`为什么这个 repo 的历史查不到`
 
-先按 cwd + 时间缩范围：
-
-```bash
-"${CXS_BIN:-cxs}" status --json
-"${CXS_BIN:-cxs}" status --selector '{"kind":"cwd_date_range","cwd":"/Users/me/work/hammerspoon","fromDate":"2026-04-15","toDate":"2026-04-30"}' --json
-"${CXS_BIN:-cxs}" sync --selector '{"kind":"cwd_date_range","cwd":"/Users/me/work/hammerspoon","fromDate":"2026-04-15","toDate":"2026-04-30"}' --json
-"${CXS_BIN:-cxs}" list --selector '{"kind":"cwd_date_range","cwd":"/Users/me/work/hammerspoon","fromDate":"2026-04-15","toDate":"2026-04-30"}' --json
-```
-
-如果 `status --selector` 返回 `recommendedAction: "query"`，跳过 `sync`。
-
-再在候选 session 内局部重定位：
+这类才以 `status` 开始:
 
 ```bash
-"${CXS_BIN:-cxs}" read-range <sessionUuid> --query "IME" --before 4 --after 8 --json
-```
-
-## Worked Scenario 3
-
-用户说：`最近本项目有做过什么讨论`
-
-先按当前 repo 路径列最近 session：
-
-```bash
-"${CXS_BIN:-cxs}" status --json
 "${CXS_BIN:-cxs}" status --cwd /absolute/path/to/current/repo --json
-"${CXS_BIN:-cxs}" sync --cwd /absolute/path/to/current/repo --json
-"${CXS_BIN:-cxs}" list --selector '{"kind":"cwd","cwd":"/absolute/path/to/current/repo"}' --sort ended -n 8 --json
 ```
 
-如果 `status --selector` 返回 `recommendedAction: "query"`，跳过 `sync`。
+看 `requestedCoverage.recommendedAction`:
 
-不要把 `cwd` 直接当主题真相。至少再看：
-
-- `title`
-- `summaryText`
-- 开头几条 message
-- 结尾几条 message
-
-## Worked Scenario 4
-
-用户说：`最新的一次 xsearch 是哪个 session`
-
-这类是"最近 + 关键词"，先按时间语义查，不要把默认相关性排序当最新：
+- `"query"`: coverage fresh,继续 `find` / `list`。
+- `"sync"`: 同范围同步。
 
 ```bash
-"${CXS_BIN:-cxs}" status --json
-"${CXS_BIN:-cxs}" status --cwd /absolute/path/to/current/repo --json
-# 如果 recommendedAction 是 "sync":
 "${CXS_BIN:-cxs}" sync --cwd /absolute/path/to/current/repo --json
-"${CXS_BIN:-cxs}" find "xsearch" --cwd /absolute/path/to/current/repo --sort ended --exclude-session <current_session_uuid> --json -n 5
 ```
 
-如果不知道当前 session uuid，先从最近列表识别当前 self-hit，再把它传给 `--exclude-session`：
+不要为了 coverage diagnosis 改查 raw source files;问题应该通过 cxs coverage/index 状态解释。
+
+## Scenario 4: Content Verification
+
+用户说：`这个 session 里当时到底决定了什么`
+
+如果已有 `sessionUuid`,直接读内容:
 
 ```bash
-"${CXS_BIN:-cxs}" list --selector '{"kind":"cwd","cwd":"/absolute/path/to/current/repo"}' --sort ended -n 5 --json
+"${CXS_BIN:-cxs}" read-range <sessionUuid> --query "决定" --before 6 --after 10 --json
 ```
+
+窗口还不够时翻页:
+
+```bash
+"${CXS_BIN:-cxs}" read-page <sessionUuid> --offset 0 --limit 60 --json
+```
+
+metadata、title、summary 只能帮助定位;不要只凭这些字段下内容结论。
 
 ## 来源
 

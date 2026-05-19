@@ -5,7 +5,7 @@ description: "Use proactively for local Codex history and personal setup archaeo
 
 # cxs
 
-用 `cxs` 在自己的 SQLite index 里检索旧 Codex 对话。Codex 的 raw sessions 只是 ingest source；不要让用户切换 source root 去追 raw 文件位置。心法:**先定位候选 session,再局部扩上下文,最后才翻全页**——不要冷启动整批 JSONL。
+用 `cxs` 在自己的 SQLite index 里检索旧 Codex 对话。Codex 的 raw sessions 只是 ingest source；正常历史检索只读 cxs index,不要让用户切换 source root 去追 raw 文件位置。心法:**先选 retrieval primitive,再定位候选 session,最后用 cxs read 命令拿内容证据**。
 
 ## 安装(两步)
 
@@ -31,16 +31,19 @@ npx skills add catoncat/cxs --full-depth --skill cxs -g -a codex -y
 
 `-a` 取值依赖目标 agent runtime,**装错 slot 会看不到 skill**。装完通常需要重启 agent / 开新 session。
 
-## 什么时候用 cxs
+## 先选 retrieval primitive
 
-| 场景 | 起手 | 原因 |
+不要把 `status -> sync -> find/list -> read` 当固定起手。先判断用户真正需要哪种 primitive:
+
+| 用户需要 | 起手 primitive | 证据规则 |
 | --- | --- | --- |
-| 用户问"之前 / 上次 / 我记得 / 我们讨论过" | `cxs status --json` | 先拿 source inventory 和 coverage |
-| 用户问"本机/这台 Mac 配过什么"、"有哪些服务器/VPS/节点/服务配置" | 先 `cxs status --json`,再用关键词 `服务器 VPS 节点 服务 域名 provider ssh sing-box launchd Cloudflare` 组合查 | 这类是本机配置考古,答案常在旧 Codex session 而不是当前 memory |
-| 用户问"本项目最近的对话" | `status --cwd <abs_cwd>` 查 coverage;必要时 `sync --cwd <abs_cwd>`;再 `list --selector '{"kind":"cwd","cwd":"<abs_cwd>"}' --sort ended` | 内容只从 cxs index 出来；selector JSON 不必手写 root |
-| 用户问"最新/最近 + 关键词" | 先确保 cwd/root coverage,再 `find <query> --cwd <abs_cwd> --sort ended` | `find` 默认是相关性排序,不是时间排序 |
-| 用户给项目名 / cwd / 时间窗 | cwd/root 用 `--cwd` / `--root` 快捷方式；日期窗才写 selector JSON | cwd/date selector 比全文搜更稳 |
-| 已锁定某 session,需要局部上下文 | `cxs read-range --seq` 或 `--query` | 局部扩窗,不冷启 `read-page` |
+| metadata projection: 最早/最新、数量、分布、cwd/session 清单、大 session、时间排序 | 只读 SQLite/bash/jq 查询 cxs index 的 `sessions` 表;必要时用 `list` 辅助 | 只能投影稳定 metadata;任何内容判断都要再 `read-page` / `read-range` |
+| semantic recall: 主题、关键词、"之前讨论过 X 吗"、本机配置考古 | `cxs find <query> --json`,按需要带 `--cwd` / `--root` / `--selector` / `--sort ended` | 用 `find` 召回候选,再用 `read-range` 或 `read-page` 验证 |
+| context reading: 已知 `sessionUuid`、命中 seq、或需要扩大上下文 | `cxs read-range <uuid> --seq/--query` 或 `cxs read-page <uuid>` | 内容证据只来自 `read-*` 输出 |
+| coverage/freshness/index availability: 索引缺失、coverage stale、要决定是否同步 | `cxs status --json` / `status --cwd` / `status --selector` | `status` 不回答内容问题,只决定 coverage 和 sync 需求 |
+| mutation: 建索引或更新 coverage | `cxs sync --cwd/--root/--selector` | 普通检索不要 `--prune`;只有用户明确要求清理已消失 source 的旧索引记录才用 |
+
+只读 SQLite 只允许查 cxs 自己的 index,不要查 Codex raw JSONL 或其他 source roots。稳定 session metadata 字段限于:`session_uuid`, `started_at`, `ended_at`, `cwd`, `title`, `summary_text`, `message_count`, `source_root`, `file_path`。
 
 **反例**(应该用别的工具):
 
@@ -53,7 +56,10 @@ npx skills add catoncat/cxs --full-depth --skill cxs -g -a codex -y
 
 ## 工作流心法
 
-- **status → ensure coverage → find/list → read-range → read-page**:先确定覆盖边界，再回答内容问题
+- cxs index 是历史检索 source of truth；bash/sqlite/jq 只是 cheap projection/orchestration,不是内容证据层
+- `status` 不是通用第一步；只有 coverage/freshness/index availability/source inventory 问题才先用它
+- `find` 用于 semantic recall；metadata-only 问题不要硬走全文检索
+- `read-range` / `read-page` 是内容证据层；回答"当时说了什么/决定了什么"前必须读内容
 - `sync` 只是写入/更新 SQLite index 和 coverage;查找本身不需要 sync。只有目标范围 coverage 缺失或 stale 时才 `sync --cwd <path>` / `sync --root <dir>` / `sync --selector`
 - `sync` 默认保留已索引历史；raw JSONL 从 source snapshot 中消失后，不要引导用户改查另一个 root。只有用户明确要让 cxs 丢弃 source 中已经消失的旧记录时才用 `sync --prune`
 - 用 `status --cwd <path> --json` 或 `status --selector '<json>' --json` 检查目标范围；`requestedCoverage.recommendedAction === "query"` 时直接查，`"sync"` 时才同步
@@ -93,8 +99,9 @@ npx skills add catoncat/cxs --full-depth --skill cxs -g -a codex -y
 
 ## 前置
 
-- 先 `status --json` 看 `context / sourceInventory / coverage`
-- 先用 `status --cwd <path> --json` / `status --selector '<json>' --json` 看目标范围的 `requestedCoverage`
+- 如果只是 metadata projection,先读 cxs SQLite index;不需要先跑全文 `find`
+- 如果只是 semantic recall,先 `find`;目标 coverage 不明或返回 `index_unavailable` 时再用 `status`
+- 只有需要 coverage/freshness/index availability 时,才先 `status --json` 或 `status --cwd <path> --json` / `status --selector '<json>' --json`
 - 索引不存在、读命令返回 `index_unavailable`、或 `requestedCoverage.recommendedAction === "sync"` → `sync --cwd <path>` / `sync --root <dir>` / `sync --selector '<json>'`
 - `sync` 默认严格模式;只有用户接受部分成功才加 `--best-effort`;best-effort 不写 complete coverage
 - `sync --prune` 是显式清理动作,会删除所选 source 中已经消失的旧索引记录；普通历史查询和日常增量同步不要加
@@ -108,6 +115,6 @@ npx skills add catoncat/cxs --full-depth --skill cxs -g -a codex -y
 - [`references/progressive-workflow.md`](references/progressive-workflow.md) — 4 个 worked scenarios
 - [`references/json-schema.md`](references/json-schema.md) — 完整 JSON 字段
 - [`references/failure-cookbook.md`](references/failure-cookbook.md) — 错误症状速查 / `--json` error shape 速查
-- [`references/advanced-queries.md`](references/advanced-queries.md) — query 语义 / CJK 行为 / snippet 高亮
+- [`references/advanced-queries.md`](references/advanced-queries.md) — query 语义 / 只读 SQLite metadata projection / CJK 行为
 
-# skill-sync: distributable cxs skill package, coverage-first retained-index workflow, 2026-05-19
+# skill-sync: distributable cxs skill package, primitive-routing retained-index workflow, 2026-05-19

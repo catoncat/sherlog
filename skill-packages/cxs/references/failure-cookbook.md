@@ -12,8 +12,9 @@
 | `stats/list/find` 报 `database is locked` | 原命令重试一次 | 多半是 SQLite 忙；仍失败就先跳过 `stats` 直接读 |
 | 同一主题多条 uuid | `find -n 10 --json` | 按 `startedAt`、`cwd`、`matchCount` 选 |
 | 最新/最近 + 关键词被当前会话抢结果 | `find <query> --sort ended --exclude-session <uuid>` | 默认 `find` 是 relevance 排序；时间问题显式用 `--sort ended` 并排除 self-hit |
+| metadata-only 问题很慢或结果过宽 | 只读 SQLite 查 cxs index,再 `read-page` 验证候选 | 这是 skill-guidance 问题:agent 把 `status` 或 `find` 用成了通用入口 |
 | 中文/CJK 零结果 | 无 | 换至少两字中文、英文关键词，或先用 selector 缩范围 |
-| 用户问“最近本项目讨论了什么” | `status --cwd <abs_cwd> --json` | coverage fresh 直接 `list --selector '{"kind":"cwd","cwd":"..."}'`;缺失/stale 才同步 |
+| 用户问“最近本项目讨论了什么” | `list --cwd <abs_cwd> --sort ended --json` | 这是 metadata/listing 问题；索引不可用或 coverage 不明时再 `status --cwd` |
 | 用户说“在 X 项目里” | `status --json` | 从 `sourceInventory.cwdGroups` 选择 cwd selector |
 | 从其他 cwd 调用找不到 db | `stats --json` | 看 `dbPath`；必要时显式传 `--db` |
 
@@ -77,18 +78,48 @@
 - 如果只是想读取历史，不一定非得先拿 `stats`。
 - 如果你刚跑过 `sync` 或怀疑别的进程正占着 db，先等一下再重试。
 
-## Current project discussion query
+## Slow or over-broad cxs use
 
-用户问“最近本项目讨论了什么”时，默认先用当前 repo 绝对路径走 cwd shortcut：
+症状:
+
+- 用户只问最早/最新、数量、分布、大 session、某 cwd 下有哪些 session。
+- agent 先跑 broad `status`,再跑 broad `find`,花了很久还要人工判断。
+- 结果需要的是 session metadata,不是全文相关性。
+
+处理方式:
+
+1. 把它归类为 `skill-guidance-issue`,不是 cxs CLI recall/ranking bug。
+2. 对 cxs SQLite index 做只读 metadata projection。
+3. 用 `read-page` / `read-range` 验证最终候选的内容。
+
+Example:
 
 ```bash
-"${CXS_BIN:-cxs}" status --json
-"${CXS_BIN:-cxs}" status --cwd /absolute/path/to/current/repo --json
-"${CXS_BIN:-cxs}" sync --cwd /absolute/path/to/current/repo --json
-"${CXS_BIN:-cxs}" list --selector '{"kind":"cwd","cwd":"/absolute/path/to/current/repo"}' --sort ended -n 8 --json
+DB_PATH="$("${CXS_BIN:-cxs}" status --json | jq -r '.context.dbPath')"
+sqlite3 -readonly "$DB_PATH" \
+  "SELECT session_uuid, started_at, message_count, cwd, title
+   FROM sessions
+   ORDER BY started_at ASC
+   LIMIT 20;"
+"${CXS_BIN:-cxs}" read-page <sessionUuid> --offset 0 --limit 20 --json
 ```
 
-如果 `status --selector` 返回 `recommendedAction: "query"`，跳过 `sync`。
+不要改查 raw session files;正常历史检索的 projection 也应该来自 cxs index。
+
+## Current project discussion query
+
+用户问“最近本项目讨论了什么”时，这是 metadata/listing primitive。先列当前 repo 最近 session:
+
+```bash
+"${CXS_BIN:-cxs}" list --cwd /absolute/path/to/current/repo --sort ended -n 8 --json
+```
+
+如果返回 `index_unavailable`,或者用户明确怀疑目标范围没被索引,再诊断 coverage:
+
+```bash
+"${CXS_BIN:-cxs}" status --cwd /absolute/path/to/current/repo --json
+"${CXS_BIN:-cxs}" sync --cwd /absolute/path/to/current/repo --json
+```
 
 然后至少再看：
 
@@ -102,13 +133,10 @@
 用户问“最新一次 X / 最近哪个 session 提到 X”时:
 
 ```bash
-"${CXS_BIN:-cxs}" status --cwd /absolute/path/to/current/repo --json
-# recommendedAction 为 "sync" 时才同步
-"${CXS_BIN:-cxs}" sync --cwd /absolute/path/to/current/repo --json
 "${CXS_BIN:-cxs}" find "X" --cwd /absolute/path/to/current/repo --sort ended --exclude-session <current_session_uuid> --json -n 5
 ```
 
-不要直接用默认 `find "X"` 下“最新”结论；默认排序是 relevance。
+不要直接用默认 `find "X"` 下“最新”结论；默认排序是 relevance。只有索引不可用、coverage 不明或结果明显缺失时,再 `status --cwd` / `sync --cwd`。
 
 ## --json error shape 速查
 
