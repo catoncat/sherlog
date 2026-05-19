@@ -8,6 +8,7 @@
 | `sync` 非零退出带 per-file errors | `sync --root <dir> --json 2>&1` 或 `sync --selector '<json>' --json 2>&1` | 看 `errorDetails[]`；默认严格模式；只在允许部分成功时加 `--best-effort` |
 | `sync` 返回 `selector_required` | 原命令补 `--root`、`--cwd` 或 `--selector` | sync 必须显式给范围；不需要把 root 写进 JSON |
 | `find/list/stats/read-*` 输出 `index_unavailable` | `status --json` | 索引还没建立；选择范围后 `sync --root` / `sync --cwd` / `sync --selector` |
+| raw JSONL 从当前 source snapshot 中消失后担心查不到 | 直接 `find/list/read-*` 查 cxs index | cxs 默认保留已索引历史；不要引导用户改查另一个 root。只有用户明确要丢弃旧历史时才 `sync --prune` |
 | `stats/list/find` 报 `database is locked` | 原命令重试一次 | 多半是 SQLite 忙；仍失败就先跳过 `stats` 直接读 |
 | 同一主题多条 uuid | `find -n 10 --json` | 按 `startedAt`、`cwd`、`matchCount` 选 |
 | 最新/最近 + 关键词被当前会话抢结果 | `find <query> --sort ended --exclude-session <uuid>` | 默认 `find` 是 relevance 排序；时间问题显式用 `--sort ended` 并排除 self-hit |
@@ -44,6 +45,7 @@
 - 默认不要忽略，先看是坏 JSONL、权限问题还是别的解析失败。
 - 只有用户明确接受 partial index 时，才用 `--best-effort`。
 - `--best-effort` 不写 complete coverage。
+- 不要为普通历史查询加 `--prune`；它会删除所选 source 中已经消失的旧 index row。
 
 ## index_unavailable
 

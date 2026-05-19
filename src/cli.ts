@@ -74,6 +74,7 @@ program
   .option("--cwd <path>", "同步指定 cwd selector")
   .option("--db <path>", "覆盖默认数据库路径", DEFAULT_DB_PATH)
   .option("--best-effort", "即使部分文件失败也继续写入可成功部分")
+  .option("--prune", "删除所选范围内已从 source 消失的旧索引行")
   .option("--json", "输出 JSON")
   .action(async (options) => {
     try {
@@ -82,6 +83,7 @@ program
         dbPath: options.db,
         selector,
         bestEffort: options.bestEffort,
+        prune: options.prune,
       });
       if (options.json) {
         console.log(JSON.stringify(summary, null, 2));

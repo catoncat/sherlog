@@ -157,9 +157,13 @@ export CXS_DATA_DIR="$HOME/.config/cxs"
 
 Sync is strict by default. If any selected file fails to parse or write, `sync`
 exits non-zero with per-file diagnostics and does not commit partial coverage.
-On success, strict sync reconciles the selected index slice to the current source
-snapshot: selected sessions whose source JSONL no longer exists are removed
-before complete coverage is written.
+On success, strict sync updates the selected index slice for files that are
+currently visible in the source snapshot and writes complete coverage for that
+snapshot. Previously indexed sessions whose source JSONL later disappears are
+retained by default, so raw log maintenance does not make historical `cxs find`
+or `read-*` results disappear.
+Pass `--prune` only when you explicitly want to delete indexed sessions that are
+no longer present in the selected source snapshot.
 Pass `--best-effort` only when you explicitly want successful files written
 despite failures; best-effort sync does not record complete coverage.
 

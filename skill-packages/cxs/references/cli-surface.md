@@ -29,7 +29,7 @@ Example:
 ```bash
 "${CXS_BIN:-cxs}" status --json
 "${CXS_BIN:-cxs}" status --cwd /Users/me/work/foo --json
-"${CXS_BIN:-cxs}" status --root /Users/me/.codex/archived_sessions --selector '{"kind":"all"}' --json
+"${CXS_BIN:-cxs}" status --root /Users/me/.codex/sessions --selector '{"kind":"all"}' --json
 ```
 
 `status --selector` 是只读 coverage check。看 `requestedCoverage`:
@@ -62,9 +62,12 @@ Options:
 | `--selector <json>` | 结构化同步范围；日期范围等高级范围用这个 |
 | `--db <path>` | 覆盖默认数据库 |
 | `--best-effort` | 即使部分文件失败也继续写入成功部分;不写 complete coverage |
+| `--prune` | 显式删除所选 source 中已经消失的旧索引记录 |
 | `--json` | 成功时把 `SyncSummary` 打到 stdout |
 
-严格模式成功时，`sync` 会先把 selector 范围内的 index 与当前 source snapshot 对齐；源文件已删除、被过滤或不再能解析成 session 的旧 row 会被移除，并计入 `removed`。
+严格模式成功时，`sync` 会更新当前 source snapshot 中仍可见的文件，并写 complete coverage。默认保留已经索引过、但 raw JSONL 后来从 source 中消失的旧 session；查询时不需要切换 root 去追 raw 文件位置。
+
+只有显式传 `--prune` 时，`sync` 才把 selector 范围内的 index 与当前 source snapshot 对齐；源文件已删除的旧 row 会被移除，并计入 `removed`。源文件仍存在但被过滤或不再能解析成 session 时，仍按当前文件状态删除或报错。
 
 Example:
 
@@ -83,7 +86,7 @@ Example:
 ```bash
 "${CXS_BIN:-cxs}" find "cf tunnel" --json -n 5
 "${CXS_BIN:-cxs}" find "cf tunnel" --cwd /Users/me/work/foo --json -n 5
-"${CXS_BIN:-cxs}" find "ping pong" --root /Users/me/.codex/archived_sessions --json -n 5
+"${CXS_BIN:-cxs}" find "ping pong" --root /Users/me/.codex/sessions --json -n 5
 "${CXS_BIN:-cxs}" find "xsearch" --cwd /Users/me/work/foo --sort ended --exclude-session <current_uuid> --json -n 5
 ```
 
@@ -132,7 +135,7 @@ Example:
 
 ```bash
 "${CXS_BIN:-cxs}" list --selector '{"kind":"cwd_date_range","root":"/Users/me/.codex/sessions","cwd":"/Users/me/work/foo","fromDate":"2026-04-15","toDate":"2026-04-30"}' --sort ended --json
-"${CXS_BIN:-cxs}" list --root /Users/me/.codex/archived_sessions --sort ended --json
+"${CXS_BIN:-cxs}" list --root /Users/me/.codex/sessions --sort ended --json
 "${CXS_BIN:-cxs}" list --selector '{"kind":"cwd","cwd":"/Users/me/work/foo"}' --sort ended --json
 ```
 

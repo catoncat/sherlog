@@ -21,6 +21,7 @@ interface SyncOptions {
   rootDir?: string;
   selector?: Selector;
   bestEffort?: boolean;
+  prune?: boolean;
 }
 
 type SyncOperation =
@@ -111,6 +112,7 @@ export async function syncSessions(options: SyncOptions = {}): Promise<SyncSumma
         operations,
         summary,
         bestEffort,
+        Boolean(options.prune),
         selector,
         sourceSnapshot,
         retainedFilePaths,
@@ -199,6 +201,7 @@ function applyOperations(
   operations: SyncOperation[],
   summary: SyncSummary,
   bestEffort: boolean,
+  prune: boolean,
   selector: Selector,
   sourceSnapshot: { fingerprint: string; fileCount: number },
   retainedFilePaths: Set<string>,
@@ -223,7 +226,9 @@ function applyOperations(
       applyOperation(db, operation, selector.root);
     }
     cleanupMismatchedMessagesForSelector(db, selector);
-    summary.removed += deleteSessionsForSelectorExceptFilePaths(db, selector, retainedFilePaths);
+    if (prune) {
+      summary.removed += deleteSessionsForSelectorExceptFilePaths(db, selector, retainedFilePaths);
+    }
     const indexedSessionCount = countSessionsForSelector(db, selector);
     const record = replaceCoverage(
       db,
