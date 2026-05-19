@@ -116,7 +116,7 @@ describe("syncSessions", () => {
     });
   });
 
-  test("strict sync reconciles deleted source files before writing coverage", async () => {
+  test("strict sync retains indexed rows whose source files disappeared by default", async () => {
     const base = mkdtempSync(join(tmpdir(), "cxs-indexer-reconcile-"));
     tempDirs.push(base);
     const root = join(base, "sessions");
@@ -146,6 +146,48 @@ describe("syncSessions", () => {
 
     rmSync(deletedPath);
     const summary = await syncSessions({ dbPath, selector });
+
+    expect(summary.removed).toBe(0);
+    expect(summary.coverage.sourceFileCount).toBe(1);
+    expect(summary.coverage.indexedSessionCount).toBe(2);
+
+    const found = findSessions(dbPath, "needle", 10, selector);
+    expect(found.results.map((result) => result.sessionUuid).sort()).toEqual([
+      "11111111-1111-4111-8111-111111111111",
+      "22222222-2222-4222-8222-222222222222",
+    ].sort());
+  });
+
+  test("sync --prune reconciles deleted source files before writing coverage", async () => {
+    const base = mkdtempSync(join(tmpdir(), "cxs-indexer-prune-"));
+    tempDirs.push(base);
+    const root = join(base, "sessions");
+    const day = join(root, "2026", "04", "22");
+    mkdirSync(day, { recursive: true });
+
+    const deletedPath = join(day, "rollout-2026-04-22T10-00-00-11111111-1111-4111-8111-111111111111.jsonl");
+    const keptPath = join(day, "rollout-2026-04-22T11-00-00-22222222-2222-4222-8222-222222222222.jsonl");
+    writeFileSync(
+      deletedPath,
+      [
+        line("session_meta", { id: "11111111-1111-4111-8111-111111111111", cwd: "/tmp/prune" }),
+        line("event_msg", { type: "user_message", message: "needle deleted" }),
+      ].join("\n"),
+    );
+    writeFileSync(
+      keptPath,
+      [
+        line("session_meta", { id: "22222222-2222-4222-8222-222222222222", cwd: "/tmp/prune" }),
+        line("event_msg", { type: "user_message", message: "needle kept" }),
+      ].join("\n"),
+    );
+
+    const dbPath = join(base, "index.sqlite");
+    const selector = { kind: "all" as const, root };
+    await syncSessions({ dbPath, selector });
+
+    rmSync(deletedPath);
+    const summary = await syncSessions({ dbPath, selector, prune: true });
 
     expect(summary.removed).toBe(1);
     expect(summary.coverage.sourceFileCount).toBe(1);

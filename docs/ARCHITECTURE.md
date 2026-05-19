@@ -26,9 +26,9 @@
 
 [status.ts](/Users/envvar/work/repos/cxs/src/status.ts) 返回执行上下文、source inventory、index 状态与 coverage 状态。它可以扫描 raw sessions 的 metadata，但不回答内容问题。
 
-[indexer.ts](/Users/envvar/work/repos/cxs/src/indexer.ts) 按显式 selector 扫描 `~/.codex/sessions` 下的 JSONL session 文件，按文件 `mtime`、`size` 和 `indexVersion` 做增量判断。
+[indexer.ts](/Users/envvar/work/repos/cxs/src/indexer.ts) 按显式 selector 扫描 Codex JSONL session source，按文件 `mtime`、`size` 和 `indexVersion` 做增量判断。
 
-strict sync 在写 complete coverage 前会 reconcile selector 范围：当前 source snapshot 中不存在、被过滤或不能解析成 session 的旧 index row 会被删除。
+strict sync 默认只更新当前 source snapshot 中仍可见的文件，并保留已经进入 SQLite 的旧 session。这样 raw JSONL 的维护、移动或删除不会让 cxs 的历史查询丢失。只有显式传 `--prune` 时，sync 才会把 selector 范围收敛成当前 source snapshot，并删除 source 中已不存在的旧 index row。当前 source 中仍存在但被过滤或不能解析成 session 的文件仍按当前状态处理。
 
 [parser.ts](/Users/envvar/work/repos/cxs/src/parser.ts) 只抽取 `event_msg` 里的：
 

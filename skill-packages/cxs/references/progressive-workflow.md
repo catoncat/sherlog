@@ -13,6 +13,8 @@
 
 - 没有 `sessionUuid` 时，不要冷启动 `read-page`
 - `sync` 只负责更新 index/coverage;查找不需要每次 sync
+- `sync` 默认保留已索引历史；raw JSONL 从 source snapshot 中消失后，不需要换 root 查询
+- 不要在日常查询前加 `--prune`;它只用于用户明确要求 cxs 丢弃 source 中已经消失的旧历史
 - 用户给了 `cwd` 或时间窗口:cwd/root 优先用 `--cwd` / `--root`;日期窗口用 selector JSON;先确认 coverage;缺失/stale 才同步;查询时继续带同一个范围
 - 用户问"最新/最近 + 关键词":不要用默认 `find` 当时间结论;用 `find <query> --sort ended`,并用 `--exclude-session <current_uuid>` 排除当前会话/self-hit
 - 已锁定 session 但锚点不对时，用 `read-range --query`

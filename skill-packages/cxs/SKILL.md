@@ -5,7 +5,7 @@ description: "Use proactively for local Codex history and personal setup archaeo
 
 # cxs
 
-用 `cxs` 在 `~/.codex/sessions` 里检索旧 Codex 对话。心法:**先定位候选 session,再局部扩上下文,最后才翻全页**——不要冷启动整批 JSONL。
+用 `cxs` 在自己的 SQLite index 里检索旧 Codex 对话。Codex 的 raw sessions 只是 ingest source；不要让用户切换 source root 去追 raw 文件位置。心法:**先定位候选 session,再局部扩上下文,最后才翻全页**——不要冷启动整批 JSONL。
 
 ## 安装(两步)
 
@@ -55,6 +55,7 @@ npx skills add catoncat/cxs --full-depth --skill cxs -g -a codex -y
 
 - **status → ensure coverage → find/list → read-range → read-page**:先确定覆盖边界，再回答内容问题
 - `sync` 只是写入/更新 SQLite index 和 coverage;查找本身不需要 sync。只有目标范围 coverage 缺失或 stale 时才 `sync --cwd <path>` / `sync --root <dir>` / `sync --selector`
+- `sync` 默认保留已索引历史；raw JSONL 从 source snapshot 中消失后，不要引导用户改查另一个 root。只有用户明确要让 cxs 丢弃 source 中已经消失的旧记录时才用 `sync --prune`
 - 用 `status --cwd <path> --json` 或 `status --selector '<json>' --json` 检查目标范围；`requestedCoverage.recommendedAction === "query"` 时直接查，`"sync"` 时才同步
 - `stats.sessionCount` 很多不等于目标范围有 v6 complete coverage；fresh `{"kind":"all",...}` coverage 可以覆盖 cwd/date 子 selector
 - "最新/最近 + 关键词"不要直接把默认 `find` 结果当最新；用 `find <query> --cwd <path> --sort ended` 或 `find <query> --root <dir> --sort ended`，必要时 `--exclude-session <current_uuid>` 排除当前会话/self-hit
@@ -96,6 +97,7 @@ npx skills add catoncat/cxs --full-depth --skill cxs -g -a codex -y
 - 先用 `status --cwd <path> --json` / `status --selector '<json>' --json` 看目标范围的 `requestedCoverage`
 - 索引不存在、读命令返回 `index_unavailable`、或 `requestedCoverage.recommendedAction === "sync"` → `sync --cwd <path>` / `sync --root <dir>` / `sync --selector '<json>'`
 - `sync` 默认严格模式;只有用户接受部分成功才加 `--best-effort`;best-effort 不写 complete coverage
+- `sync --prune` 是显式清理动作,会删除所选 source 中已经消失的旧索引记录；普通历史查询和日常增量同步不要加
 - 从别的 cwd 调用时,若默认 db 不对,显式传 `--db`
 
 ## 参考
@@ -108,4 +110,4 @@ npx skills add catoncat/cxs --full-depth --skill cxs -g -a codex -y
 - [`references/failure-cookbook.md`](references/failure-cookbook.md) — 错误症状速查 / `--json` error shape 速查
 - [`references/advanced-queries.md`](references/advanced-queries.md) — query 语义 / CJK 行为 / snippet 高亮
 
-# skill-sync: distributable cxs skill package, coverage-first recent-query workflow, 2026-05-10
+# skill-sync: distributable cxs skill package, coverage-first retained-index workflow, 2026-05-19
