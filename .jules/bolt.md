@@ -36,3 +36,6 @@
 ## 2025-02-18 - Avoid path.relative() in tight loops over absolute paths
 **Learning:** Found that using `node:path.relative()` inside a loop over thousands of absolute paths (`fingerprintFiles`) adds significant computational overhead because it performs deep path normalization and splitting on every call. In this code path, source files are collected under the resolved root, so every fingerprinted path is already an absolute path with the same prefix.
 **Action:** Pre-calculate the root prefix (with a trailing separator) and use `String.prototype.slice()` for an O(1) substring extraction instead of calling `path.relative()` for each file.
+## 2025-05-02 - Eliminate array allocations in snippet generation
+**Learning:** Found a performance bottleneck where `termHits.flatMap` was repeatedly creating match objects `{index, length}` for every occurrence of a query term. These objects were then iterated over, allocating memory and triggering garbage collection during search result formatting.
+**Action:** Replaced the array map/flatMap chain with nested `while` loops using `indexOf` to track the best snippet window in a single pass without allocating intermediate match objects. This improves memory efficiency during formatting.
