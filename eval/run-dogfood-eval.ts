@@ -3,7 +3,7 @@
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { spawn as childSpawn } from "node:child_process";
 import { basename, join, resolve } from "node:path";
-import { desiredContextMode, evaluateDogfoodItem, type DogfoodEvaluation } from "./dogfood-eval-core";
+import { desiredContextMode, evaluateDogfoodItem, missingContextNeedles, type DogfoodEvaluation } from "./dogfood-eval-core";
 import { parseDogfoodJsonl, type DogfoodGolden } from "./dogfood-schema";
 import { DEFAULT_CODEX_DIR } from "../src/env";
 import type { FindResult, FindSort, Selector } from "../src/types";
@@ -198,25 +198,45 @@ async function readContextIfNeeded(
     return { kind: "read-range", unavailableReason: "selected hit has no numeric matchSeq" };
   }
 
-  const command = buildContextCommand(item, hit, mode);
-  const contextJson = await runCommand([...command, "--json"]);
-  const contextText = await runCommand(command);
-  const jsonPath = join(outDir, `${prefix}-${safeId}.${mode}.json`);
-  const txtPath = join(outDir, `${prefix}-${safeId}.${mode}.txt`);
+  let command = buildContextCommand(item, hit, mode);
+  let contextJson = await runCommand([...command, "--json"]);
+  let contextText = await runCommand(command);
+  let suffix: string = mode;
+  if (shouldReadWiderRange(item, mode, contextText)) {
+    command = buildContextCommand(item, hit, mode, { before: 4, after: 8 });
+    contextJson = await runCommand([...command, "--json"]);
+    contextText = await runCommand(command);
+    suffix = `${mode}.wide`;
+  }
+
+  const jsonPath = join(outDir, `${prefix}-${safeId}.${suffix}.json`);
+  const txtPath = join(outDir, `${prefix}-${safeId}.${suffix}.txt`);
   writeFileSync(jsonPath, contextJson);
   writeFileSync(txtPath, contextText);
   return { kind: mode, text: contextText, textPath: txtPath };
 }
 
-function buildContextCommand(item: DogfoodGolden, hit: FindResult, mode: "read-range" | "read-page"): string[] {
+function shouldReadWiderRange(item: DogfoodGolden, mode: "read-range" | "read-page", contextText: string): boolean {
+  if (mode !== "read-range") return false;
+  const context = item.expected.context ?? {};
+  if (context.before !== undefined || context.after !== undefined) return false;
+  return missingContextNeedles(item, contextText).length > 0;
+}
+
+function buildContextCommand(
+  item: DogfoodGolden,
+  hit: FindResult,
+  mode: "read-range" | "read-page",
+  defaultWindow: { before: number; after: number } = { before: 2, after: 2 },
+): string[] {
   const context = item.expected.context ?? {};
   if (mode === "read-range") {
     return [
       process.execPath, "--import", "tsx", CLI_ENTRY,
       "read-range", hit.sessionUuid,
       "--seq", String(hit.matchSeq),
-      "--before", String(context.before ?? 2),
-      "--after", String(context.after ?? 2),
+      "--before", String(context.before ?? defaultWindow.before),
+      "--after", String(context.after ?? defaultWindow.after),
     ];
   }
 

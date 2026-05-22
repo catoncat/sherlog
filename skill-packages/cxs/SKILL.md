@@ -65,6 +65,7 @@ npx skills add catoncat/cxs --full-depth --skill cxs -g -a codex -y
 - 用 `status --cwd <path> --json` 或 `status --selector '<json>' --json` 检查目标范围；`requestedCoverage.recommendedAction === "query"` 时直接查，`"sync"` 时才同步
 - `stats.sessionCount` 很多不等于目标范围有 v6 complete coverage；fresh `{"kind":"all",...}` coverage 可以覆盖 cwd/date 子 selector
 - "最新/最近 + 关键词"不要直接把默认 `find` 结果当最新；用 `find <query> --cwd <path> --sort ended` 或 `find <query> --root <dir> --sort ended`，必要时 `--exclude-session <current_uuid>` 排除当前会话/self-hit
+- 混合自然语言 + 英文技术词的问题可以先直接 `find` 原句；新版 CLI 在严格召回为 0 时会保守提取 ASCII 技术词做一次 relaxed recall。仍要用 `read-range` / `read-page` 验证内容，不要只凭命中标题下结论。
 - `matchSource = "session"` 时 `matchSeq = null`;这种命中先 `read-page` 抽样,**不要伪造 `read-range --seq`**
 - 用户给 cwd 但不确定 sync 状态 → `status --json`;确认绝对 cwd 后跑 `status --cwd <path>`;缺失/stale 才 `sync --cwd <path>`
 - `cwd` 只是候选过滤,不是主题真相;还要再看 `title`、`summaryText`、开头几条 message

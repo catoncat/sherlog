@@ -73,6 +73,11 @@ export function desiredContextMode(item: DogfoodGolden, hit: FindResult | null):
   return typeof hit?.matchSeq === "number" ? "read-range" : "read-page";
 }
 
+export function missingContextNeedles(item: DogfoodGolden, contextText: string): string[] {
+  const haystack = contextText.toLowerCase();
+  return (item.expected.context?.mustContain ?? []).filter((needle) => !haystack.includes(needle.toLowerCase()));
+}
+
 function buildPredicates(
   input: DogfoodEvaluationInput,
   selected: SelectedDogfoodHit,

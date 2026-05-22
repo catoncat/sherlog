@@ -1,7 +1,9 @@
-import { withReadDb } from "../db";
+import { withReadDb, type Db } from "../db";
+import type { RawHitRow } from "../ranking";
 import { rerankHits } from "../ranking";
 import type { FindResult, FindSort, Selector } from "../types";
 import { buildCoverageStatus } from "./coverage";
+import { buildRelaxedRecallQueries } from "./relaxed-recall";
 import { searchMessageHits, searchSessionHits } from "./search";
 
 export interface FindSessionsOptions {
@@ -26,10 +28,17 @@ export function findSessions(
     const sort = options.sort ?? "relevance";
     const excludedSessions = uniqueNonEmpty(options.excludeSessions ?? []);
     const recallLimit = sort === "relevance" ? Math.max(limit * 12, 50) : Math.max(limit * 100, 1000);
-    const rawRows = [
-      ...searchMessageHits(db, query, recallLimit, undefined, selector, { sort, excludeSessions: excludedSessions }),
-      ...searchSessionHits(db, query, recallLimit, selector, { sort, excludeSessions: excludedSessions }),
-    ];
+    let rawRows = searchRows(db, query, recallLimit, selector, sort, excludedSessions);
+    if (rawRows.length === 0) {
+      const fallbackRows = new Map<string, RawHitRow>();
+      for (const relaxedQuery of buildRelaxedRecallQueries(query)) {
+        for (const row of searchRows(db, relaxedQuery, recallLimit, selector, sort, excludedSessions)) {
+          const key = rawHitKey(row);
+          if (!fallbackRows.has(key)) fallbackRows.set(key, row);
+        }
+      }
+      rawRows = [...fallbackRows.values()];
+    }
     const ranked = rerankHits(rawRows, query, Math.max(rawRows.length, limit));
     const results = sort === "relevance"
       ? ranked.slice(0, limit)
@@ -37,6 +46,24 @@ export function findSessions(
         .map((result, index) => ({ ...result, rank: index + 1 }));
     return { query, sort, excludedSessions, results, coverage: buildCoverageStatus(db, selector) };
   });
+}
+
+function searchRows(
+  db: Db,
+  query: string,
+  recallLimit: number,
+  selector: Selector | null,
+  sort: FindSort,
+  excludedSessions: string[],
+): RawHitRow[] {
+  return [
+    ...searchMessageHits(db, query, recallLimit, undefined, selector, { sort, excludeSessions: excludedSessions }),
+    ...searchSessionHits(db, query, recallLimit, selector, { sort, excludeSessions: excludedSessions }),
+  ];
+}
+
+function rawHitKey(row: RawHitRow): string {
+  return `${row.sessionUuid}\0${row.matchSource}\0${row.matchSeq ?? "session"}`;
 }
 
 function compareByTime(left: FindResult, right: FindResult, sort: FindSort): number {

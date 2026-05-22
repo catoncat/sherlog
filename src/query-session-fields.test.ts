@@ -159,6 +159,74 @@ describe("cxs session-level fields", () => {
     expect(found.results[0]?.snippet).toContain("durable output queue");
   });
 
+  test("find falls back to technical terms for mixed-language long questions", () => {
+    const base = mkdtempSync(join(tmpdir(), "cxs-multi-agent-recall-"));
+    tempDirs.push(base);
+    const dbPath = join(base, "index.sqlite");
+    const db = openWriteDb(dbPath);
+    const common = {
+      filePath: join(base, "rollout.jsonl"),
+      title: "neutral session",
+      summaryText: "",
+      compactText: "",
+      reasoningSummaryText: "",
+      cwd: "/tmp/multi-agent-recall",
+      model: "gpt-5.4",
+      startedAt: "2026-05-21T01:00:00.000Z",
+      endedAt: "2026-05-21T01:20:00.000Z",
+    };
+
+    replaceSession(db, {
+      ...common,
+      sessionUuid: "60606060-6060-4060-8060-606060606060",
+      filePath: join(base, "target.jsonl"),
+      messages: [
+        {
+          role: "user",
+          contentText: "我要你持续推进到智能货架整个前后端都做好为止",
+          timestamp: "2026-05-21T01:00:00.000Z",
+          seq: 0,
+          sourceKind: "event_msg",
+        },
+        {
+          role: "assistant",
+          contentText: "收到，我会按 `$multi-agents` 开始持续推进，先派两个 explorer 子代理做旁路探索。",
+          timestamp: "2026-05-21T01:01:00.000Z",
+          seq: 1,
+          sourceKind: "event_msg",
+        },
+        {
+          role: "assistant",
+          contentText: "两个 explorer 回来了，接下来整合前后端结果。",
+          timestamp: "2026-05-21T01:20:00.000Z",
+          seq: 2,
+          sourceKind: "event_msg",
+        },
+      ],
+    }, 1, 1, INDEX_VERSION, "");
+    replaceSession(db, {
+      ...common,
+      sessionUuid: "70707070-7070-4070-8070-707070707070",
+      filePath: join(base, "noise.jsonl"),
+      endedAt: "2026-05-21T01:30:00.000Z",
+      messages: [
+        {
+          role: "user",
+          contentText: "最近一个星期整理机器配置",
+          timestamp: "2026-05-21T01:00:00.000Z",
+          seq: 0,
+          sourceKind: "event_msg",
+        },
+      ],
+    }, 1, 1, INDEX_VERSION, "");
+    db.close();
+
+    const found = findSessions(dbPath, "最近一个星期有没有触发过 multi agent", 5);
+
+    expect(found.results[0]?.sessionUuid).toBe("60606060-6060-4060-8060-606060606060");
+    expect(found.results[0]?.snippet).toMatch(/multi-agents|explorer|子代理/);
+  });
+
   test("session-level snippet prefers the window with denser query term coverage", () => {
     const base = mkdtempSync(join(tmpdir(), "cxs-session-snippet-"));
     tempDirs.push(base);

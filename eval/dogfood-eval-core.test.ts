@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest";
-import { desiredContextMode, evaluateDogfoodItem, selectDogfoodHit } from "./dogfood-eval-core";
+import { desiredContextMode, evaluateDogfoodItem, missingContextNeedles, selectDogfoodHit } from "./dogfood-eval-core";
 import { parseDogfoodJsonl } from "./dogfood-schema";
 import type { DogfoodGolden } from "./dogfood-schema";
 import type { FindResult } from "../src/types";
@@ -49,6 +49,12 @@ describe("dogfood eval core", () => {
 
     expect(desiredContextMode(item, findResult({ matchSource: "message", matchSeq: 7 }))).toBe("read-range");
     expect(desiredContextMode(item, findResult({ matchSource: "session", matchSeq: null }))).toBe("read-page");
+  });
+
+  test("reports missing context needles case-insensitively", () => {
+    const item = golden({ contextMustContain: ["multi-agents", "两个 explorer 回来了"] });
+
+    expect(missingContextNeedles(item, "收到，我会按 `$MULTI-AGENTS` 开始持续推进")).toEqual(["两个 explorer 回来了"]);
   });
 
   test("parses find workflow options for dogfood runner attempts", () => {
