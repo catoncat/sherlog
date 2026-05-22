@@ -168,8 +168,58 @@ function trimTranscriptMessage(text: string): string {
 }
 
 function trimText(text: string, limit: number): string {
-  const normalized = text.replace(/\s+/g, " ").trim();
-  return normalized.length > limit ? `${normalized.slice(0, limit)}…` : normalized;
+  // OPTIMIZATION: Avoid expensive regex replace operations (text.replace(/\s+/g, " "))
+  // on large strings. Use a single-pass loop with charCodeAt to track spaces
+  // and truncate exactly when the limit is reached.
+  let res = "";
+  let inSpace = false;
+  const len = text.length;
+  let i = 0;
+
+  // Skip leading spaces
+  while (i < len && text.charCodeAt(i) <= 32) {
+    i++;
+  }
+
+  for (; i < len; i++) {
+    if (text.charCodeAt(i) <= 32) {
+      if (!inSpace) {
+        res += " ";
+        inSpace = true;
+      }
+    } else {
+      res += text[i];
+      inSpace = false;
+    }
+
+    if (res.length >= limit) {
+      // Check if remaining characters are all spaces
+      let hasMore = false;
+      for (let j = i + 1; j < len; j++) {
+        if (text.charCodeAt(j) > 32) {
+          hasMore = true;
+          break;
+        }
+      }
+      if (hasMore) {
+        if (res.endsWith(" ")) {
+          res = res.slice(0, -1);
+        }
+        res += "…";
+      } else {
+        if (res.endsWith(" ")) {
+          res = res.slice(0, -1);
+        }
+      }
+      break;
+    }
+  }
+
+  if (i === len && res.endsWith(" ")) {
+    res = res.slice(0, -1);
+  }
+
+  return res;
 }
 
 function stripMarks(snippet: string): string {
