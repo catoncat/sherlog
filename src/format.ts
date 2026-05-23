@@ -168,8 +168,37 @@ function trimTranscriptMessage(text: string): string {
 }
 
 function trimText(text: string, limit: number): string {
-  const normalized = text.replace(/\s+/g, " ").trim();
-  return normalized.length > limit ? `${normalized.slice(0, limit)}…` : normalized;
+  // OPTIMIZATION: Avoid using text.replace(/\s+/g, " ") or .trim() on large strings
+  // if only a truncated portion of the string is needed. This avoids unnecessary
+  // scanning of the entire text and reduces memory allocations.
+  let result = "";
+  let inSpace = true;
+
+  for (let i = 0; i < text.length; i++) {
+    const code = text.charCodeAt(i);
+    // Standard whitespace checking (space, tab, LF, CR, etc)
+    const isSpace = code <= 32 && (code === 32 || code === 9 || code === 10 || code === 13);
+
+    if (isSpace) {
+      if (!inSpace) {
+        result += " ";
+        inSpace = true;
+      }
+    } else {
+      result += text[i];
+      inSpace = false;
+    }
+
+    if (result.length > limit + 1) {
+      break;
+    }
+  }
+
+  if (result.endsWith(" ")) {
+    result = result.slice(0, -1);
+  }
+
+  return result.length > limit ? `${result.slice(0, limit)}…` : result;
 }
 
 function stripMarks(snippet: string): string {
