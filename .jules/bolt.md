@@ -36,3 +36,7 @@
 ## 2025-02-18 - Avoid path.relative() in tight loops over absolute paths
 **Learning:** Found that using `node:path.relative()` inside a loop over thousands of absolute paths (`fingerprintFiles`) adds significant computational overhead because it performs deep path normalization and splitting on every call. In this code path, source files are collected under the resolved root, so every fingerprinted path is already an absolute path with the same prefix.
 **Action:** Pre-calculate the root prefix (with a trailing separator) and use `String.prototype.slice()` for an O(1) substring extraction instead of calling `path.relative()` for each file.
+
+## 2024-05-24 - [Regex Trimming on Large Strings]
+**Learning:** Executing global regex replacements (e.g., `text.replace(/\s+/g, ' ')`) on massive strings like Codex logs causes extreme CPU thread blocking and performance issues. However, using 60-line custom loops to avoid this hurts readability and maintainability.
+**Action:** Slice strings to a safe upper limit *before* applying the regex (e.g., `text.slice(0, 5000).replace(/\s+/g, " ")`). Apply this at the call sites, not in foundational utilities, to avoid breaking downstream logic that expects full text strings.

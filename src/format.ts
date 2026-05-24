@@ -168,7 +168,7 @@ function trimTranscriptMessage(text: string): string {
 }
 
 function trimText(text: string, limit: number): string {
-  const normalized = text.replace(/\s+/g, " ").trim();
+  const normalized = text.slice(0, limit + 1000).replace(/\s+/g, " ").trim();
   return normalized.length > limit ? `${normalized.slice(0, limit)}…` : normalized;
 }
 

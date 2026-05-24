@@ -171,10 +171,10 @@ function buildSessionSummary(messages: ParsedMessage[]): string {
   }
 
   const parts = [
-    firstUser ? `user: ${normalizeSummaryText(firstUser.contentText)}` : "",
-    firstAssistant ? `assistant: ${normalizeSummaryText(firstAssistant.contentText)}` : "",
-    latestUser && latestUser.seq !== firstUser?.seq ? `follow-up: ${normalizeSummaryText(latestUser.contentText)}` : "",
-    latestAssistant && latestAssistant.seq !== firstAssistant?.seq ? `latest: ${normalizeSummaryText(latestAssistant.contentText)}` : "",
+    firstUser ? `user: ${normalizeSummaryText(firstUser.contentText.slice(0, 5000))}` : "",
+    firstAssistant ? `assistant: ${normalizeSummaryText(firstAssistant.contentText.slice(0, 5000))}` : "",
+    latestUser && latestUser.seq !== firstUser?.seq ? `follow-up: ${normalizeSummaryText(latestUser.contentText.slice(0, 5000))}` : "",
+    latestAssistant && latestAssistant.seq !== firstAssistant?.seq ? `latest: ${normalizeSummaryText(latestAssistant.contentText.slice(0, 5000))}` : "",
   ].filter(Boolean);
 
   return parts.join(" | ").slice(0, 480);
@@ -192,7 +192,7 @@ function normalizeUniqueText(values: string[]): string {
   const seen = new Set<string>();
   const parts: string[] = [];
   for (const value of values) {
-    const normalized = normalizeSummaryText(value);
+    const normalized = normalizeSummaryText(value.slice(0, 5000));
     if (!normalized || seen.has(normalized)) continue;
     seen.add(normalized);
     parts.push(normalized);
