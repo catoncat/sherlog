@@ -112,4 +112,32 @@ describe("listSessionSummaries", () => {
     expect(result.results.length).toBe(1);
     expect(result.results[0].cwd).toBe("/tmp/project-a");
   });
+
+  test("list zero results tells agents to check selector coverage before giving up", () => {
+    const base = mkdtempSync(join(tmpdir(), "cxs-list-zero-result-next-action-"));
+    tempDirs.push(base);
+    const dbPath = join(base, "index.sqlite");
+    const root = join(base, "sessions");
+    const selector = { kind: "cwd" as const, root, cwd: "/tmp/missing-list-coverage" };
+    const db = openWriteDb(dbPath);
+    db.close();
+
+    const result = listSessionSummaries(dbPath, {
+      selector,
+      sort: "ended",
+      limit: 10,
+    });
+
+    expect(result.results).toHaveLength(0);
+    expect(result.nextAction).toEqual({
+      kind: "check_coverage_then_retry",
+      reason: "zero_results_with_unconfirmed_selector_coverage",
+      selector,
+      steps: [
+        "Run cxs status for the same selector.",
+        "If status requestedCoverage.recommendedAction is sync, run cxs sync for the same selector.",
+        "Retry this command with the same selector before concluding nothing exists.",
+      ],
+    });
+  });
 });

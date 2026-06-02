@@ -3,6 +3,7 @@ import type {
   CwdCount,
   FindResult,
   MessageRecord,
+  QueryNextAction,
   SessionListEntry,
   SessionRecord,
   StatsSummary,
@@ -33,10 +34,11 @@ export function printSyncSummary(summary: SyncSummary): void {
   }
 }
 
-export function printFindResults(query: string, results: FindResult[]): void {
+export function printFindResults(query: string, results: FindResult[], nextAction?: QueryNextAction): void {
   console.log(chalk.bold.cyan(`cxs find "${query}"`));
   if (results.length === 0) {
     console.log(chalk.yellow("没有找到结果"));
+    printNextAction(nextAction);
     return;
   }
 
@@ -95,10 +97,11 @@ export function printReadPage(
   }
 }
 
-export function printSessionList(results: SessionListEntry[]): void {
+export function printSessionList(results: SessionListEntry[], nextAction?: QueryNextAction): void {
   console.log(chalk.bold.cyan(`cxs list`));
   if (results.length === 0) {
     console.log(chalk.yellow("没有匹配的 session"));
+    printNextAction(nextAction);
     return;
   }
   for (const [index, entry] of results.entries()) {
@@ -174,4 +177,12 @@ function trimText(text: string, limit: number): string {
 
 function stripMarks(snippet: string): string {
   return snippet.replaceAll("<mark>", "").replaceAll("</mark>", "");
+}
+
+function printNextAction(nextAction: QueryNextAction | undefined): void {
+  if (!nextAction) return;
+  console.log(chalk.gray("next:"));
+  for (const step of nextAction.steps) {
+    console.log(chalk.gray(`  - ${step}`));
+  }
 }

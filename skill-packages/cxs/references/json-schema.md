@@ -11,6 +11,7 @@ Top-level shape:
   excludedSessions: string[];
   results: FindResult[];
   coverage: CoverageStatus;
+  nextAction?: QueryNextAction;
 }
 ```
 
@@ -36,6 +37,19 @@ Top-level shape:
 ```
 
 `matchSource = "session"` means the hit came from session-level fields such as title, derived summary, compact handoff, or reasoning summary rather than a concrete message. In that case `matchSeq` is `null`; use `read-page` first instead of fabricating a `read-range --seq` anchor.
+
+`QueryNextAction` appears on `find` / `list` when `results` is empty and the command cannot prove the target coverage is fresh:
+
+```ts
+{
+  kind: "check_coverage_then_retry" | "choose_selector_then_check_coverage";
+  reason: "zero_results_with_unconfirmed_selector_coverage" | "zero_results_without_selector";
+  selector?: Selector;
+  steps: string[];
+}
+```
+
+Treat it as a retry gate: choose/check the same selector, run `sync` only if `status.requestedCoverage.recommendedAction === "sync"`, then retry `find` before concluding nothing exists.
 
 ## read-range
 
@@ -77,6 +91,7 @@ Top-level shape:
   };
   results: SessionListEntry[];
   coverage: CoverageStatus;
+  nextAction?: QueryNextAction;
 }
 ```
 

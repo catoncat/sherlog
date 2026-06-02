@@ -43,6 +43,12 @@ npx skills add catoncat/cxs --full-depth --skill cxs -g -a codex -y
 | coverage/freshness/index availability: 索引缺失、coverage stale、要决定是否同步 | `cxs status --json` / `status --cwd` / `status --selector` | `status` 不回答内容问题,只决定 coverage 和 sync 需求 |
 | mutation: 建索引或更新 coverage | `cxs sync --cwd/--root/--selector` | 普通检索不要 `--prune`;只有用户明确要求清理已消失 source 的旧索引记录才用 |
 
+`find` / `list` 返回零结果不是结束条件。遇到零结果、用户说“应该有”、问题涉及最近/当前 repo、或 JSON 里有 `nextAction` 时,必须先按同一范围做 coverage check:
+
+1. `status --cwd <path> --json` / `status --root <dir> --selector '<json>' --json`
+2. 若 `requestedCoverage.recommendedAction === "sync"`,跑同范围 `sync --cwd` / `sync --root` / `sync --selector`
+3. 再用同一 selector 重试 `find` / `list`;只有 fresh coverage 下仍无结果,才说没找到
+
 只读 SQLite 只允许查 cxs 自己的 index,不要查 Codex raw JSONL 或其他 source roots。稳定 session metadata 字段限于:`session_uuid`, `started_at`, `ended_at`, `cwd`, `title`, `summary_text`, `message_count`, `source_root`, `file_path`。
 
 **反例**(应该用别的工具):
@@ -68,6 +74,7 @@ npx skills add catoncat/cxs --full-depth --skill cxs -g -a codex -y
 - 混合自然语言 + 英文技术词的问题可以先直接 `find` 原句；新版 CLI 在严格召回为 0 时会保守提取 ASCII 技术词做一次 relaxed recall。仍要用 `read-range` / `read-page` 验证内容，不要只凭命中标题下结论。
 - `matchSource = "session"` 时 `matchSeq = null`;这种命中先 `read-page` 抽样,**不要伪造 `read-range --seq`**
 - 用户给 cwd 但不确定 sync 状态 → `status --json`;确认绝对 cwd 后跑 `status --cwd <path>`;缺失/stale 才 `sync --cwd <path>`
+- `find --json` / `list --json` 零结果时看 `nextAction`:它是防止 agent 放弃的机器可读提示。按提示选择/检查 selector、必要时同步、再重试。
 - `cwd` 只是候选过滤,不是主题真相;还要再看 `title`、`summaryText`、开头几条 message
 - 同主题可能多个 uuid;按 `cwd / startedAt / matchCount` 选,不要按 title 脑补去重
 
@@ -118,4 +125,4 @@ npx skills add catoncat/cxs --full-depth --skill cxs -g -a codex -y
 - [`references/failure-cookbook.md`](references/failure-cookbook.md) — 错误症状速查 / `--json` error shape 速查
 - [`references/advanced-queries.md`](references/advanced-queries.md) — query 语义 / 只读 SQLite metadata projection / CJK 行为
 
-# skill-sync: distributable cxs skill package, primitive-routing retained-index workflow, 2026-05-19
+# skill-sync: distributable cxs skill package, zero-result coverage retry workflow, 2026-06-02

@@ -107,6 +107,13 @@ export interface CoverageStatus {
   coveringSelectors: CoverageRecord[];
 }
 
+export interface QueryNextAction {
+  kind: "check_coverage_then_retry" | "choose_selector_then_check_coverage";
+  reason: "zero_results_with_unconfirmed_selector_coverage" | "zero_results_without_selector";
+  selector?: Selector;
+  steps: string[];
+}
+
 export interface RequestedCoverageStatus {
   requested: Selector;
   complete: boolean;
@@ -157,6 +164,15 @@ export interface FindResult {
   snippet: string;
 }
 
+export interface FindSummary {
+  query: string;
+  sort: FindSort;
+  excludedSessions: string[];
+  results: FindResult[];
+  coverage: CoverageStatus;
+  nextAction?: QueryNextAction;
+}
+
 export interface SyncSummary {
   scanned: number;
   added: number;
@@ -190,6 +206,13 @@ export interface SessionListQuery {
   selector?: Selector;
   sort: SessionListSort;
   limit: number;
+}
+
+export interface SessionListSummary {
+  query: SessionListQuery;
+  results: SessionListEntry[];
+  coverage: CoverageStatus;
+  nextAction?: QueryNextAction;
 }
 
 export interface CwdCount {

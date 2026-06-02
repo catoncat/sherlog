@@ -1,9 +1,9 @@
 import { afterEach, describe, expect, test } from "vitest";
-import Database from "better-sqlite3";
 import { spawn as childSpawn } from "node:child_process";
 import { chmodSync, mkdtempSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { openWriteDb } from "./db";
 import { INDEX_VERSION } from "./env";
 import { syncSessions } from "./indexer";
 
@@ -271,6 +271,55 @@ describe("cxs cli", () => {
     expect(listed.exitCode).toBe(0);
     const listPayload = JSON.parse(listed.stdout) as { results: Array<{ sessionUuid: string }> };
     expect(listPayload.results.map((result) => result.sessionUuid)).toEqual(["bbbbbbbb-2222-4bbb-8bbb-bbbbbbbbbbbb"]);
+  });
+
+  test("find text output tells agents to check coverage before giving up on zero results", async () => {
+    const base = mkdtempSync(join(tmpdir(), "cxs-cli-find-zero-next-"));
+    tempDirs.push(base);
+    const root = join(base, "sessions");
+    const dbPath = join(base, "index.sqlite");
+    const db = openWriteDb(dbPath);
+    db.close();
+
+    const result = await runCli([
+      "find",
+      "missing needle",
+      "--root",
+      root,
+      "--cwd",
+      "/tmp/missing-text-find",
+      "--db",
+      dbPath,
+    ]);
+
+    expect(result.exitCode).toBe(0);
+    expect(result.stdout).toContain("没有找到结果");
+    expect(result.stdout).toContain("next:");
+    expect(result.stdout).toContain("cxs status");
+    expect(result.stdout).toContain("cxs sync");
+  });
+
+  test("list text output tells agents to check coverage before giving up on zero results", async () => {
+    const base = mkdtempSync(join(tmpdir(), "cxs-cli-list-zero-next-"));
+    tempDirs.push(base);
+    const root = join(base, "sessions");
+    const dbPath = join(base, "index.sqlite");
+    const db = openWriteDb(dbPath);
+    db.close();
+
+    const result = await runCli([
+      "list",
+      "--root",
+      root,
+      "--db",
+      dbPath,
+    ]);
+
+    expect(result.exitCode).toBe(0);
+    expect(result.stdout).toContain("没有匹配的 session");
+    expect(result.stdout).toContain("next:");
+    expect(result.stdout).toContain("cxs status");
+    expect(result.stdout).toContain("cxs sync");
   });
 
   test("selector JSON can omit root when --root is provided", async () => {

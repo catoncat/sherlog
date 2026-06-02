@@ -1,8 +1,9 @@
 import { withReadDb, type Db } from "../db";
 import type { RawHitRow } from "../ranking";
 import { rerankHits } from "../ranking";
-import type { FindResult, FindSort, Selector } from "../types";
+import type { FindResult, FindSort, FindSummary, Selector } from "../types";
 import { buildCoverageStatus } from "./coverage";
+import { buildZeroResultsNextAction } from "./next-action";
 import { buildRelaxedRecallQueries } from "./relaxed-recall";
 import { searchMessageHits, searchSessionHits } from "./search";
 
@@ -17,13 +18,7 @@ export function findSessions(
   limit: number,
   selector: Selector | null = null,
   options: FindSessionsOptions = {},
-): {
-  query: string;
-  sort: FindSort;
-  excludedSessions: string[];
-  results: FindResult[];
-  coverage: ReturnType<typeof buildCoverageStatus>;
-} {
+): FindSummary {
   return withReadDb(dbPath, (db) => {
     const sort = options.sort ?? "relevance";
     const excludedSessions = uniqueNonEmpty(options.excludeSessions ?? []);
@@ -44,7 +39,15 @@ export function findSessions(
       ? ranked.slice(0, limit)
       : ranked.sort((left, right) => compareByTime(left, right, sort)).slice(0, limit)
         .map((result, index) => ({ ...result, rank: index + 1 }));
-    return { query, sort, excludedSessions, results, coverage: buildCoverageStatus(db, selector) };
+    const coverage = buildCoverageStatus(db, selector);
+    return {
+      query,
+      sort,
+      excludedSessions,
+      results,
+      coverage,
+      nextAction: results.length === 0 ? buildZeroResultsNextAction(selector, "this find") : undefined,
+    };
   });
 }
 

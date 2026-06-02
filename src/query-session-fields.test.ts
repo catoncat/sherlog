@@ -2,7 +2,7 @@ import { describe, expect, test } from "vitest";
 import { mkdtempSync, mkdirSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { openWriteDb, replaceSession } from "./db";
+import { openWriteDb, replaceCoverage, replaceSession } from "./db";
 import { INDEX_VERSION } from "./env";
 import { syncSessions } from "./indexer";
 import { findSessions } from "./query";
@@ -269,5 +269,76 @@ describe("cxs session-level fields", () => {
 
     expect(found.results[0]?.snippet).toContain("health");
     expect(found.results[0]?.snippet).toContain("check");
+  });
+
+  test("find zero results tells agents to check selector coverage before giving up", () => {
+    const base = mkdtempSync(join(tmpdir(), "cxs-zero-result-next-action-"));
+    tempDirs.push(base);
+    const root = join(base, "sessions");
+    const selector = { kind: "cwd" as const, root, cwd: "/tmp/missing-coverage" };
+    const dbPath = join(base, "index.sqlite");
+    const db = openWriteDb(dbPath);
+    replaceSession(
+      db,
+      {
+        sessionUuid: "80808080-8080-4080-8080-808080808080",
+        filePath: join(root, "rollout.jsonl"),
+        title: "unrelated indexed session",
+        summaryText: "",
+        compactText: "",
+        reasoningSummaryText: "",
+        cwd: "/tmp/missing-coverage",
+        model: "gpt-5.4",
+        startedAt: "2026-04-24T01:00:00.000Z",
+        endedAt: "2026-04-24T01:00:00.000Z",
+        messages: [
+          {
+            role: "user",
+            contentText: "ordinary visible message",
+            timestamp: "2026-04-24T01:00:00.000Z",
+            seq: 0,
+            sourceKind: "event_msg",
+          },
+        ],
+      },
+      1,
+      1,
+      INDEX_VERSION,
+      "",
+      root,
+    );
+    db.close();
+
+    const found = findSessions(dbPath, "definitely missing needle", 5, selector);
+
+    expect(found.results).toHaveLength(0);
+    expect(found.nextAction).toEqual({
+      kind: "check_coverage_then_retry",
+      reason: "zero_results_with_unconfirmed_selector_coverage",
+      selector,
+      steps: [
+        "Run cxs status for the same selector.",
+        "If status requestedCoverage.recommendedAction is sync, run cxs sync for the same selector.",
+        "Retry this find with the same selector before concluding nothing exists.",
+      ],
+    });
+  });
+
+  test("find zero results still checks coverage when a covering selector exists but freshness is not checked", () => {
+    const base = mkdtempSync(join(tmpdir(), "cxs-zero-result-covered-next-action-"));
+    tempDirs.push(base);
+    const root = join(base, "sessions");
+    const selector = { kind: "cwd" as const, root, cwd: "/tmp/covered-but-unchecked" };
+    const dbPath = join(base, "index.sqlite");
+    const db = openWriteDb(dbPath);
+    replaceCoverage(db, selector, "old-fingerprint", 1, 1, INDEX_VERSION);
+    db.close();
+
+    const found = findSessions(dbPath, "definitely missing needle", 5, selector);
+
+    expect(found.coverage.complete).toBe(true);
+    expect(found.coverage.freshness).toBe("not_checked");
+    expect(found.results).toHaveLength(0);
+    expect(found.nextAction?.reason).toBe("zero_results_with_unconfirmed_selector_coverage");
   });
 });

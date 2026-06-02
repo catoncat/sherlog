@@ -20,6 +20,8 @@
 
 ## Find zero results but user insists it exists
 
+先看 `find --json` / `list --json` 有没有 `nextAction`。有就按它执行；没有也不要直接放弃,先确认目标范围 coverage。
+
 ```bash
 "${CXS_BIN:-cxs}" status --json
 ```

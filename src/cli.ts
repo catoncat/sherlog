@@ -141,7 +141,7 @@ program
         console.log(JSON.stringify(result, null, 2));
         return;
       }
-      printFindResults(result.query, result.results);
+      printFindResults(result.query, result.results, result.nextAction);
     });
   });
 
@@ -232,7 +232,7 @@ program
         console.log(JSON.stringify(result, null, 2));
         return;
       }
-      printSessionList(result.results);
+      printSessionList(result.results, result.nextAction);
     });
   });
 
