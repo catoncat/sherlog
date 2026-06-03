@@ -83,6 +83,8 @@ Example:
 
 Purpose: 搜索相关 session，返回最小必要命中。用于 semantic recall,不是数量/排序/分布这类 metadata projection 的默认工具。
 
+text header 带效率回述:`cxs find "q" · 检索 ~N 条 · 结果 R · Xms`(`检索 ~N` = 范围内语料规模诚实分母,`--json` 里是 `scannedMessageCount` / `elapsedMs`)。`read-range` / `read-page` 的 header 带「读取 K 条 / 本 session 共 T 条 · Xms」和 `total=… · hasMore=… · Xms`。这些数字用于「结果回述」那段克制地告诉用户省了多少,**不要据此编造「省 X%」**。
+
 零结果不是结束条件。`--json` 下如果返回 `nextAction`,按它选择/检查同一 selector；text 输出也会打印 `next:` 步骤。只有 `status.requestedCoverage.recommendedAction === "sync"` 时才跑同范围 `sync`,然后重试同一个 `find`。fresh coverage 下仍无结果,才可以说没找到。
 
 Example:

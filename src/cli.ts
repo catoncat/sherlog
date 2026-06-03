@@ -1,3 +1,4 @@
+import { performance } from "node:perf_hooks";
 import { Command } from "commander";
 import packageJson from "../package.json" with { type: "json" };
 import {
@@ -137,11 +138,14 @@ program
         sort,
         excludeSessions: options.excludeSession ?? [],
       });
+      // performance.now() 自 timeOrigin(进程启动)起算 ≈ 本次端到端耗时,
+      // 含 better-sqlite3 模块加载;cxs 是一次性进程,所以这就是诚实的端到端。
+      const elapsedMs = Math.round(performance.now());
       if (options.json) {
-        console.log(JSON.stringify(result, null, 2));
+        console.log(JSON.stringify({ ...result, elapsedMs }, null, 2));
         return;
       }
-      printFindResults(result.query, result.results, result.nextAction);
+      printFindResults(result.query, result.results, result.scannedMessageCount, elapsedMs, result.nextAction);
     });
   });
 
@@ -162,8 +166,9 @@ program
         before: parsePositiveInt(options.before, 2),
         after: parsePositiveInt(options.after, 2),
       });
+      const elapsedMs = Math.round(performance.now());
       if (options.json) {
-        console.log(JSON.stringify(result, null, 2));
+        console.log(JSON.stringify({ ...result, elapsedMs }, null, 2));
         return;
       }
       printReadRangeResult(
@@ -172,6 +177,7 @@ program
         result.messages,
         result.rangeStartSeq,
         result.rangeEndSeq,
+        elapsedMs,
       );
     });
   });
@@ -191,8 +197,9 @@ program
         parseNonNegativeInt(options.offset, 0),
         parsePositiveInt(options.limit, 20),
       );
+      const elapsedMs = Math.round(performance.now());
       if (options.json) {
-        console.log(JSON.stringify(result, null, 2));
+        console.log(JSON.stringify({ ...result, elapsedMs }, null, 2));
         return;
       }
       printReadPage(
@@ -202,6 +209,7 @@ program
         result.totalCount,
         result.hasMore,
         result.messages,
+        elapsedMs,
       );
     });
   });

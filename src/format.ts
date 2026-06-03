@@ -34,8 +34,16 @@ export function printSyncSummary(summary: SyncSummary): void {
   }
 }
 
-export function printFindResults(query: string, results: FindResult[], nextAction?: QueryNextAction): void {
-  console.log(chalk.bold.cyan(`cxs find "${query}"`));
+export function printFindResults(
+  query: string,
+  results: FindResult[],
+  scannedMessageCount: number,
+  elapsedMs: number,
+  nextAction?: QueryNextAction,
+): void {
+  // 效率回述(中性事实):检索覆盖的语料规模 + 结果数 + 端到端耗时。诚实分母
+  // 随搜索范围走,不出现编造的"省 X%"。
+  console.log(chalk.bold.cyan(`cxs find "${query}"`) + chalk.gray(` · 检索 ${formatCount(scannedMessageCount)} 条 · 结果 ${results.length} · ${elapsedMs}ms`));
   if (results.length === 0) {
     console.log(chalk.yellow("没有找到结果"));
     printNextAction(nextAction);
@@ -66,10 +74,14 @@ export function printReadRangeResult(
   messages: MessageRecord[],
   rangeStartSeq: number,
   rangeEndSeq: number,
+  elapsedMs: number,
 ): void {
   console.log(chalk.bold.cyan(`cxs read-range ${session.sessionUuid}`));
   console.log(chalk.gray(`${session.title || "(no title)"} · ${session.cwd || "-"}`));
   console.log(chalk.gray(`anchor=${anchorSeq} · range=${rangeStartSeq}-${rangeEndSeq}`));
+  // 只报原始计数(读取/全量),不算 saved% —— "共 T 条"是功能信息(告诉还有多少
+  // 可读),避免在"多读一点也许才对"的时刻给 under-read 诱因。
+  console.log(chalk.gray(`读取 ${messages.length} 条 / 本 session 共 ${session.messageCount} 条 · ${elapsedMs}ms`));
   console.log();
 
   for (const message of messages) {
@@ -86,9 +98,10 @@ export function printReadPage(
   totalCount: number,
   hasMore: boolean,
   messages: MessageRecord[],
+  elapsedMs: number,
 ): void {
   console.log(chalk.bold.cyan(`cxs read-page ${session.sessionUuid}`));
-  console.log(chalk.gray(`${session.title || "(no title)"} · total=${totalCount} · offset=${offset} · limit=${limit} · hasMore=${hasMore}`));
+  console.log(chalk.gray(`${session.title || "(no title)"} · total=${totalCount} · offset=${offset} · limit=${limit} · hasMore=${hasMore} · ${elapsedMs}ms`));
   console.log();
 
   for (const message of messages) {
@@ -160,6 +173,11 @@ export function printStatus(status: StatusSummary): void {
       console.log(`  ${group.fileCount.toString().padStart(4)}  ${group.cwd}`);
     }
   }
+}
+
+// 千分位,保证测试可确定性断言(不依赖 locale)。
+function formatCount(value: number): string {
+  return value.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ",");
 }
 
 function trimSummary(text: string): string {

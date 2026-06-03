@@ -10,10 +10,14 @@ Top-level shape:
   sort: "relevance" | "ended" | "started";
   excludedSessions: string[];
   results: FindResult[];
+  scannedMessageCount: number; // 检索覆盖范围(selector 限定后)内的消息总数,做诚实分母
   coverage: CoverageStatus;
   nextAction?: QueryNextAction;
+  elapsedMs: number; // 端到端耗时(进程启动到输出),仅 CLI 输出注入,非 query 层字段
 }
 ```
+
+`scannedMessageCount` 随 selector 范围收窄(全库 vs `--cwd` 子集),用于「从 ~N 条历史里定位」的诚实回述,不要据此编造「省 X%」。`elapsedMs` 由 CLI 层在产出输出时用 `performance.now()` 注入,`read-range` / `read-page` 的 JSON 同样带 `elapsedMs`。
 
 `FindResult`:
 
