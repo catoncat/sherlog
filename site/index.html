@@ -3,545 +3,407 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>CXS — Search your Codex sessions locally</title>
-  <meta name="description" content="Install CXS and turn local Codex session logs into searchable working memory.">
+  <title>cxs — Codex session search</title>
+  <meta name="description" content="Search your Codex session history. Finds the right session, reads only the relevant slice.">
   <link rel="icon" type="image/svg+xml" href="favicon.svg">
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;700&family=Literata:wght@500;700;900&display=swap" rel="stylesheet">
   <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
     :root {
-      --ink: #131310;
-      --paper: #f7f4eb;
-      --paper-deep: #e8ddc8;
-      --green: #174c3a;
-      --green-soft: #d7ead8;
-      --blue: #193f7a;
-      --red: #b74232;
-      --line: rgba(19,19,16,0.16);
-      --shadow: 0 26px 70px rgba(40,31,20,0.18);
+      --mono: ui-monospace, 'Cascadia Code', 'Source Code Pro', Menlo, Consolas, monospace;
+      --bg: #ffffff;
+      --fg: #1a1a1a;
+      --muted: #6b6b6b;
+      --dim: #aaa;
+      --border: #e8e8e8;
+      --code-bg: #141414;
+      --code-fg: #d4d0c8;
+      --green: #5a9e6f;
+      --yellow: #b89a4a;
+      --accent: #1a6b3c;
+      --ctrl-bg: transparent;
+      --ctrl-fg: var(--dim);
+      --ctrl-border: var(--border);
+      --ctrl-hover: var(--border);
     }
 
-    * { box-sizing: border-box; }
+    html.dark {
+      --bg: #111111;
+      --fg: #e0ddd6;
+      --muted: #888;
+      --dim: #555;
+      --border: #2a2a2a;
+      --code-bg: #0a0a0a;
+      --code-fg: #c8c4bc;
+      --accent: #5a9e6f;
+      --ctrl-hover: #1e1e1e;
+    }
 
-    html { scroll-behavior: smooth; }
+    /* hide/show lang variants */
+    html[lang="en"] .zh { display: none; }
+    html[lang="zh"] .en { display: none; }
 
     body {
-      margin: 0;
-      background:
-        linear-gradient(90deg, rgba(19,19,16,0.05) 1px, transparent 1px),
-        linear-gradient(rgba(19,19,16,0.05) 1px, transparent 1px),
-        var(--paper);
-      background-size: 34px 34px;
-      color: var(--ink);
-      font-family: "Literata", "Songti SC", "Noto Serif CJK SC", Georgia, serif;
+      background: var(--bg);
+      color: var(--fg);
+      font-family: var(--mono);
+      font-size: 13.5px;
+      line-height: 1.7;
+      max-width: 660px;
+      margin: 0 auto;
+      padding: 0 24px 64px;
+      transition: background 0.15s, color 0.15s;
     }
 
-    a { color: inherit; text-decoration: none; }
+    a { color: var(--accent); text-decoration: none; }
+    a:hover { text-decoration: underline; }
 
-    code, pre {
-      font-family: "IBM Plex Mono", "SFMono-Regular", Consolas, monospace;
-    }
-
-    h1, h2, p { margin-top: 0; }
-
-    h1 {
-      font-size: clamp(46px, 6.6vw, 80px);
-      font-weight: 900;
-      letter-spacing: 0;
-      line-height: 0.93;
-      margin-bottom: 22px;
-      max-width: 760px;
-    }
-
-    .eyebrow {
-      color: var(--red);
-      font-family: "IBM Plex Mono", monospace;
-      font-size: 13px;
-      font-weight: 700;
-      letter-spacing: 0.08em;
-      margin: 0 0 18px;
-      text-transform: uppercase;
-    }
-
-    /* ── nav ── */
-    .hero {
-      min-height: 86vh;
-      padding: 22px clamp(18px, 4vw, 54px) 0;
-    }
-
+    /* ── top bar ── */
     .topbar {
-      align-items: center;
       display: flex;
       justify-content: space-between;
-      margin: 0 auto;
-      max-width: 1180px;
-    }
-
-    .brand {
       align-items: center;
-      display: flex;
+      padding: 28px 0 32px;
+      border-bottom: 1px solid var(--border);
       gap: 12px;
     }
 
-    .brand-mark {
-      align-items: center;
-      background: var(--ink);
-      border-radius: 4px;
-      color: var(--paper);
-      display: inline-flex;
-      font-family: "IBM Plex Mono", monospace;
-      font-size: 18px;
-      font-weight: 800;
-      height: 42px;
-      justify-content: center;
-      letter-spacing: 0;
-      width: 58px;
-    }
+    .logo { font-weight: 700; font-size: 14px; }
+    .logo-sub { color: var(--muted); font-weight: 400; }
 
-    .brand-copy {
-      color: rgba(19,19,16,0.72);
-      font-size: 14px;
-      font-weight: 700;
-      text-transform: uppercase;
-    }
+    .topbar-right { display: flex; align-items: center; gap: 8px; }
 
-    .nav-actions { display: flex; gap: 8px; }
+    .nav-links { display: flex; gap: 16px; font-size: 12px; }
+    .nav-links a { color: var(--muted); }
 
-    .nav-actions a,
-    .secondary-link,
-    .primary-link,
-    .install-strip a {
-      border: 1px solid var(--line);
-      border-radius: 5px;
-      font-size: 14px;
-      font-weight: 800;
-      padding: 11px 14px;
-      transition: transform 160ms ease, background 160ms ease, color 160ms ease;
-    }
-
-    .nav-actions a:hover,
-    .secondary-link:hover,
-    .primary-link:hover,
-    .install-strip a:hover { transform: translateY(-2px); }
-
-    /* ── hero grid ── */
-    .hero-grid {
-      align-items: center;
-      display: grid;
-      gap: clamp(28px, 5vw, 72px);
-      grid-template-columns: minmax(0, 1.02fr) minmax(380px, 0.88fr);
-      margin: 34px auto 0;
-      max-width: 1180px;
-    }
-
-    .hero-copy { max-width: 720px; }
-
-    .lede {
-      color: rgba(19,19,16,0.76);
-      font-size: clamp(18px, 2vw, 23px);
-      line-height: 1.55;
-      margin-bottom: 24px;
-      max-width: 660px;
-    }
-
-    .install-strip {
-      align-items: center;
-      background: var(--ink);
-      border: 1px solid rgba(19,19,16,0.9);
-      box-shadow: 8px 8px 0 var(--green);
-      color: var(--paper);
+    /* ── controls (lang + theme) ── */
+    .ctrl {
       display: flex;
-      gap: 14px;
-      justify-content: space-between;
-      margin-bottom: 24px;
-      max-width: 620px;
-      padding: 10px;
-    }
-
-    .install-strip code {
-      font-size: clamp(15px, 2.2vw, 20px);
-      font-weight: 800;
-      overflow-wrap: anywhere;
-      padding-left: 8px;
-    }
-
-    .install-strip a {
-      background: var(--green-soft);
-      border: 0;
-      color: var(--ink);
-      flex: 0 0 auto;
-    }
-
-    .hero-actions { display: flex; flex-wrap: wrap; gap: 12px; }
-
-    .primary-link {
-      background: var(--red);
-      border-color: var(--red);
-      color: #fffdf8;
-    }
-
-    .secondary-link { background: rgba(255,255,255,0.4); }
-
-    /* ── terminal ── */
-    .terminal-card {
-      background: #151711;
-      border: 2px solid var(--ink);
-      box-shadow: var(--shadow), 12px 12px 0 var(--blue);
-      color: #f4f0df;
-      min-height: 468px;
-      transform: rotate(1.2deg);
-    }
-
-    .terminal-chrome {
       align-items: center;
-      border-bottom: 1px solid rgba(244,240,223,0.14);
-      display: flex;
-      gap: 7px;
-      padding: 13px 15px;
-    }
-
-    .terminal-chrome span {
-      background: #f4f0df;
-      border-radius: 50%;
-      display: block;
-      height: 10px;
-      opacity: 0.9;
-      width: 10px;
-    }
-
-    .terminal-chrome span:nth-child(2) { background: #d6c36c; }
-    .terminal-chrome span:nth-child(3) { background: #6dc493; }
-
-    .terminal-chrome p {
-      color: rgba(244,240,223,0.55);
-      font-family: "IBM Plex Mono", monospace;
-      font-size: 12px;
-      margin: 0 0 0 auto;
-    }
-
-    .terminal-body {
-      font-family: "IBM Plex Mono", monospace;
-      font-size: clamp(12px, 1.4vw, 15px);
-      line-height: 1.52;
-      padding: 18px;
-    }
-
-    .terminal-body p { margin: 0 0 9px; overflow-wrap: anywhere; }
-
-    .terminal-body p .prompt { color: #6dc493; font-weight: 900; }
-
-    .terminal-body pre {
-      background: rgba(255,255,255,0.06);
-      border-left: 3px solid #6dc493;
-      color: #d8e7c5;
-      margin: 0 0 9px;
-      overflow: auto;
-      padding: 8px 11px;
-      white-space: pre-wrap;
-    }
-
-    .terminal-body .muted { color: rgba(244,240,223,0.48); }
-    .terminal-body .result { color: #f0c76b; font-weight: 800; }
-
-    /* ── proof strip ── */
-    .proof-strip {
-      display: grid;
       gap: 1px;
-      grid-template-columns: repeat(4, 1fr);
-      margin: 22px auto 0;
-      max-width: 1180px;
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      overflow: hidden;
     }
 
-    .proof-strip span {
-      background: rgba(255,255,255,0.52);
-      border: 1px solid var(--line);
-      color: rgba(19,19,16,0.74);
+    .ctrl-btn {
+      background: var(--ctrl-bg);
+      border: none;
+      color: var(--dim);
+      cursor: pointer;
+      font-family: var(--mono);
+      font-size: 11px;
+      padding: 4px 9px;
+      line-height: 1;
+      transition: background 0.1s, color 0.1s;
+      letter-spacing: 0.02em;
+    }
+
+    .ctrl-btn:hover { background: var(--ctrl-hover); color: var(--fg); }
+    .ctrl-btn.active { background: var(--fg); color: var(--bg); }
+
+    .ctrl-divider {
+      width: 1px;
+      height: 20px;
+      background: var(--border);
+    }
+
+    /* ── lede ── */
+    .lede {
+      padding: 32px 0 28px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .problem {
+      font-size: 14px;
+      line-height: 1.7;
+      color: var(--fg);
+      margin-bottom: 18px;
+    }
+
+    .agent-callout {
+      font-size: 12px;
+      color: var(--muted);
+      border-left: 2px solid var(--border);
+      padding-left: 12px;
+      line-height: 1.65;
+    }
+
+    .install-row {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      margin-top: 20px;
+    }
+
+    .install-label {
+      font-size: 11px;
+      color: var(--dim);
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      white-space: nowrap;
+    }
+
+    .install-cmd {
+      background: var(--code-bg);
+      color: var(--code-fg);
+      padding: 8px 14px;
+      font-family: var(--mono);
       font-size: 13px;
-      font-weight: 800;
-      padding: 12px 14px;
-      text-align: center;
+      flex: 1;
     }
 
     /* ── sections ── */
-    .workflow, .command-band, .install-band {
-      padding: clamp(58px, 9vw, 112px) clamp(18px, 4vw, 54px);
+    .section {
+      padding: 28px 0;
+      border-bottom: 1px solid var(--border);
     }
 
-    .workflow {
-      background: #fffdf7;
-      border-top: 1px solid var(--line);
+    .section-label {
+      font-size: 10.5px;
+      font-weight: 700;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: var(--dim);
+      margin-bottom: 16px;
     }
 
-    .section-heading { margin: 0 auto 34px; max-width: 1180px; }
-
-    .section-heading h2, .install-band h2 {
-      font-size: clamp(30px, 4vw, 54px);
-      font-weight: 900;
-      letter-spacing: 0;
-      line-height: 1.04;
-      margin: 0;
-      max-width: 860px;
+    /* ── code blocks ── */
+    pre {
+      background: var(--code-bg);
+      color: var(--code-fg);
+      padding: 14px 16px;
+      font-family: var(--mono);
+      font-size: 12px;
+      line-height: 1.7;
+      overflow-x: auto;
+      margin-top: 10px;
     }
 
-    /* ── steps ── */
-    .steps {
+    .p { color: var(--green); user-select: none; }
+    .o { color: var(--code-fg); opacity: 0.5; }
+    .h { color: var(--yellow); }
+    .c { color: #4a4a4a; }
+
+    /* ── workflow ── */
+    .wf-step {
       display: grid;
-      gap: 14px;
-      grid-template-columns: repeat(4, 1fr);
-      margin: 0 auto;
-      max-width: 1180px;
-    }
-
-    .step {
-      background: var(--paper);
-      border: 1px solid var(--ink);
-      min-height: 210px;
-      padding: 18px;
-    }
-
-    .step .num {
-      color: var(--red);
-      display: block;
-      font-family: "IBM Plex Mono", monospace;
-      font-size: 15px;
-      font-weight: 900;
-      margin-bottom: 20px;
-    }
-
-    .step p { font-size: 18px; font-weight: 900; line-height: 1.2; margin-bottom: 18px; }
-
-    .step code {
-      color: rgba(19,19,16,0.68);
-      display: block;
+      grid-template-columns: 18px 1fr;
+      gap: 12px;
+      padding: 10px 0;
+      border-bottom: 1px solid var(--border);
       font-size: 13px;
-      line-height: 1.5;
-      overflow-wrap: anywhere;
     }
+    .wf-step:last-child { border-bottom: none; }
+    .wf-n { color: var(--dim); font-size: 11px; padding-top: 2px; }
+    .wf-cmd { color: var(--accent); font-weight: 700; }
+    .wf-desc { color: var(--muted); font-size: 12px; }
 
-    /* ── command band ── */
-    .command-band { background: var(--green); color: #fffdf7; }
-    .command-band .eyebrow { color: #f3c557; }
-
-    .command-grid {
+    /* ── command ref ── */
+    .cmd {
       display: grid;
-      gap: 1px;
-      grid-template-columns: repeat(3, 1fr);
-      margin: 0 auto;
-      max-width: 1180px;
+      grid-template-columns: 110px 1fr;
+      gap: 12px;
+      padding: 8px 0;
+      border-bottom: 1px solid var(--border);
+      font-size: 12.5px;
+      align-items: baseline;
     }
+    .cmd:last-child { border-bottom: none; }
+    .cmd-name { color: var(--accent); font-weight: 700; }
+    .cmd-info { color: var(--muted); }
 
-    .command {
-      background: rgba(255,255,255,0.08);
-      border: 1px solid rgba(255,253,247,0.18);
-      min-height: 150px;
-      padding: 20px;
+    /* ── footer ── */
+    footer {
+      padding-top: 28px;
+      font-size: 11.5px;
+      color: var(--dim);
+      display: flex;
+      gap: 16px;
     }
+    footer a { color: var(--dim); }
 
-    .command code { color: #f3c557; font-size: 22px; font-weight: 900; }
-    .command p { color: rgba(255,253,247,0.78); line-height: 1.5; margin: 18px 0 0; }
-
-    /* ── install band ── */
-    .install-band {
-      align-items: center;
-      background: var(--paper-deep);
-      display: grid;
-      gap: 28px;
-      grid-template-columns: 1fr minmax(320px, 480px);
-    }
-
-    .install-band > div { max-width: 720px; }
-
-    .install-box {
-      background: var(--ink);
-      box-shadow: 10px 10px 0 var(--red);
-      color: #fffdf7;
-      display: grid;
-      gap: 10px;
-      padding: 20px;
-    }
-
-    .install-box code {
-      border: 1px solid rgba(255,253,247,0.16);
-      display: block;
-      font-size: clamp(14px, 2vw, 19px);
-      font-weight: 900;
-      overflow-wrap: anywhere;
-      padding: 14px;
-    }
-
-    /* ── responsive ── */
-    @media (max-width: 920px) {
-      .hero { min-height: auto; }
-      .hero-grid, .install-band { grid-template-columns: 1fr; }
-      .terminal-card { min-height: 0; transform: none; }
-      .proof-strip, .steps, .command-grid { grid-template-columns: repeat(2, 1fr); }
-    }
-
-    @media (max-width: 620px) {
-      .hero { padding-top: 14px; }
-      .topbar { align-items: flex-start; gap: 16px; }
-      .brand-copy { display: none; }
-      .nav-actions a { padding: 10px 11px; }
-      .hero-grid { gap: 20px; margin-top: 24px; }
-      h1 { font-size: 40px; line-height: 0.96; margin-bottom: 16px; }
-      .lede { font-size: 16px; line-height: 1.45; margin-bottom: 18px; }
-      .install-strip {
-        align-items: stretch;
-        box-shadow: 6px 6px 0 var(--green);
-        flex-direction: column;
-        margin-bottom: 18px;
-      }
-      .install-strip a { text-align: center; }
-      .terminal-card { max-height: 228px; overflow: hidden; }
-      .terminal-body { font-size: 12px; line-height: 1.34; padding: 13px; }
-      .terminal-body p { margin-bottom: 7px; }
-      .terminal-body pre { max-height: 76px; padding: 7px 10px; }
-      .proof-strip { grid-template-columns: repeat(2, 1fr); margin-top: 18px; }
-      .proof-strip span { font-size: 12px; padding: 9px 8px; }
-      .steps, .command-grid { grid-template-columns: 1fr; }
-      .step { min-height: 0; }
+    @media (max-width: 480px) {
+      .cmd { grid-template-columns: 1fr; gap: 2px; }
+      .wf-step { grid-template-columns: 1fr; }
+      .wf-n { display: none; }
+      .logo-sub { display: none; }
     }
   </style>
 </head>
 <body>
-  <main>
-    <section class="hero">
-      <nav class="topbar" aria-label="CXS">
-        <a class="brand" href="#top" aria-label="CXS home">
-          <span class="brand-mark">cxs</span>
-          <span class="brand-copy">Codex session search</span>
-        </a>
-        <div class="nav-actions">
-          <a href="https://github.com/catoncat/cxs">GitHub</a>
-          <a href="https://www.npmjs.com/package/@act0r/cxs">npm</a>
-        </div>
-      </nav>
 
-      <div class="hero-grid" id="top">
-        <div class="hero-copy">
-          <p class="eyebrow">local Codex recall in one CLI</p>
-          <h1>CXS：让 Codex 历史可搜索。</h1>
-          <p class="lede">
-            CXS 读取你本机的 Codex session 日志，建立本地 SQLite
-            索引。先找到对的会话，再只读相关片段，不用翻整段历史。
-          </p>
+<div class="topbar">
+  <span class="logo">cxs <span class="logo-sub">— <span class="en">Codex session search</span><span class="zh">Codex 会话搜索</span></span></span>
+  <div class="topbar-right">
+    <nav class="nav-links">
+      <a href="https://github.com/catoncat/cxs">GitHub</a>
+      <a href="https://www.npmjs.com/package/@act0r/cxs">npm</a>
+    </nav>
+    <div class="ctrl">
+      <button class="ctrl-btn active" id="btn-en" onclick="setLang('en')">EN</button>
+      <div class="ctrl-divider"></div>
+      <button class="ctrl-btn" id="btn-zh" onclick="setLang('zh')">中</button>
+      <div class="ctrl-divider"></div>
+      <button class="ctrl-btn" id="btn-theme" onclick="toggleTheme()" title="Toggle theme">
+        <span id="theme-icon">◐</span>
+      </button>
+    </div>
+  </div>
+</div>
 
-          <div class="install-strip" aria-label="Install CXS">
-            <code>npm i -g @act0r/cxs</code>
-            <a href="#quick-start">马上用</a>
-          </div>
+<div class="lede">
+  <p class="problem">
+    <span class="en">After hundreds of Codex sessions, finding a past decision, bug fix, or
+    discussion means loading entire transcripts and guessing. <strong>cxs indexes
+    your local session logs into SQLite</strong> so you — or an agent — can search
+    by query, get ranked session IDs back, then read only the relevant slice.
+    No daemon, no cloud, nothing leaves the machine.</span>
+    <span class="zh">几百个 Codex 会话之后，要找一个过去的决策、bug 修复或讨论，就得加载整段记录靠猜。<strong>cxs 把本地会话日志索引到 SQLite</strong>，让你或 Agent 可以按关键词搜索、拿到排好序的会话 ID，再只读相关片段。无守护进程，无云端，数据不出本机。</span>
+  </p>
+  <p class="agent-callout">
+    <span class="en">Designed for agent use: all commands accept <code>--json</code> for
+    structured output. An agent can call <code>cxs find</code>, get session IDs,
+    then call <code>cxs read-range</code> to pull just the context it needs —
+    without loading full transcripts into its context window.</span>
+    <span class="zh">专为 Agent 设计：所有命令支持 <code>--json</code> 结构化输出。Agent 可以调用 <code>cxs find</code> 拿到会话 ID，再用 <code>cxs read-range</code> 只取需要的上下文——不用把完整记录塞进 context window。</span>
+  </p>
+  <div class="install-row">
+    <span class="install-label"><span class="en">install</span><span class="zh">安装</span></span>
+    <div class="install-cmd">npm i -g @act0r/cxs</div>
+  </div>
+</div>
 
-          <div class="hero-actions">
-            <a class="primary-link" href="https://www.npmjs.com/package/@act0r/cxs">安装最新版</a>
-            <a class="secondary-link" href="https://github.com/catoncat/cxs#quick-start">看 2 分钟上手</a>
-          </div>
-        </div>
-
-        <div class="terminal-card" aria-label="CXS terminal preview">
-          <div class="terminal-chrome">
-            <span></span><span></span><span></span>
-            <p>~/work/project</p>
-          </div>
-          <div class="terminal-body">
-            <p><span class="prompt">$</span> npm i -g @act0r/cxs</p>
-            <p class="muted">added @act0r/cxs</p>
-            <p><span class="prompt">$</span> cxs status --cwd . --json</p>
-            <pre>{
-  "requestedCoverage": {
-    "recommendedAction": "sync"
-  }
-}</pre>
-            <p><span class="prompt">$</span> cxs sync --cwd .</p>
-            <p class="muted">indexed Codex sessions for this project</p>
-            <p><span class="prompt">$</span> cxs find "release rollback" --sort ended</p>
-            <p class="result">found 5 sessions. read-range suggested.</p>
-          </div>
-        </div>
-      </div>
-
-      <div class="proof-strip" aria-label="Product boundaries">
-        <span>Local-first SQLite index</span>
-        <span>Manual sync, no daemon</span>
-        <span>Progressive read ranges</span>
-        <span>macOS + Linux, Node 22+</span>
-      </div>
-    </section>
-
-    <section class="workflow" id="quick-start">
-      <div class="section-heading">
-        <p class="eyebrow">the actual workflow</p>
-        <h2>不是再开一个聊天记录 GUI。CXS 是 agent 能直接调用的检索底座。</h2>
-      </div>
-
-      <div class="steps">
-        <article class="step">
-          <span class="num">01</span>
-          <p>check coverage</p>
-          <code>cxs status --cwd /Users/you/work/project --json</code>
-        </article>
-        <article class="step">
-          <span class="num">02</span>
-          <p>index only when needed</p>
-          <code>cxs sync --cwd /Users/you/work/project</code>
-        </article>
-        <article class="step">
-          <span class="num">03</span>
-          <p>recall the right session</p>
-          <code>cxs find "that bug from last week" --sort ended</code>
-        </article>
-        <article class="step">
-          <span class="num">04</span>
-          <p>open the useful slice</p>
-          <code>cxs read-range &lt;sessionUuid&gt; --seq &lt;matchSeq&gt;</code>
-        </article>
-      </div>
-    </section>
-
-    <section class="command-band" aria-label="CXS command surface">
-      <div class="section-heading">
-        <p class="eyebrow">small command surface</p>
-        <h2>命令面故意很窄：同步、查找、渐进阅读。</h2>
-      </div>
-
-      <div class="command-grid">
-        <article class="command">
-          <code>status</code>
-          <p>see source inventory, index state, and coverage</p>
-        </article>
-        <article class="command">
-          <code>sync</code>
-          <p>refresh the selected Codex session slice</p>
-        </article>
-        <article class="command">
-          <code>find</code>
-          <p>rank likely sessions without dumping transcripts</p>
-        </article>
-        <article class="command">
-          <code>read-range</code>
-          <p>open a focused message window around a hit</p>
-        </article>
-        <article class="command">
-          <code>read-page</code>
-          <p>page through a session when the match is session-level</p>
-        </article>
-        <article class="command">
-          <code>list</code>
-          <p>scan recent indexed sessions by project or root</p>
-        </article>
-      </div>
-    </section>
-
-    <section class="install-band" aria-label="Install CXS">
+<div class="section">
+  <div class="section-label"><span class="en">How it works</span><span class="zh">工作流程</span></div>
+  <div>
+    <div class="wf-step">
+      <span class="wf-n">1</span>
       <div>
-        <p class="eyebrow">install now</p>
-        <h2>先装上，下一次找历史决策时就不用猜。</h2>
+        <div class="wf-cmd">cxs status --cwd &lt;project&gt;</div>
+        <div class="wf-desc"><span class="en">Check how many sessions exist and whether the index is current.</span><span class="zh">查看项目有多少会话，以及索引是否是最新的。</span></div>
       </div>
-      <div class="install-box">
-        <code>npm i -g @act0r/cxs</code>
-        <code>cxs --help</code>
+    </div>
+    <div class="wf-step">
+      <span class="wf-n">2</span>
+      <div>
+        <div class="wf-cmd">cxs sync --cwd &lt;project&gt;</div>
+        <div class="wf-desc"><span class="en">Ingest new sessions. Incremental — only processes what's new.</span><span class="zh">增量索引新会话，只处理尚未索引的部分。</span></div>
       </div>
-    </section>
-  </main>
+    </div>
+    <div class="wf-step">
+      <span class="wf-n">3</span>
+      <div>
+        <div class="wf-cmd">cxs find "&lt;query&gt;"</div>
+        <div class="wf-desc"><span class="en">Returns ranked session IDs and scores. No transcript content.</span><span class="zh">返回按相关度排序的会话 ID 和分数，不返回正文内容。</span></div>
+      </div>
+    </div>
+    <div class="wf-step">
+      <span class="wf-n">4</span>
+      <div>
+        <div class="wf-cmd">cxs read-range &lt;id&gt; --seq &lt;n&gt;</div>
+        <div class="wf-desc"><span class="en">Read a focused window of messages around the matching sequence.</span><span class="zh">读取命中序号附近的一段消息，而不是整个会话。</span></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="section">
+  <div class="section-label"><span class="en">Example — finding a past decision</span><span class="zh">示例 — 查找过去的决策</span></div>
+<pre>
+<span class="p">$</span> cxs find "why we dropped the caching layer" --cwd .
+<span class="h">9f2a1c3e</span>  2025-02-14  score:0.91  caching layer removal + perf tradeoffs
+<span class="h">a4d88b01</span>  2025-02-11  score:0.67  infra cost review Q1
+<span class="o">c1e32f90  2025-02-03  score:0.38  release planning</span>
+
+<span class="p">$</span> cxs read-range 9f2a1c3e --seq 34 --window 6
+<span class="c"># returns messages [31..37], centered on the decision exchange</span>
+</pre>
+</div>
+
+<div class="section">
+  <div class="section-label"><span class="en">Example — agent use with JSON output</span><span class="zh">示例 — Agent 调用，JSON 输出</span></div>
+<pre>
+<span class="p">$</span> cxs find "auth token refresh race" --json
+{
+  "results": [
+    { "sessionId": "9f2a1c3e-...", "score": 0.91, "endedAt": "2025-02-14" },
+    { "sessionId": "a4d88b01-...", "score": 0.67, "endedAt": "2025-02-11" }
+  ]
+}
+
+<span class="p">$</span> cxs read-range 9f2a1c3e-... --seq 34 --json
+<span class="c"># structured message array — pipe directly to jq or another tool</span>
+</pre>
+</div>
+
+<div class="section">
+  <div class="section-label"><span class="en">Commands</span><span class="zh">命令</span></div>
+  <div>
+    <div class="cmd">
+      <span class="cmd-name">status</span>
+      <span class="cmd-info"><span class="en">Index coverage and session inventory for a project.</span><span class="zh">查看项目的索引覆盖率和会话列表。</span></span>
+    </div>
+    <div class="cmd">
+      <span class="cmd-name">sync</span>
+      <span class="cmd-info"><span class="en">Ingest new sessions into the index. Safe to run repeatedly.</span><span class="zh">将新会话写入索引，可安全重复执行。</span></span>
+    </div>
+    <div class="cmd">
+      <span class="cmd-name">find</span>
+      <span class="cmd-info"><span class="en">Rank sessions by query relevance. Returns IDs and scores only.</span><span class="zh">按查询相关度对会话排序，只返回 ID 和分数。</span></span>
+    </div>
+    <div class="cmd">
+      <span class="cmd-name">read-range</span>
+      <span class="cmd-info"><span class="en">Read messages around a specific sequence number.</span><span class="zh">读取指定序号附近的一段消息。</span></span>
+    </div>
+    <div class="cmd">
+      <span class="cmd-name">read-page</span>
+      <span class="cmd-info"><span class="en">Page through a session in fixed chunks.</span><span class="zh">按固定分页浏览整个会话。</span></span>
+    </div>
+    <div class="cmd">
+      <span class="cmd-name">list</span>
+      <span class="cmd-info"><span class="en">List indexed sessions by project or CWD, sorted by recency.</span><span class="zh">按项目或工作目录列出已索引的会话，按时间倒序。</span></span>
+    </div>
+  </div>
+</div>
+
+<footer>
+  <span>Node 22+ · macOS · Linux · MIT</span>
+  <a href="https://github.com/catoncat/cxs">github.com/catoncat/cxs</a>
+</footer>
+
+<script>
+  const html = document.documentElement;
+
+  function setLang(l) {
+    html.setAttribute('lang', l);
+    document.getElementById('btn-en').classList.toggle('active', l === 'en');
+    document.getElementById('btn-zh').classList.toggle('active', l === 'zh');
+    localStorage.setItem('cxs-lang', l);
+  }
+
+  function toggleTheme() {
+    const dark = html.classList.toggle('dark');
+    document.getElementById('theme-icon').textContent = dark ? '○' : '◐';
+    localStorage.setItem('cxs-theme', dark ? 'dark' : 'light');
+  }
+
+  // restore preferences
+  (function() {
+    const lang = localStorage.getItem('cxs-lang') || 'en';
+    const theme = localStorage.getItem('cxs-theme');
+    if (lang === 'zh') setLang('zh');
+    if (theme === 'dark') {
+      html.classList.add('dark');
+      document.getElementById('theme-icon').textContent = '○';
+    }
+    // also honor system dark mode if no preference saved
+    if (!theme && window.matchMedia('(prefers-color-scheme: dark)').matches) {
+      html.classList.add('dark');
+      document.getElementById('theme-icon').textContent = '○';
+    }
+  })();
+</script>
+
 </body>
 </html>
