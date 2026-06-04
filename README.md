@@ -1,6 +1,6 @@
 # cxs
 
-**https://cxs.chen.rs**
+[https://cxs.chen.rs](https://cxs.chen.rs)
 
 `cxs` is a local-first CLI for searching Codex session logs. It is designed for
 progressive retrieval: find the right session first, then read only the relevant
