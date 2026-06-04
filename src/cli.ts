@@ -5,6 +5,7 @@ import {
   DEFAULT_CODEX_DIR,
   DEFAULT_DB_PATH,
   migrateLegacyCacheDirIfNeeded,
+  statsReadoutEnabled,
 } from "./env";
 import { IndexUnavailableError } from "./db";
 
@@ -145,7 +146,7 @@ program
         console.log(JSON.stringify({ ...result, elapsedMs }, null, 2));
         return;
       }
-      printFindResults(result.query, result.results, result.scannedMessageCount, elapsedMs, result.nextAction);
+      printFindResults(result.query, result.results, result.scannedMessageCount, elapsedMs, statsReadoutEnabled(), result.nextAction);
     });
   });
 
@@ -178,6 +179,7 @@ program
         result.rangeStartSeq,
         result.rangeEndSeq,
         elapsedMs,
+        statsReadoutEnabled(),
       );
     });
   });
@@ -210,6 +212,7 @@ program
         result.hasMore,
         result.messages,
         elapsedMs,
+        statsReadoutEnabled(),
       );
     });
   });

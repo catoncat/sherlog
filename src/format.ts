@@ -39,11 +39,15 @@ export function printFindResults(
   results: FindResult[],
   scannedMessageCount: number,
   elapsedMs: number,
+  showStats: boolean,
   nextAction?: QueryNextAction,
 ): void {
   // 效率回述(中性事实):检索覆盖的语料规模 + 结果数 + 端到端耗时。诚实分母
-  // 随搜索范围走,不出现编造的"省 X%"。
-  console.log(chalk.bold.cyan(`cxs find "${query}"`) + chalk.gray(` · 检索 ${formatCount(scannedMessageCount)} 条 · 结果 ${results.length} · ${elapsedMs}ms`));
+  // 随搜索范围走,不出现编造的"省 X%"。CXS_STATS=0 时省略整段注解。
+  const readout = showStats
+    ? chalk.gray(` · 检索 ${formatCount(scannedMessageCount)} 条 · 结果 ${results.length} · ${elapsedMs}ms`)
+    : "";
+  console.log(chalk.bold.cyan(`cxs find "${query}"`) + readout);
   if (results.length === 0) {
     console.log(chalk.yellow("没有找到结果"));
     printNextAction(nextAction);
@@ -75,13 +79,16 @@ export function printReadRangeResult(
   rangeStartSeq: number,
   rangeEndSeq: number,
   elapsedMs: number,
+  showStats: boolean,
 ): void {
   console.log(chalk.bold.cyan(`cxs read-range ${session.sessionUuid}`));
   console.log(chalk.gray(`${session.title || "(no title)"} · ${session.cwd || "-"}`));
   console.log(chalk.gray(`anchor=${anchorSeq} · range=${rangeStartSeq}-${rangeEndSeq}`));
   // 只报原始计数(读取/全量),不算 saved% —— "共 T 条"是功能信息(告诉还有多少
-  // 可读),避免在"多读一点也许才对"的时刻给 under-read 诱因。
-  console.log(chalk.gray(`读取 ${messages.length} 条 / 本 session 共 ${session.messageCount} 条 · ${elapsedMs}ms`));
+  // 可读),避免在"多读一点也许才对"的时刻给 under-read 诱因。CXS_STATS=0 时省略。
+  if (showStats) {
+    console.log(chalk.gray(`读取 ${messages.length} 条 / 本 session 共 ${session.messageCount} 条 · ${elapsedMs}ms`));
+  }
   console.log();
 
   for (const message of messages) {
@@ -99,9 +106,13 @@ export function printReadPage(
   hasMore: boolean,
   messages: MessageRecord[],
   elapsedMs: number,
+  showStats: boolean,
 ): void {
   console.log(chalk.bold.cyan(`cxs read-page ${session.sessionUuid}`));
-  console.log(chalk.gray(`${session.title || "(no title)"} · total=${totalCount} · offset=${offset} · limit=${limit} · hasMore=${hasMore} · ${elapsedMs}ms`));
+  // total/offset/limit/hasMore 是功能信息(翻页必需),始终显示;仅末尾的端到端
+  // 耗时归类为效率回述,受 CXS_STATS 控制。
+  const elapsed = showStats ? ` · ${elapsedMs}ms` : "";
+  console.log(chalk.gray(`${session.title || "(no title)"} · total=${totalCount} · offset=${offset} · limit=${limit} · hasMore=${hasMore}${elapsed}`));
   console.log();
 
   for (const message of messages) {

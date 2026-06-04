@@ -152,7 +152,7 @@ describe("效率回述", () => {
   });
 
   test("find header 报检索语料规模(千分位)、结果数、端到端 ms", () => {
-    printFindResults("health check", [makeFindResult()], 1234, 87);
+    printFindResults("health check", [makeFindResult()], 1234, 87, true);
     const out = captured(consoleLogSpy);
     expect(out).toContain("检索 1,234 条");
     expect(out).toContain("结果 1");
@@ -160,7 +160,7 @@ describe("效率回述", () => {
   });
 
   test("find 零结果仍诚实报检索规模与耗时,不报省", () => {
-    printFindResults("nonexistent", [], 5000, 40);
+    printFindResults("nonexistent", [], 5000, 40, true);
     const out = captured(consoleLogSpy);
     expect(out).toContain("检索 5,000 条");
     expect(out).toContain("结果 0");
@@ -170,7 +170,7 @@ describe("效率回述", () => {
   });
 
   test("read-range 只报读取/全量计数与 ms,绝不出现 saved%", () => {
-    printReadRangeResult(makeSession(), 2, [makeMessage(1), makeMessage(2), makeMessage(3)], 1, 3, 12);
+    printReadRangeResult(makeSession(), 2, [makeMessage(1), makeMessage(2), makeMessage(3)], 1, 3, 12, true);
     const out = captured(consoleLogSpy);
     expect(out).toContain("读取 3 条 / 本 session 共 100 条 · 12ms");
     expect(out).not.toContain("省");
@@ -179,10 +179,34 @@ describe("效率回述", () => {
   });
 
   test("read-page meta 行追加端到端 ms,保留 total/hasMore", () => {
-    printReadPage(makeSession(), 0, 20, 100, true, [makeMessage(1)], 8);
+    printReadPage(makeSession(), 0, 20, 100, true, [makeMessage(1)], 8, true);
     const out = captured(consoleLogSpy);
     expect(out).toContain("total=100");
     expect(out).toContain("hasMore=true");
     expect(out).toContain("8ms");
+  });
+
+  test("showStats=false 时 find 省略整段效率注解(只剩命令行)", () => {
+    printFindResults("health check", [makeFindResult()], 1234, 87, false);
+    const out = captured(consoleLogSpy);
+    expect(out).toContain('cxs find "health check"');
+    expect(out).not.toContain("检索");
+    expect(out).not.toContain("87ms");
+    expect(out).toContain("[1]"); // 结果正文照常输出
+  });
+
+  test("showStats=false 时 read-range 不输出读取计数行", () => {
+    printReadRangeResult(makeSession(), 2, [makeMessage(1), makeMessage(2)], 1, 2, 12, false);
+    const out = captured(consoleLogSpy);
+    expect(out).not.toContain("读取");
+    expect(out).not.toContain("12ms");
+  });
+
+  test("showStats=false 时 read-page 仍显示 total/hasMore,但不带 ms", () => {
+    printReadPage(makeSession(), 0, 20, 100, true, [makeMessage(1)], 8, false);
+    const out = captured(consoleLogSpy);
+    expect(out).toContain("total=100");
+    expect(out).toContain("hasMore=true");
+    expect(out).not.toContain("8ms");
   });
 });
