@@ -3,7 +3,7 @@
 ## Snapshot
 
 - Updated: 2026-06-05
-- Status: Wave 4 E1 active
+- Status: Wave 4 R1 ready
 - Orchestrator Goal: `持续推进 cxs 多源架构工作流的所有 waves，直到完成设计、实现分派、验证和收口，或出现真实阻塞`
 - Mainline intent: `int_38729f3b`
 - Branch: `codex/session-sources-workflow`
@@ -11,14 +11,13 @@
 
 ## Active Wave
 
-Wave 4: E1 verification is active in worker thread
-`019e974b-751b-7030-8cd3-d0b9b7455971`.
+Wave 4: E1 verification is reconciled. R1 final review is ready.
 
 Next:
 
-1. Read E1 thread `019e974b-751b-7030-8cd3-d0b9b7455971` when it becomes idle.
-2. Reconcile E1 evidence handoff into canonical state.
-3. Launch R1 after E1 evidence is written.
+1. Launch R1 final review after this control-plane update is committed.
+2. Reconcile R1 findings into canonical state.
+3. Close the workflow after R1 findings are fixed, deferred, or accepted.
 
 ## Decisions
 
@@ -60,3 +59,4 @@ Pending:
 - 2026-06-05: Launched I4 worker `019e973e-d6c5-7862-bbc4-178b92506b3d` in `/Users/envvar/.codex/worktrees/0bdd/cxs`.
 - 2026-06-05: Reconciled I4 commit `22b0d95` and handoff into canonical branch; E1 is ready.
 - 2026-06-05: Launched E1 worker `019e974b-751b-7030-8cd3-d0b9b7455971` in `/Users/envvar/.codex/worktrees/d0f2/cxs`.
+- 2026-06-05: Reconciled E1 handoff and artifacts into canonical state; R1 is ready.
