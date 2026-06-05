@@ -3,6 +3,9 @@
 Status: completed in canonical branch
 Mode: `review-fix-session`
 
+Commit: `dc0a761`
+Mainline intent: `int_462a342b` sealed and published as proposed
+
 ## Findings Addressed
 
 - P1 old-schema read-command UX: fixed.
@@ -34,6 +37,7 @@ Mode: `review-fix-session`
 - `npm run cxs -- list --source codex --json --db docs/workflows/2026-06-05-session-sources/handoffs/E1-artifacts/e1-smoke.sqlite -n 1`: passed.
 - `npm run cxs -- read-page e1e10000-e1e1-41e1-81e1-e1e1e1e1e1e1 --source codex --json --db docs/workflows/2026-06-05-session-sources/handoffs/E1-artifacts/e1-smoke.sqlite --limit 1`: passed.
 - `npm run cxs -- find needle --source codex --json --db docs/workflows/2026-06-05-session-sources/handoffs/E1-artifacts/e1-smoke.sqlite`: passed.
+- `mainline lint int_462a342b --json`: passed.
 
 ## Boundaries
 

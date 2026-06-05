@@ -3,21 +3,22 @@
 ## Snapshot
 
 - Updated: 2026-06-05
-- Status: R1 remediation complete; local closeout ready
+- Status: complete locally; R1 remediation committed and Mainline-sealed
 - Orchestrator Goal: `持续推进 cxs 多源架构工作流的所有 waves，直到完成设计、实现分派、验证和收口，或出现真实阻塞`
-- Mainline intent: `int_462a342b`
+- Mainline intents: R1 remediation `int_462a342b`; closeout docs `int_be5cccca`
 - Branch: `codex/session-sources-workflow`
 - Canonical control plane: `docs/workflows/2026-06-05-session-sources/`
 
 ## Active Wave
 
 All planned waves are complete. R1 findings were remediated in the canonical
-branch and recorded in `handoffs/R1-remediation.md`.
+branch, recorded in `handoffs/R1-remediation.md`, committed as `dc0a761`, and
+sealed under Mainline intent `int_462a342b`.
 
 Next:
 
-1. Commit and seal remediation under Mainline intent `int_462a342b`.
-2. Stop before push, PR, npm release, global CLI update, or global skill update unless explicitly authorized.
+1. Stop before push, PR, npm release, global CLI update, or global skill update unless explicitly authorized.
+2. If resuming after context compaction, read `wave-map.md` first, then this file, then `handoffs/R1-remediation.md`.
 
 ## Decisions
 
@@ -63,3 +64,4 @@ Pending:
 - 2026-06-05: Launched R1 worker `019e9754-bece-70f0-9945-c344683a11c3` in `/Users/envvar/.codex/worktrees/f85a/cxs`.
 - 2026-06-05: Reconciled R1 findings; remediation is active.
 - 2026-06-05: Completed R1 remediation: old-schema read commands now return `index_schema_upgrade_required`, docs/skill release wording is bounded, coverage design is source-aware, and verification passed.
+- 2026-06-05: Committed R1 remediation as `dc0a761` and sealed Mainline intent `int_462a342b`; phase-1 conflicts were low-confidence overlaps with earlier proposed intents from the same stacked workflow.
