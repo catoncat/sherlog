@@ -211,6 +211,7 @@ export type SessionListSort = "ended" | "started" | "messages";
 export type FindSort = "relevance" | "ended" | "started";
 
 export interface SessionListQuery {
+  sourceId?: SessionSourceId;
   cwd?: string;
   since?: string;
   selector?: Selector;

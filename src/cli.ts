@@ -1,11 +1,11 @@
 import { Command } from "commander";
 import packageJson from "../package.json" with { type: "json" };
 import {
-  DEFAULT_CODEX_DIR,
   DEFAULT_DB_PATH,
   migrateLegacyCacheDirIfNeeded,
 } from "./env";
 import { IndexUnavailableError } from "./db";
+import { getSessionSourceAdapter } from "./sources";
 
 // One-shot migration from legacy ~/.cache/cxs/ to ~/.local/state/cxs/. Runs
 // before any subcommand so `cxs stats` etc. see the migrated db, not just
@@ -28,10 +28,10 @@ import {
   getMessageRange,
   listSessionSummaries,
 } from "./query";
-import { canonicalizeSelector, parseSelectorJson, SelectorParseError } from "./selector";
+import { canonicalizeSelector, parseSelectorJson, SelectorParseError, selectorSource } from "./selector";
 import { collectStatus } from "./status";
 import { SyncLockTimeoutError } from "./sync-lock";
-import type { FindSort, Selector, SessionListSort } from "./types";
+import type { FindSort, Selector, SessionListSort, SessionSourceId } from "./types";
 
 const program = new Command();
 
@@ -43,6 +43,7 @@ program
 program
   .command("status")
   .description("返回执行上下文、source inventory、index 与 coverage 状态")
+  .option("--source <id>", "session source (public: codex)")
   .option("--root <dir>", "覆盖默认 sessions 根目录，也作为 selector 默认 root")
   .option("--selector <json>", "检查指定 selector 的 coverage/freshness（只读，不同步）")
   .option("--cwd <path>", "检查指定 cwd selector 的 coverage/freshness")
@@ -50,14 +51,19 @@ program
   .option("--json", "输出 JSON")
   .action(async (options) => {
     try {
-      const selector = optionalSelector(options);
-      const status = await collectStatus({ rootDir: options.root, dbPath: options.db, cwd: process.cwd(), selector: selector ?? undefined });
+      const sourceId = publicSource(options.source);
+      const selector = optionalSelector({ ...options, source: sourceId });
+      const status = await collectStatus({ sourceId, rootDir: options.root, dbPath: options.db, cwd: process.cwd(), selector: selector ?? undefined });
       if (options.json) {
         console.log(JSON.stringify(status, null, 2));
         return;
       }
       printStatus(status);
     } catch (error) {
+      if (error instanceof SourceOptionError) {
+        emitSourceError(error, Boolean(options.json));
+        return;
+      }
       if (error instanceof SelectorParseError) {
         emitSelectorError(error, Boolean(options.json));
         return;
@@ -69,6 +75,7 @@ program
 program
   .command("sync")
   .description("扫描并同步本地 Codex sessions 到 SQLite 索引")
+  .option("--source <id>", "session source (public: codex)")
   .option("--root <dir>", "同步指定 sessions 根目录；也作为 selector 默认 root")
   .option("--selector <json>", "结构化同步范围 JSON")
   .option("--cwd <path>", "同步指定 cwd selector")
@@ -78,9 +85,11 @@ program
   .option("--json", "输出 JSON")
   .action(async (options) => {
     try {
-      const selector = requireSelector(options);
+      const sourceId = publicSource(options.source);
+      const selector = requireSelector({ ...options, source: sourceId });
       const summary = await syncSessions({
         dbPath: options.db,
+        sourceId,
         selector,
         bestEffort: options.bestEffort,
         prune: options.prune,
@@ -109,6 +118,10 @@ program
         process.exitCode = 1;
         return;
       }
+      if (error instanceof SourceOptionError) {
+        emitSourceError(error, Boolean(options.json));
+        return;
+      }
       if (error instanceof SelectorParseError) {
         emitSelectorError(error, Boolean(options.json));
         return;
@@ -120,6 +133,7 @@ program
 program
   .command("find <query>")
   .description("搜索相关 session，返回最小必要命中")
+  .option("--source <id>", "session source (public: codex)")
   .option("-n, --limit <n>", "返回条数", "10")
   .option("--root <dir>", "限定到指定 sessions 根目录；也作为 selector 默认 root")
   .option("--selector <json>", "结构化查询范围 JSON")
@@ -130,10 +144,12 @@ program
   .option("--json", "输出 JSON")
   .action((query, options) => {
     runReadCommand(Boolean(options.json), () => {
+      const sourceId = publicSource(options.source);
       const limit = parsePositiveInt(options.limit, 10);
-      const selector = optionalSelector({ ...options, rootOnlySelector: true });
+      const selector = optionalSelector({ ...options, source: sourceId, rootOnlySelector: true });
       const sort = normalizeFindSort(options.sort);
       const result = findSessions(options.db, query, limit, selector, {
+        sourceId,
         sort,
         excludeSessions: options.excludeSession ?? [],
       });
@@ -148,6 +164,7 @@ program
 program
   .command("read-range <sessionUuid>")
   .description("围绕命中点读取局部上下文；必须显式传 session_uuid")
+  .option("--source <id>", "session source (public: codex)")
   .option("--seq <n>", "显式指定锚点 seq")
   .option("--query <query>", "用 query 在该 session 内重新定位命中点")
   .option("--before <n>", "前文条数", "2")
@@ -156,7 +173,8 @@ program
   .option("--json", "输出 JSON")
   .action((sessionUuid, options) => {
     runReadCommand(Boolean(options.json), () => {
-      const result = getMessageRange(options.db, sessionUuid, {
+      const sourceId = publicSource(options.source);
+      const result = getMessageRange(options.db, sessionRefForSource(sessionUuid, sourceId), {
         seq: optionalInt(options.seq),
         query: options.query,
         before: parsePositiveInt(options.before, 2),
@@ -179,15 +197,17 @@ program
 program
   .command("read-page <sessionUuid>")
   .description("顺序分页读取某个 session 的消息")
+  .option("--source <id>", "session source (public: codex)")
   .option("--offset <n>", "起始 offset", "0")
   .option("--limit <n>", "页大小", "20")
   .option("--db <path>", "覆盖默认数据库路径", DEFAULT_DB_PATH)
   .option("--json", "输出 JSON")
   .action((sessionUuid, options) => {
     runReadCommand(Boolean(options.json), () => {
+      const sourceId = publicSource(options.source);
       const result = getMessagePage(
         options.db,
-        sessionUuid,
+        sessionRefForSource(sessionUuid, sourceId),
         parseNonNegativeInt(options.offset, 0),
         parsePositiveInt(options.limit, 20),
       );
@@ -209,6 +229,7 @@ program
 program
   .command("list")
   .description("列出已索引的 session（不做全文检索）")
+  .option("--source <id>", "session source (public: codex)")
   .option("--cwd <needle>", "cwd 子串过滤（大小写不敏感）")
   .option("--since <iso>", "只看 ended_at >= 指定时间的 session")
   .option("--root <dir>", "限定到指定 sessions 根目录；也作为 selector 默认 root")
@@ -219,9 +240,11 @@ program
   .option("--json", "输出 JSON")
   .action((options) => {
     runReadCommand(Boolean(options.json), () => {
+      const sourceId = publicSource(options.source);
       const sort = normalizeListSort(options.sort);
-      const selector = optionalSelector({ selector: options.selector, root: options.root, rootOnlySelector: true });
+      const selector = optionalSelector({ selector: options.selector, root: options.root, source: sourceId, rootOnlySelector: true });
       const result = listSessionSummaries(options.db, {
+        sourceId,
         cwd: options.cwd,
         since: options.since,
         selector: selector ?? undefined,
@@ -239,11 +262,13 @@ program
 program
   .command("stats")
   .description("展示索引状态统计")
+  .option("--source <id>", "session source (public: codex)")
   .option("--db <path>", "覆盖默认数据库路径", DEFAULT_DB_PATH)
   .option("--json", "输出 JSON")
   .action((options) => {
     runReadCommand(Boolean(options.json), () => {
-      const summary = collectStats(options.db);
+      const sourceId = publicSource(options.source);
+      const summary = collectStats(options.db, sourceId);
       if (options.json) {
         console.log(JSON.stringify(summary, null, 2));
         return;
@@ -251,8 +276,6 @@ program
       printStats(summary);
     });
   });
-
-program.parse();
 
 function parsePositiveInt(value: string | undefined, fallback: number): number {
   const parsed = Number.parseInt(value ?? "", 10);
@@ -288,6 +311,10 @@ function runReadCommand(jsonMode: boolean, action: () => void): void {
   try {
     action();
   } catch (error) {
+    if (error instanceof SourceOptionError) {
+      emitSourceError(error, jsonMode);
+      return;
+    }
     if (error instanceof IndexUnavailableError) {
       emitIndexUnavailableError(error, jsonMode);
       return;
@@ -298,6 +325,43 @@ function runReadCommand(jsonMode: boolean, action: () => void): void {
     }
     throw error;
   }
+}
+
+class SourceOptionError extends Error {
+  sourceId: string;
+
+  constructor(sourceId: string) {
+    super(`unsupported source "${sourceId}". Only "codex" is public in this release.`);
+    this.name = "SourceOptionError";
+    this.sourceId = sourceId;
+  }
+}
+
+function publicSource(value: string | undefined): SessionSourceId {
+  const sourceId = (value ?? "codex").trim();
+  if (sourceId === "codex") return "codex";
+  throw new SourceOptionError(sourceId || "(empty)");
+}
+
+function emitSourceError(error: SourceOptionError, jsonMode: boolean): void {
+  if (jsonMode) {
+    console.log(
+      JSON.stringify(
+        {
+          error: {
+            code: "unsupported_source",
+            source: error.sourceId,
+            message: error.message,
+          },
+        },
+        null,
+        2,
+      ),
+    );
+  } else {
+    console.error(error.message);
+  }
+  process.exitCode = 1;
 }
 
 function emitIndexUnavailableError(error: IndexUnavailableError, jsonMode: boolean): void {
@@ -339,11 +403,12 @@ function emitSelectorError(error: SelectorParseError, jsonMode: boolean): void {
   process.exitCode = 1;
 }
 
-function requireSelector(options: { selector?: string; root?: string; cwd?: string }): Selector {
+function requireSelector(options: { selector?: string; root?: string; cwd?: string; source: SessionSourceId }): Selector {
   const selector = optionalSelector({
     selector: options.selector,
     root: options.root,
     cwd: options.cwd,
+    source: options.source,
     rootOnlySelector: true,
   });
   if (!selector) {
@@ -352,13 +417,52 @@ function requireSelector(options: { selector?: string; root?: string; cwd?: stri
   return selector;
 }
 
-function optionalSelector(options: { selector?: string; root?: string; cwd?: string; rootOnlySelector?: boolean }): Selector | null {
+function optionalSelector(options: { selector?: string; root?: string; cwd?: string; source: SessionSourceId; rootOnlySelector?: boolean }): Selector | null {
   if (options.selector && options.cwd) {
     throw new SelectorParseError("--selector and --cwd cannot be combined");
   }
-  const root = options.root ?? DEFAULT_CODEX_DIR;
-  if (options.selector) return parseSelectorJson(options.selector, { defaultRoot: root });
-  if (options.cwd) return canonicalizeSelector({ kind: "cwd", root, cwd: options.cwd });
-  if (options.rootOnlySelector && options.root) return canonicalizeSelector({ kind: "all", root });
+  const root = options.root ?? getSessionSourceAdapter(options.source).defaultRoot();
+  if (options.selector) {
+    rejectNonPublicSelectorSource(options.selector);
+    const selector = parseSelectorJson(options.selector, { defaultRoot: root, defaultSource: options.source });
+    assertSelectorSourceMatches(selector, options.source);
+    return selector;
+  }
+  if (options.cwd) return canonicalizeSelector({ kind: "cwd", source: options.source, root, cwd: options.cwd });
+  if (options.rootOnlySelector && options.root) return canonicalizeSelector({ kind: "all", source: options.source, root });
   return null;
 }
+
+function rejectNonPublicSelectorSource(selectorJson: string): void {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(selectorJson) as unknown;
+  } catch {
+    return;
+  }
+  if (!isRecord(parsed) || typeof parsed.source !== "string") return;
+  publicSource(parsed.source);
+}
+
+function assertSelectorSourceMatches(selector: Selector, sourceId: SessionSourceId): void {
+  if (selectorSource(selector) !== sourceId) {
+    throw new SelectorParseError("--source must match selector.source");
+  }
+}
+
+function sessionRefForSource(sessionRef: string, sourceId: SessionSourceId): string {
+  const separator = sessionRef.indexOf(":");
+  if (separator > 0) {
+    const prefix = sessionRef.slice(0, separator);
+    const explicitSource = publicSource(prefix);
+    if (explicitSource !== sourceId) throw new SelectorParseError("--source must match session source qualifier");
+    return sessionRef;
+  }
+  return `${sourceId}:${sessionRef}`;
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null;
+}
+
+program.parse();

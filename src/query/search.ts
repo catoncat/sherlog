@@ -1,11 +1,12 @@
 import { selectorWhereSql } from "../db";
 import type { RawHitRow } from "../ranking";
 import { hasCjk, queryTerms } from "../tokenize";
-import { DEFAULT_SESSION_SOURCE_ID, type FindSort, type Selector } from "../types";
+import { DEFAULT_SESSION_SOURCE_ID, type FindSort, type Selector, type SessionSourceId } from "../types";
 import type { Db, SqlParams } from "../db";
 import { makeLikeSnippet, makeRawSnippet } from "./snippet";
 
 export interface SearchOptions {
+  sourceId?: SessionSourceId;
   sort?: FindSort;
   excludeSessions?: string[];
 }
@@ -71,7 +72,7 @@ function searchByFts(
     params.push(...selectorWhere.params);
   } else {
     conditions.push("s.source_id = ?");
-    params.push(DEFAULT_SESSION_SOURCE_ID);
+    params.push(options.sourceId ?? DEFAULT_SESSION_SOURCE_ID);
   }
   if (sessionId) {
     conditions.push("m.session_id = ?");
@@ -127,7 +128,7 @@ function searchSessionsByFts(
     params.push(...selectorWhere.params);
   } else {
     conditions.push("s.source_id = ?");
-    params.push(DEFAULT_SESSION_SOURCE_ID);
+    params.push(options.sourceId ?? DEFAULT_SESSION_SOURCE_ID);
   }
   addExcludedSessions(conditions, params, "s", options.excludeSessions);
   params.push(limit);
@@ -187,7 +188,7 @@ function searchSessionsByLike(
     params.push(...selectorWhere.params);
   } else {
     conditions.push("s.source_id = ?");
-    params.push(DEFAULT_SESSION_SOURCE_ID);
+    params.push(options.sourceId ?? DEFAULT_SESSION_SOURCE_ID);
   }
   addExcludedSessions(conditions, params, "s", options.excludeSessions);
   params.push(limit);
@@ -239,7 +240,7 @@ function searchByLike(
     params.push(...selectorWhere.params);
   } else {
     conditions.push("s.source_id = ?");
-    params.push(DEFAULT_SESSION_SOURCE_ID);
+    params.push(options.sourceId ?? DEFAULT_SESSION_SOURCE_ID);
   }
   if (sessionId) {
     conditions.push("m.session_id = ?");

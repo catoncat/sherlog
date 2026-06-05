@@ -11,7 +11,7 @@ export function listSessions(db: Db, query: SessionListQuery): SessionListEntry[
     params.push(...selectorWhere.params);
   } else {
     conditions.push("source_id = ?");
-    params.push(DEFAULT_SESSION_SOURCE_ID);
+    params.push(query.sourceId ?? DEFAULT_SESSION_SOURCE_ID);
   }
   if (query.cwd) {
     // Substring match rather than prefix/equality: agent callers often pass
