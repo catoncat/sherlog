@@ -4,8 +4,8 @@
 # 背景:
 #   - 全局 `cxs` 是 pnpm 装的发布版 @act0r/cxs;dev 时把 PATH 里的 shim 改成
 #     exec 本 repo 的 dist/cli.js(首次切 dev 前会备份原始 shim,release 时还原)。
-#   - skill `~/.claude/skills/cxs` 是个 symlink;dev/release 只是把它重定向到
-#     repo 的 skill-packages/cxs 或发布版目录 ~/.agents/skills/cxs,不复制文件。
+#   - Codex 读 `~/.agents/skills/cxs`;Claude 读 `~/.claude/skills/cxs`。
+#     dev/release 必须同时切这两个 slot,否则不同 agent 会看到不同 skill 文案。
 #
 # 用法:
 #   scripts/cxs-switch.sh dev        # CLI + Skill 都切到 repo 最新(会先 npm run build)
@@ -24,9 +24,10 @@ DEV_CLI="$REPO/dist/cli.js"
 SHIM_BACKUP="$STATE_DIR/cxs.release-shim"
 
 # ---- Skill ----
-ACTIVE_LINK="$HOME/.claude/skills/cxs"
+CODEX_SKILL="$HOME/.agents/skills/cxs"
+CLAUDE_SKILL="$HOME/.claude/skills/cxs"
 DEV_SKILL="$REPO/skill-packages/cxs"
-RELEASE_SKILL="$HOME/.agents/skills/cxs"
+RELEASE_SKILL_BACKUP="$STATE_DIR/cxs.release-skill"
 
 note() { printf '  %s\n' "$*"; }
 
@@ -35,9 +36,18 @@ cli_mode() {
   if grep -q "$DEV_CLI" "$SHIM" 2>/dev/null; then echo dev; else echo release; fi
 }
 
+skill_slot_mode() {
+  local path="$1"
+  [ -e "$path" ] || { echo "missing"; return; }
+  if [ -L "$path" ] && [ "$(readlink "$path")" = "$DEV_SKILL" ]; then
+    echo dev
+  else
+    echo release
+  fi
+}
+
 skill_mode() {
-  [ -L "$ACTIVE_LINK" ] || { echo "not-a-symlink"; return; }
-  [ "$(readlink "$ACTIVE_LINK")" = "$DEV_SKILL" ] && echo dev || echo release
+  echo "codex=$(skill_slot_mode "$CODEX_SKILL") claude=$(skill_slot_mode "$CLAUDE_SKILL")"
 }
 
 cli_to_dev() {
@@ -67,15 +77,34 @@ cli_to_release() {
 }
 
 skill_to_dev() {
-  [ -L "$ACTIVE_LINK" ] || { echo "✗ $ACTIVE_LINK 不是 symlink,拒绝覆盖"; return 1; }
-  ln -sfn "$DEV_SKILL" "$ACTIVE_LINK"
-  note "Skill  -> dev      $DEV_SKILL"
+  if [ -L "$CODEX_SKILL" ]; then
+    rm "$CODEX_SKILL"
+  elif [ -e "$CODEX_SKILL" ]; then
+    if [ -e "$RELEASE_SKILL_BACKUP" ]; then
+      echo "✗ release skill 备份已存在: $RELEASE_SKILL_BACKUP;拒绝覆盖 $CODEX_SKILL"
+      return 1
+    fi
+    mv "$CODEX_SKILL" "$RELEASE_SKILL_BACKUP"
+  fi
+  ln -sfn "$DEV_SKILL" "$CODEX_SKILL"
+  mkdir -p "$(dirname "$CLAUDE_SKILL")"
+  ln -sfn "$DEV_SKILL" "$CLAUDE_SKILL"
+  note "Skill  -> dev      codex:$CODEX_SKILL claude:$CLAUDE_SKILL -> $DEV_SKILL"
 }
 
 skill_to_release() {
-  [ -L "$ACTIVE_LINK" ] || { echo "✗ $ACTIVE_LINK 不是 symlink,拒绝覆盖"; return 1; }
-  ln -sfn "$RELEASE_SKILL" "$ACTIVE_LINK"
-  note "Skill  -> release  $RELEASE_SKILL"
+  if [ -L "$CODEX_SKILL" ]; then
+    rm "$CODEX_SKILL"
+    if [ -e "$RELEASE_SKILL_BACKUP" ]; then
+      mv "$RELEASE_SKILL_BACKUP" "$CODEX_SKILL"
+    else
+      echo "✗ release skill 备份缺失: $RELEASE_SKILL_BACKUP;请重新运行 npx skills add catoncat/cxs --full-depth --skill cxs -g -a codex -y"
+      return 1
+    fi
+  fi
+  mkdir -p "$(dirname "$CLAUDE_SKILL")"
+  ln -sfn "$CODEX_SKILL" "$CLAUDE_SKILL"
+  note "Skill  -> release  codex:$CODEX_SKILL claude:$CLAUDE_SKILL -> $CODEX_SKILL"
 }
 
 scope="${2:-both}"
