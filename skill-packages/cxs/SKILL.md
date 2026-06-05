@@ -39,7 +39,7 @@ npx skills add catoncat/cxs --full-depth --skill cxs -g -a codex -y
 | --- | --- | --- |
 | metadata projection: 最早/最新、数量、分布、cwd/session 清单、大 session、时间排序 | 只读 SQLite/bash/jq 查询 cxs index 的 `sessions` 表;必要时用 `list` 辅助 | 只能投影稳定 metadata;任何内容判断都要再 `read-page` / `read-range` |
 | semantic recall: 主题、关键词、"之前讨论过 X 吗"、本机配置考古 | `cxs find <query> --json`,按需要带 `--cwd` / `--root` / `--selector` / `--sort ended` | 用 `find` 召回候选,再用 `read-range` 或 `read-page` 验证 |
-| context reading: 已知 `sessionUuid`、命中 seq、或需要扩大上下文 | `cxs read-range <uuid> --seq/--query` 或 `cxs read-page <uuid>` | 内容证据只来自 `read-*` 输出 |
+| context reading: 已知 `sessionUuid`、命中 seq、或需要扩大上下文 | `cxs read-range <uuid> --seq/--query [--before N --after M]` 或 `cxs read-page <uuid>` | 内容证据只来自 `read-*` 输出 |
 | coverage/freshness/index availability: 索引缺失、coverage stale、要决定是否同步 | `cxs status --json` / `status --cwd` / `status --selector` | `status` 不回答内容问题,只决定 coverage 和 sync 需求 |
 | mutation: 建索引或更新 coverage | `cxs sync --cwd/--root/--selector` | 普通检索不要 `--prune`;只有用户明确要求清理已消失 source 的旧索引记录才用 |
 
