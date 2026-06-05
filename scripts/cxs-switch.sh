@@ -12,7 +12,7 @@
 #   scripts/cxs-switch.sh dev --repo /path/to/cxs     # CLI + Skill 都切到指定 checkout/worktree
 #   scripts/cxs-switch.sh release                     # CLI + Skill 都切回发布版
 #   scripts/cxs-switch.sh status                      # 查看当前各自处于哪个版本
-#   第二参数可限定范围: ... dev cli  /  ... release skills
+#   第二参数可限定范围: ... dev cli  /  ... release skill|skills
 set -euo pipefail
 
 DEFAULT_REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -22,12 +22,13 @@ mkdir -p "$STATE_DIR"
 
 usage() {
   cat <<'EOF'
-用法: cxs-switch {dev|release|status} [cli|skills|both] [--repo <path>]
+用法: cxs-switch {dev|release|status} [cli|skill|skills|both] [--repo <path>]
 
 示例:
   scripts/cxs-switch.sh dev
   scripts/cxs-switch.sh dev --repo /path/to/cxs-worktree
   scripts/cxs-switch.sh dev cli --repo /path/to/cxs-worktree
+  scripts/cxs-switch.sh dev skill --repo /path/to/cxs-worktree
   CXS_SWITCH_REPO=/path/to/cxs-worktree scripts/cxs-switch.sh dev
 EOF
 }
@@ -40,7 +41,7 @@ while [ "$#" -gt 0 ]; do
       action="$1"
       shift
       ;;
-    cli|skills|both)
+    cli|skill|skills|both)
       scope="$1"
       shift
       ;;
@@ -186,11 +187,11 @@ skill_to_release() {
 
 case "$action" in
   dev)
-    [ "$scope" = skills ] || cli_to_dev
+    [ "$scope" = skill ] || [ "$scope" = skills ] || cli_to_dev
     [ "$scope" = cli ] || skill_to_dev
     ;;
   release)
-    [ "$scope" = skills ] || cli_to_release
+    [ "$scope" = skill ] || [ "$scope" = skills ] || cli_to_release
     [ "$scope" = cli ] || skill_to_release
     ;;
   status) ;;
