@@ -49,4 +49,3 @@ Use an isolated worktree. Start or confirm a Mainline intent for I4. Commit and 
 ## Escalation
 
 Stop if docs need to claim unpublished behavior to make the workflow sound complete.
-

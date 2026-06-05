@@ -86,4 +86,3 @@ Exit gate:
 - Handoffs complete.
 - No active heartbeat remains.
 - Final status distinguishes source checkout, release skill, npm CLI release, and local installed CLI state.
-

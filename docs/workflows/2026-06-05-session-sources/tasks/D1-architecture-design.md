@@ -50,4 +50,3 @@ Synthesize A1, A2, and A3 into a current-state-aligned design for the cxs multi-
 ## Escalation
 
 Stop if A1/A2/A3 disagree on an identity model; return a decision request instead of choosing silently.
-

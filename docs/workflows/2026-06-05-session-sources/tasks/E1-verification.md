@@ -41,4 +41,3 @@ Evidence matrix mapping each explicit D1 requirement to proof, weak proof, or mi
 ## Escalation
 
 Stop and mark missing proof if checks are too narrow to prove a broad claim.
-

@@ -50,4 +50,3 @@ Use an isolated worktree. Start or confirm a Mainline intent for I1. Commit and 
 ## Escalation
 
 Stop if preserving behavior requires source-aware DB changes assigned to I2.
-

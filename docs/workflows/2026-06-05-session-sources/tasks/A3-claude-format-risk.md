@@ -51,4 +51,3 @@ Produce a risk packet with official-source citations, optional local-structure n
 ## Escalation
 
 Stop if safe assessment requires reading sensitive transcript content.
-

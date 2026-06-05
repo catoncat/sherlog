@@ -53,4 +53,3 @@ Use an isolated worktree. Start or confirm a Mainline intent for I2. Commit and 
 ## Escalation
 
 Stop if D1 leaves `session_uuid` identity unresolved.
-

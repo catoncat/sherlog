@@ -52,4 +52,3 @@ Use an isolated worktree. Start or confirm a Mainline intent for I3. Commit and 
 ## Escalation
 
 Stop if adding `--source` requires changing positional arguments or command names.
-

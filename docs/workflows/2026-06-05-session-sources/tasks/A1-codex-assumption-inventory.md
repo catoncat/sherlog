@@ -52,4 +52,3 @@ Produce a compact inventory with:
 ## Escalation
 
 Stop and report if current code contradicts the workflow scope, especially if a non-Codex source already exists.
-

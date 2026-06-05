@@ -51,4 +51,3 @@ Out of scope:
 ## Launch Rule
 
 Start A1, A2, and A3 first. Do not launch D1 until their handoffs are available. Do not launch implementation tasks until D1 is reconciled into this control plane.
-

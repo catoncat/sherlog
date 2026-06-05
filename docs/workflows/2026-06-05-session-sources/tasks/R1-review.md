@@ -40,4 +40,3 @@ Find:
 ## Output
 
 Findings first, ordered by severity, with file/line references. Then open questions, residual risk, and recommendation.
-

@@ -58,4 +58,3 @@ Produce one recommended model plus rejected alternatives. Include DB migration o
 ## Escalation
 
 Stop if a safe model requires changing the fixed command set.
-
