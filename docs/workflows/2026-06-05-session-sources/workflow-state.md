@@ -3,7 +3,7 @@
 ## Snapshot
 
 - Updated: 2026-06-05
-- Status: Wave 1 launch in progress
+- Status: Wave 1 packets reconciled; Wave 2 ready
 - Orchestrator Goal: `启动 cxs 多源架构改造的 Codex Session Orchestrator 工作流 Wave 0`
 - Mainline intent: `int_c1da6c9e`
 - Branch: `codex/session-sources-workflow`
@@ -11,13 +11,13 @@
 
 ## Active Wave
 
-Wave 1: A1, A2, and A3 worker sessions have been requested and are waiting for concrete thread ids.
+Wave 2 ready: A1, A2, and A3 completed and their handoffs have been reconciled.
 
 Next:
 
-1. Resolve pending worktree ids to concrete thread ids.
-2. Read worker status through `codex_app.read_thread` once thread ids exist.
-3. Reconcile A1/A2/A3 handoffs into `handoffs/`.
+1. Launch D1 architecture design packet.
+2. Reconcile D1 into `design.md` and `handoffs/D1-architecture-design.md`.
+3. Decide whether to launch implementation slices I1/I2/I3.
 
 ## Decisions
 
@@ -48,3 +48,4 @@ Pending:
 - 2026-06-05: Started Mainline intent `int_c1da6c9e`.
 - 2026-06-05: Created and sealed Wave 0 control-plane commit `9b34079`.
 - 2026-06-05: Requested A1/A2/A3 worker sessions; launcher returned pending worktree ids.
+- 2026-06-05: Resolved A1/A2/A3 actual thread ids and reconciled their read-only handoffs.
