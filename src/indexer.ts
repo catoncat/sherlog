@@ -14,11 +14,12 @@ import { canonicalizeSelector, selectorSource } from "./selector";
 import { getSessionSourceAdapter } from "./sources";
 import { SourceInventoryError } from "./source-inventory";
 import { withSyncLock } from "./sync-lock";
-import type { CoverageWriteSummary, ParsedSession, Selector, SourceFileMeta, SyncErrorDetail, SyncSummary } from "./types";
+import type { CoverageWriteSummary, ParsedSession, Selector, SessionSourceId, SourceFileMeta, SyncErrorDetail, SyncSummary } from "./types";
 
 interface SyncOptions {
   dbPath?: string;
   rootDir?: string;
+  sourceId?: SessionSourceId;
   selector?: Selector;
   bestEffort?: boolean;
   prune?: boolean;
@@ -52,8 +53,11 @@ export class SyncError extends Error {
 export async function syncSessions(options: SyncOptions = {}): Promise<SyncSummary> {
   ensureDataDir();
   const dbPath = options.dbPath ?? DEFAULT_DB_PATH;
-  const source = getSessionSourceAdapter("codex");
-  const selector = canonicalizeSelector(options.selector ?? { kind: "all", root: source.resolveRoot(options.rootDir) });
+  const source = getSessionSourceAdapter(options.sourceId ?? "codex");
+  const selector = canonicalizeSelector(
+    options.selector ?? { source: source.id, kind: "all", root: source.resolveRoot(options.rootDir) },
+    { defaultSource: source.id },
+  );
   return withSyncLock(dbPath, async () => {
     let sourceSnapshot;
     try {

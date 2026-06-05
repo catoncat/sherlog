@@ -1,13 +1,14 @@
 import { withReadDb, type Db } from "../db";
 import type { RawHitRow } from "../ranking";
 import { rerankHits } from "../ranking";
-import type { FindResult, FindSort, FindSummary, Selector } from "../types";
+import type { FindResult, FindSort, FindSummary, Selector, SessionSourceId } from "../types";
 import { buildCoverageStatus } from "./coverage";
 import { buildZeroResultsNextAction } from "./next-action";
 import { buildRelaxedRecallQueries } from "./relaxed-recall";
 import { searchMessageHits, searchSessionHits } from "./search";
 
 export interface FindSessionsOptions {
+  sourceId?: SessionSourceId;
   sort?: FindSort;
   excludeSessions?: string[];
 }
@@ -23,11 +24,12 @@ export function findSessions(
     const sort = options.sort ?? "relevance";
     const excludedSessions = uniqueNonEmpty(options.excludeSessions ?? []);
     const recallLimit = sort === "relevance" ? Math.max(limit * 12, 50) : Math.max(limit * 100, 1000);
-    let rawRows = searchRows(db, query, recallLimit, selector, sort, excludedSessions);
+    const sourceId = options.sourceId ?? "codex";
+    let rawRows = searchRows(db, query, recallLimit, selector, sort, excludedSessions, sourceId);
     if (rawRows.length === 0) {
       const fallbackRows = new Map<string, RawHitRow>();
       for (const relaxedQuery of buildRelaxedRecallQueries(query)) {
-        for (const row of searchRows(db, relaxedQuery, recallLimit, selector, sort, excludedSessions)) {
+        for (const row of searchRows(db, relaxedQuery, recallLimit, selector, sort, excludedSessions, sourceId)) {
           const key = rawHitKey(row);
           if (!fallbackRows.has(key)) fallbackRows.set(key, row);
         }
@@ -58,10 +60,11 @@ function searchRows(
   selector: Selector | null,
   sort: FindSort,
   excludedSessions: string[],
+  sourceId: SessionSourceId,
 ): RawHitRow[] {
   return [
-    ...searchMessageHits(db, query, recallLimit, undefined, selector, { sort, excludeSessions: excludedSessions }),
-    ...searchSessionHits(db, query, recallLimit, selector, { sort, excludeSessions: excludedSessions }),
+    ...searchMessageHits(db, query, recallLimit, undefined, selector, { sourceId, sort, excludeSessions: excludedSessions }),
+    ...searchSessionHits(db, query, recallLimit, selector, { sourceId, sort, excludeSessions: excludedSessions }),
   ];
 }
 
