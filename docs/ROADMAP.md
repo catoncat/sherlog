@@ -4,6 +4,8 @@
 
 `cxs` 现在已经有一条可用的 retrieval 主链。`title + summary_text + compact_text + reasoning_summary_text` 已作为 session-level recall 面接入，并通过 FTS5 column weights 显式分权；下一步仍不该盲目继续堆排序逻辑，当前最缺的是更可信的 acceptance gate。
 
+当前 source foundation 已落地到 checkout：公开 CLI source 只有 `codex`，`--source codex` 可省略，selector / coverage / DB / query-read 已有 source 维度。`claude-code` 仍是 reserved/non-public，不能写成已发布或可同步能力。
+
 ## 优先级
 
 ### P0: 先补强 eval 基线
@@ -28,6 +30,7 @@
 建议动作：
 
 - 扩充真实 query 集
+- 给 source-aware 默认行为补 acceptance：省略 source 等价于 `codex`、selector canonical JSON 带 `source: "codex"`、coverage 不跨 source、非公开 `claude-code` 返回 `unsupported_source`
 - 继续用 dev-only `~/.agents/skills/cxs-dogfood` 手动策展本机 dogfood golden；不要把私有样本放进发行 skill package
 - 增加更强断言：
   - session 是否对
@@ -85,3 +88,12 @@
 - heavier model / vector retrieval
 
 这些都应该建立在更强 eval 之后，而不是先上。
+
+### Deferred: Claude Code public adapter
+
+未来如果要公开 Claude Code source，需要单独设计和验收：
+
+- 优先重新评估官方 SDK/session API，而不是直接承诺 raw JSONL。
+- 明确 tool results、attachments、diagnostics、snapshots、hook payloads、thinking、sidechain/subagent 语义。
+- 增加 source-specific privacy tests 和 public docs review。
+- 只有实现、测试、release docs 和 skill 都完成后，才能把 `claude-code` 从 reserved/non-public 提升为 public source。

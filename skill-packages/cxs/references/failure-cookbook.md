@@ -17,6 +17,7 @@
 | 用户问“最近本项目讨论了什么” | `list --cwd <abs_cwd> --sort ended --json` | 这是 metadata/listing 问题；索引不可用或 coverage 不明时再 `status --cwd` |
 | 用户说“在 X 项目里” | `status --json` | 从 `sourceInventory.cwdGroups` 选择 cwd selector |
 | 从其他 cwd 调用找不到 db | `stats --json` | 看 `dbPath`；必要时显式传 `--db` |
+| `unsupported_source` | 改回省略 `--source` 或 `--source codex` | 当前只有 Codex 是 public source；不要改查 Claude Code raw files |
 
 ## Find zero results but user insists it exists
 
@@ -152,6 +153,7 @@ sqlite3 -readonly "$DB_PATH" \
 | `sync` 锁超时 | stderr | `{ "error": <message string> }` |
 | `status` invalid selector | stdout | `{ "error": { "code": "invalid_selector", "message": "..." } }` |
 | `find / read-range / read-page / list / stats` 索引不存在 | stdout | `{ "error": { "code": "index_unavailable", "message": "...", "dbPath": "...", "hint": "..." } }` |
+| 任意命令传非公开 source | stdout | `{ "error": { "code": "unsupported_source", "source": "...", "message": "Only \"codex\" is public in this release." } }` |
 | `find / read-range / read-page / list / stats` 其他异常 | 进程异常退出 | 直接非零退出 |
 
 ## Schema drift

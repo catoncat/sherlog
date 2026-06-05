@@ -6,7 +6,7 @@
 
 `status -> sync --root/--cwd/--selector -> message/session recall -> session heuristic rerank -> read-range/read-page`
 
-它已经可用，但仍是轻量 retrieval 后端，不是完整的 resource-level retrieval 系统。
+它已经可用，但仍是轻量 retrieval 后端，不是完整的 resource-level retrieval 系统。当前公开 session source 只有 `codex`；`claude-code` 只是保留的非公开 source id，没有公开 adapter、同步能力或文档承诺。
 
 ## 当前命令面
 
@@ -20,15 +20,33 @@
 
 这套命令面已经定型，不再保留 `window/session` 旧别名语义。
 
+这些命令都接受可省略的 `--source <id>`。当前唯一公开值是 `codex`，省略时等价于 `--source codex`。传入未知 source 或非公开 `claude-code` 会返回 `unsupported_source`，不会开始扫描、查询或读取。
+
 ## 数据流
+
+### 0. Source adapter
+
+`src/sources/` 定义 source adapter 边界和 registry。当前 registry 只公开 Codex adapter：
+
+- `codex` adapter 负责默认 root、Codex JSONL inventory/snapshot、Codex parser。
+- 核心层负责 selector、coverage、DB、query/read/list/stats。
+- `claude-code` 只作为未来保留 id 存在，不是可用 source。
+
+Codex adapter 会把原有 `sessionUuid` 映射为 source-aware identity：
+
+- `sourceId = "codex"`
+- `nativeSessionId = sessionUuid`
+- `sessionKey = "codex:" + sessionUuid`
+
+公共 read/find/list 输出继续保留 `sessionUuid`，以兼容旧 Codex UUID 工作流。
 
 ### 1. 同步
 
 [status.ts](/Users/envvar/work/repos/cxs/src/status.ts) 返回执行上下文、source inventory、index 状态与 coverage 状态。它可以扫描 raw sessions 的 metadata，但不回答内容问题。
 
-[indexer.ts](/Users/envvar/work/repos/cxs/src/indexer.ts) 按显式 selector 扫描 Codex JSONL session source，按文件 `mtime`、`size` 和 `indexVersion` 做增量判断。
+[indexer.ts](/Users/envvar/work/repos/cxs/src/indexer.ts) 按显式 selector 扫描选定 source 的 session snapshot。当前公开 source 只有 Codex，因此实际扫描的是 Codex JSONL sessions；增量判断仍基于文件 `mtime`、`size` 和 `indexVersion`。
 
-strict sync 默认只更新当前 source snapshot 中仍可见的文件，并保留已经进入 SQLite 的旧 session。这样 raw JSONL 的维护、移动或删除不会让 cxs 的历史查询丢失。只有显式传 `--prune` 时，sync 才会把 selector 范围收敛成当前 source snapshot，并删除 source 中已不存在的旧 index row。当前 source 中仍存在但被过滤或不能解析成 session 的文件仍按当前状态处理。
+strict sync 默认只更新当前 source snapshot 中仍可见的文件，并保留已经进入 SQLite 的旧 session。这样 raw JSONL 的维护、移动或删除不会让 cxs 的历史查询丢失。只有显式传 `--prune` 时，sync 才会把 selector 范围收敛成当前 source snapshot，并删除同一 source 中已不存在的旧 index row。一个 source 的 sync/prune 不会删除另一个 source 的数据。当前 source 中仍存在但被过滤或不能解析成 session 的文件仍按当前状态处理。
 
 [parser.ts](/Users/envvar/work/repos/cxs/src/parser.ts) 只抽取 `event_msg` 里的：
 
@@ -45,7 +63,9 @@ strict sync 默认只更新当前 source snapshot 中仍可见的文件，并保
 - `messages`
 - `coverage`
 
-`sessions.source_root` 持久化该 session 被同步时使用的 selector root，read-range / read-page 的 coverage attribution 基于这个字段，而不是从文件路径命名约定反推。
+`sessions` 当前使用 source-aware identity：`source_id`、`native_session_id`、`session_key`。旧 Codex row 会回填为 `source_id = "codex"`、`native_session_id = session_uuid`、`session_key = "codex:" || session_uuid`。`sessions.source_root` 持久化该 session 被同步时使用的 selector root，read-range / read-page 的 coverage attribution 基于这个字段，而不是从文件路径命名约定反推。
+
+`coverage` 同样存储 `source_id`，并且 canonical selector JSON 包含 `source`。fresh `all(root)` coverage 只覆盖同一个 source 下的更窄 selector。
 
 以及两个全文索引：
 
@@ -104,6 +124,8 @@ SQLite 访问层当前已经按 reader / writer 分流：
 - `compact_text` 解析 JSONL `type=compacted` handoff
 - `reasoning_summary_text` 解析 `response_item.reasoning.summary`
 - `sessions_fts(title + summary_text + compact_text + reasoning_summary_text)` session-level recall
+- source adapter boundary and public `--source codex`
+- source-aware selector / coverage / DB identity / query-read isolation
 - strict / best-effort 两种 sync 语义
 - explicit sync scope (`--root` / `--cwd` / `--selector`, canonicalized to selector)
 - source inventory
@@ -120,6 +142,7 @@ SQLite 访问层当前已经按 reader / writer 分流：
 - duplicate collapse / diversity control
 - 强约束 gold set / rubric / error taxonomy
 - watcher / daemon / realtime sync
+- 公开 Claude Code adapter / `cxs sync --source claude-code`
 
 ## 为什么当前文档改成这版
 
