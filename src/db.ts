@@ -1,5 +1,12 @@
 export type { Db, SqlParams } from "./db/shared";
-export { IndexUnavailableError, openReadDb, openWriteDb, withReadDb } from "./db/connection";
+export {
+  IndexSchemaUpgradeRequiredError,
+  IndexUnavailableError,
+  openReadDb,
+  openWriteDb,
+  withReadDb,
+  withSourceAwareReadDb,
+} from "./db/connection";
 export { getIndexedSessionMeta, getIndexedSessionMetas, deleteSessionByFilePath, replaceSession, getSessionRecord } from "./db/session-store";
 export { getMessagesForPage, getMessagesForRange } from "./db/message-store";
 export { listSessions } from "./db/list-store";

@@ -31,6 +31,10 @@ function makeFindResult(overrides: Partial<FindResult> = {}): FindResult {
 
 function makeSession(overrides: Partial<SessionRecord> = {}): SessionRecord {
   return {
+    id: 1,
+    sourceId: "codex",
+    nativeSessionId: "11111111-1111-4111-8111-111111111111",
+    sessionKey: "codex:11111111-1111-4111-8111-111111111111",
     sessionUuid: "11111111-1111-4111-8111-111111111111",
     filePath: "/root/sessions/x.jsonl",
     sourceRoot: "/root/sessions",

@@ -1,7 +1,9 @@
-import type { FindMatchRole, FindResult, MatchSource } from "./types";
+import type { FindMatchRole, FindResult, MatchSource, SessionSourceId } from "./types";
 import { queryTerms, tokenize } from "./tokenize";
 
 export interface RawHitRow {
+  sourceId?: SessionSourceId;
+  sessionKey?: string;
   sessionUuid: string;
   title: string;
   summaryText: string;
@@ -84,10 +86,11 @@ function aggregateRows(rows: RawHitRow[], profile: QueryProfile): Map<string, Se
 
   for (const row of rows) {
     const signalScore = scoreRow(row, profile);
-    const existing = grouped.get(row.sessionUuid);
+    const key = row.sessionKey ?? row.sessionUuid;
+    const existing = grouped.get(key);
 
     if (!existing) {
-      grouped.set(row.sessionUuid, createSessionAggregate(row, profile, signalScore));
+      grouped.set(key, createSessionAggregate(row, profile, signalScore));
     } else {
       updateSessionAggregate(existing, row, signalScore);
     }

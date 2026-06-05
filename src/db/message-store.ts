@@ -3,12 +3,12 @@ import type { Db } from "./shared";
 
 export function getMessagesForRange(
   db: Db,
-  sessionUuid: string,
+  sessionId: number,
   startSeq: number,
   endSeq: number,
 ): MessageRecord[] {
   return db
-    .prepare<[string, number, number], MessageRecord>(`
+    .prepare<[number, number, number], MessageRecord>(`
       SELECT
         session_uuid AS sessionUuid,
         seq,
@@ -17,20 +17,20 @@ export function getMessagesForRange(
         timestamp,
         source_kind AS sourceKind
       FROM messages
-      WHERE session_uuid = ? AND seq BETWEEN ? AND ?
+      WHERE session_id = ? AND seq BETWEEN ? AND ?
       ORDER BY seq
     `)
-    .all(sessionUuid, startSeq, endSeq) as MessageRecord[];
+    .all(sessionId, startSeq, endSeq) as MessageRecord[];
 }
 
 export function getMessagesForPage(
   db: Db,
-  sessionUuid: string,
+  sessionId: number,
   offset: number,
   limit: number,
 ): MessageRecord[] {
   return db
-    .prepare<[string, number, number], MessageRecord>(`
+    .prepare<[number, number, number], MessageRecord>(`
       SELECT
         session_uuid AS sessionUuid,
         seq,
@@ -39,9 +39,9 @@ export function getMessagesForPage(
         timestamp,
         source_kind AS sourceKind
       FROM messages
-      WHERE session_uuid = ?
+      WHERE session_id = ?
       ORDER BY seq
       LIMIT ? OFFSET ?
     `)
-    .all(sessionUuid, limit, offset) as MessageRecord[];
+    .all(sessionId, limit, offset) as MessageRecord[];
 }

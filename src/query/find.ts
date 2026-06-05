@@ -1,13 +1,14 @@
-import { selectorWhereSql, withReadDb, type Db } from "../db";
+import { selectorWhereSql, withSourceAwareReadDb, type Db } from "../db";
 import type { RawHitRow } from "../ranking";
 import { rerankHits } from "../ranking";
-import type { FindResult, FindSort, FindSummary, Selector } from "../types";
+import type { FindResult, FindSort, FindSummary, Selector, SessionSourceId } from "../types";
 import { buildCoverageStatus } from "./coverage";
 import { buildZeroResultsNextAction } from "./next-action";
 import { buildRelaxedRecallQueries } from "./relaxed-recall";
 import { searchMessageHits, searchSessionHits } from "./search";
 
 export interface FindSessionsOptions {
+  sourceId?: SessionSourceId;
   sort?: FindSort;
   excludeSessions?: string[];
 }
@@ -19,15 +20,16 @@ export function findSessions(
   selector: Selector | null = null,
   options: FindSessionsOptions = {},
 ): FindSummary {
-  return withReadDb(dbPath, (db) => {
+  return withSourceAwareReadDb(dbPath, (db) => {
     const sort = options.sort ?? "relevance";
     const excludedSessions = uniqueNonEmpty(options.excludeSessions ?? []);
     const recallLimit = sort === "relevance" ? Math.max(limit * 12, 50) : Math.max(limit * 100, 1000);
-    let rawRows = searchRows(db, query, recallLimit, selector, sort, excludedSessions);
+    const sourceId = options.sourceId ?? "codex";
+    let rawRows = searchRows(db, query, recallLimit, selector, sort, excludedSessions, sourceId);
     if (rawRows.length === 0) {
       const fallbackRows = new Map<string, RawHitRow>();
       for (const relaxedQuery of buildRelaxedRecallQueries(query)) {
-        for (const row of searchRows(db, relaxedQuery, recallLimit, selector, sort, excludedSessions)) {
+        for (const row of searchRows(db, relaxedQuery, recallLimit, selector, sort, excludedSessions, sourceId)) {
           const key = rawHitKey(row);
           if (!fallbackRows.has(key)) fallbackRows.set(key, row);
         }
@@ -45,7 +47,7 @@ export function findSessions(
       sort,
       excludedSessions,
       results,
-      scannedMessageCount: countScannedMessages(db, selector),
+      scannedMessageCount: countScannedMessages(db, selector, sourceId),
       coverage,
       nextAction: results.length === 0 ? buildZeroResultsNextAction(selector, "this find") : undefined,
     };
@@ -54,12 +56,14 @@ export function findSessions(
 
 // 范围内语料规模:按 selector 聚合各 session 的 message_count。SUM 比 join
 // messages 全表 COUNT 便宜,且与 stats.messageCount 口径一致。无 selector 时
-// 退化成全库消息总数。
-function countScannedMessages(db: Db, selector: Selector | null): number {
+// 退化成当前 source 的消息总数。
+function countScannedMessages(db: Db, selector: Selector | null, sourceId: SessionSourceId): number {
   if (!selector) {
     const row = db
-      .prepare<[], { n: number }>("SELECT COALESCE(SUM(message_count), 0) AS n FROM sessions")
-      .get() as { n: number };
+      .prepare<[SessionSourceId], { n: number }>(
+        "SELECT COALESCE(SUM(message_count), 0) AS n FROM sessions WHERE source_id = ?",
+      )
+      .get(sourceId) as { n: number };
     return row.n;
   }
   const where = selectorWhereSql(selector, "s");
@@ -78,15 +82,16 @@ function searchRows(
   selector: Selector | null,
   sort: FindSort,
   excludedSessions: string[],
+  sourceId: SessionSourceId,
 ): RawHitRow[] {
   return [
-    ...searchMessageHits(db, query, recallLimit, undefined, selector, { sort, excludeSessions: excludedSessions }),
-    ...searchSessionHits(db, query, recallLimit, selector, { sort, excludeSessions: excludedSessions }),
+    ...searchMessageHits(db, query, recallLimit, undefined, selector, { sourceId, sort, excludeSessions: excludedSessions }),
+    ...searchSessionHits(db, query, recallLimit, selector, { sourceId, sort, excludeSessions: excludedSessions }),
   ];
 }
 
 function rawHitKey(row: RawHitRow): string {
-  return `${row.sessionUuid}\0${row.matchSource}\0${row.matchSeq ?? "session"}`;
+  return `${row.sessionKey ?? row.sessionUuid}\0${row.matchSource}\0${row.matchSeq ?? "session"}`;
 }
 
 function compareByTime(left: FindResult, right: FindResult, sort: FindSort): number {

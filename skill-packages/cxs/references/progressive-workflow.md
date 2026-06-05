@@ -13,12 +13,13 @@ Hard rules:
 
 - cxs index is the normal history source of truth; do not query raw Codex JSONL or alternate source roots during normal retrieval.
 - Read-only SQLite can shortlist sessions, counts, dates, cwd distributions, and other stable metadata.
-- Stable session metadata fields are `session_uuid`, `started_at`, `ended_at`, `cwd`, `title`, `summary_text`, `message_count`, `source_root`, `file_path`.
+- Stable session metadata fields are `source_id`, `native_session_id`, `session_key`, `session_uuid`, `started_at`, `ended_at`, `cwd`, `title`, `summary_text`, `message_count`, `source_root`, `file_path`.
 - Content claims require `read-range` or `read-page`.
 - `sync` only updates index/coverage; normal retrieval does not need `sync` unless coverage is missing or stale.
 - Do not use `sync --prune` for normal retrieval.
 - `find` default sort is relevance; use `--sort ended` only when the user's question is time-oriented.
 - `matchSource = "session"` means `matchSeq = null`; use `read-page` instead of inventing a seq.
+- Current public source is only `codex`; omit `--source` or pass `--source codex`. Do not claim Claude Code source support.
 
 ## Scenario 1: Metadata Projection
 

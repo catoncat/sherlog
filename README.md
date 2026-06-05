@@ -6,6 +6,16 @@
 progressive retrieval: find the right session first, then read only the relevant
 range or page.
 
+The only public session source in this checkout is `codex`. The CLI accepts
+`--source codex` on the fixed command set, and omitting `--source` means Codex.
+Claude Code is reserved for a future adapter; it is not a public source and
+`--source claude-code` is rejected.
+
+When reading this from a source checkout, the installed `cxs` on your `PATH`
+may still be an older npm release. Check `cxs status --help` before using
+`--source`; if help does not list `--source`, omit source flags or update the
+installed CLI from a release that includes source-aware behavior.
+
 Core workflow:
 
 ```text
@@ -53,7 +63,7 @@ npx @act0r/cxs@latest status --json
 
 ## Quick Start
 
-Inspect available sources and index coverage:
+Inspect the Codex source inventory and index coverage:
 
 ```bash
 cxs status --json
@@ -103,6 +113,19 @@ npx @act0r/cxs@latest find "health check" --root /Users/you/.codex/sessions
 All commands that read indexed content support `--json`. Read commands fail
 cleanly if the index has not been created yet.
 
+In source-aware builds, all fixed commands accept `--source <id>`. The only
+public value is `codex`, so these are equivalent:
+
+```bash
+cxs find "health check"
+cxs find "health check" --source codex
+```
+
+Unknown sources and reserved non-public sources such as `claude-code` return
+`unsupported_source` before doing command work. If an installed CLI rejects the
+`--source` option itself, that installation predates this behavior; update the
+CLI or run the checkout with `npm run cxs -- ...`.
+
 ## Selectors
 
 `sync` requires an explicit scope, but it no longer requires handwritten
@@ -117,13 +140,14 @@ cxs list --root /Users/you/.codex/sessions --sort ended -n 10
 
 Use full selector JSON for date ranges or advanced scopes. If you pass
 `--root`, the selector JSON may omit `root`; without `--root`, cxs uses the
-default Codex sessions root.
+default Codex sessions root. Selector JSON may also omit `source`; canonical
+selectors include `source: "codex"` in this checkout.
 
 ```text
-{"kind":"all","root":"/Users/you/.codex/sessions"}
-{"kind":"date_range","root":"/Users/you/.codex/sessions","fromDate":"2026-04-01","toDate":"2026-04-30"}
-{"kind":"cwd","root":"/Users/you/.codex/sessions","cwd":"/Users/you/work/project"}
-{"kind":"cwd_date_range","root":"/Users/you/.codex/sessions","cwd":"/Users/you/work/project","fromDate":"2026-04-01","toDate":"2026-04-30"}
+{"source":"codex","kind":"all","root":"/Users/you/.codex/sessions"}
+{"source":"codex","kind":"date_range","root":"/Users/you/.codex/sessions","fromDate":"2026-04-01","toDate":"2026-04-30"}
+{"source":"codex","kind":"cwd","root":"/Users/you/.codex/sessions","cwd":"/Users/you/work/project"}
+{"source":"codex","kind":"cwd_date_range","root":"/Users/you/.codex/sessions","cwd":"/Users/you/work/project","fromDate":"2026-04-01","toDate":"2026-04-30"}
 ```
 
 Example list query scoped to one project:
@@ -171,13 +195,15 @@ despite failures; best-effort sync does not record complete coverage.
 
 `sync` is not required before every query. Use `status --cwd` or
 `status --selector` to check coverage first. A fresh `{"kind":"all", ...}`
-coverage record covers narrower
-selectors under the same root; a high `stats.sessionCount` only means rows exist
-and is not itself a freshness proof.
+coverage record covers narrower selectors under the same source and root; a high
+`stats.sessionCount` only means rows exist and is not itself a freshness proof.
 
-Indexes created before `cxs-v6-selector-provenance` should be refreshed with
-`sync --root`, `sync --cwd`, or `sync --selector` so date selectors and read coverage use the current
-`path_date` and source-root provenance fields.
+Indexes created before `cxs-v7-source-identity` should be refreshed with
+`sync --root`, `sync --cwd`, or `sync --selector` so selector coverage and reads
+use source-aware identity, current `path_date`, and source-root provenance
+fields. Source-aware read commands do not migrate old indexes because they are
+read-only; they return `index_schema_upgrade_required` with a `cxs sync` hint
+when the index needs this refresh.
 
 Older `cxs <= 0.2.0` indexes stored under `~/.cache/cxs/` are migrated
 automatically on first run when the new state directory is empty. If the new
@@ -224,6 +250,10 @@ cd cxs
 npm install
 npm run cxs -- --version
 ```
+
+Use `npm run cxs -- ...` to verify checkout behavior. A globally installed
+`cxs` command may still be an older npm release until a separate release and
+install workflow updates it.
 
 Common checks:
 

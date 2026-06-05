@@ -8,6 +8,7 @@
 | `sync` 非零退出带 per-file errors | `sync --root <dir> --json 2>&1` 或 `sync --selector '<json>' --json 2>&1` | 看 `errorDetails[]`；默认严格模式；只在允许部分成功时加 `--best-effort` |
 | `sync` 返回 `selector_required` | 原命令补 `--root`、`--cwd` 或 `--selector` | sync 必须显式给范围；不需要把 root 写进 JSON |
 | `find/list/stats/read-*` 输出 `index_unavailable` | `status --json` | 索引还没建立；选择范围后 `sync --root` / `sync --cwd` / `sync --selector` |
+| `find/list/stats/read-*` 输出 `index_schema_upgrade_required` | 原范围跑一次 `sync --source codex ...` | 已有 index 是旧 schema；只读命令不迁移，`sync` 是唯一写入口 |
 | raw JSONL 从当前 source snapshot 中消失后担心查不到 | 直接 `find/list/read-*` 查 cxs index | cxs 默认保留已索引历史；不要引导用户改查另一个 root。只有用户明确要丢弃旧历史时才 `sync --prune` |
 | `stats/list/find` 报 `database is locked` | 原命令重试一次 | 多半是 SQLite 忙；仍失败就先跳过 `stats` 直接读 |
 | 同一主题多条 uuid | `find -n 10 --json` | 按 `startedAt`、`cwd`、`matchCount` 选 |
@@ -17,6 +18,7 @@
 | 用户问“最近本项目讨论了什么” | `list --cwd <abs_cwd> --sort ended --json` | 这是 metadata/listing 问题；索引不可用或 coverage 不明时再 `status --cwd` |
 | 用户说“在 X 项目里” | `status --json` | 从 `sourceInventory.cwdGroups` 选择 cwd selector |
 | 从其他 cwd 调用找不到 db | `stats --json` | 看 `dbPath`；必要时显式传 `--db` |
+| `unsupported_source` | 改回省略 `--source` 或 `--source codex` | 当前只有 Codex 是 public source；不要改查 Claude Code raw files |
 
 ## Find zero results but user insists it exists
 
@@ -73,6 +75,27 @@
 ```
 
 没有单独 `init` 命令；`sync --root` / `sync --cwd` / `sync --selector` 会创建并更新索引。
+
+## index_schema_upgrade_required
+
+source-aware 读命令遇到旧 index schema 时不会写库迁移，而是在 `--json`
+模式下返回:
+
+```json
+{
+  "error": {
+    "code": "index_schema_upgrade_required",
+    "message": "index schema is too old for source-aware read commands: ...",
+    "dbPath": "...",
+    "missingColumns": ["sessions.source_id", "coverage.source_id"],
+    "hint": "Run `cxs sync --source codex --root <sessions-root>` ..."
+  }
+}
+```
+
+处理方式: 用同一个目标范围跑 `sync --source codex --root ...`、`sync --cwd ...`
+或 `sync --selector ...`。不要让 `find/list/read-*` 直接查 raw JSONL，也不要用
+只读 SQLite 手写迁移。
 
 ## Database is locked or SQLITE_BUSY
 
@@ -152,6 +175,8 @@ sqlite3 -readonly "$DB_PATH" \
 | `sync` 锁超时 | stderr | `{ "error": <message string> }` |
 | `status` invalid selector | stdout | `{ "error": { "code": "invalid_selector", "message": "..." } }` |
 | `find / read-range / read-page / list / stats` 索引不存在 | stdout | `{ "error": { "code": "index_unavailable", "message": "...", "dbPath": "...", "hint": "..." } }` |
+| `find / read-range / read-page / list / stats` 旧 index schema | stdout | `{ "error": { "code": "index_schema_upgrade_required", "message": "...", "dbPath": "...", "missingColumns": ["..."], "hint": "..." } }` |
+| 任意命令传非公开 source | stdout | `{ "error": { "code": "unsupported_source", "source": "...", "message": "Only \"codex\" is public in this release." } }` |
 | `find / read-range / read-page / list / stats` 其他异常 | 进程异常退出 | 直接非零退出 |
 
 ## Schema drift

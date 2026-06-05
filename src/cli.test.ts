@@ -3,6 +3,7 @@ import { spawn as childSpawn } from "node:child_process";
 import { chmodSync, mkdtempSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import Database from "better-sqlite3";
 import { openWriteDb } from "./db";
 import { INDEX_VERSION } from "./env";
 import { syncSessions } from "./indexer";
@@ -143,6 +144,169 @@ describe("cxs cli", () => {
     expect(payload.requestedCoverage.sourceFileCount).toBe(1);
   });
 
+  test("status --source codex can read old Codex index counts without migrating", async () => {
+    const base = mkdtempSync(join(tmpdir(), "cxs-cli-status-source-old-db-"));
+    tempDirs.push(base);
+    const root = join(base, "sessions");
+    mkdirSync(root, { recursive: true });
+    const dbPath = join(base, "legacy.sqlite");
+    const db = new Database(dbPath);
+    db.exec(`
+      CREATE TABLE sessions (
+        id INTEGER PRIMARY KEY,
+        session_uuid TEXT NOT NULL,
+        file_path TEXT NOT NULL,
+        title TEXT NOT NULL,
+        summary_text TEXT NOT NULL,
+        cwd TEXT NOT NULL,
+        model TEXT NOT NULL,
+        started_at TEXT NOT NULL,
+        ended_at TEXT NOT NULL,
+        path_date TEXT NOT NULL,
+        message_count INTEGER NOT NULL,
+        raw_file_mtime REAL NOT NULL,
+        raw_file_size INTEGER NOT NULL,
+        updated_at TEXT NOT NULL,
+        index_version TEXT NOT NULL
+      );
+      INSERT INTO sessions (
+        session_uuid, file_path, title, summary_text, cwd, model, started_at,
+        ended_at, path_date, message_count, raw_file_mtime, raw_file_size,
+        updated_at, index_version
+      ) VALUES (
+        '15151515-1515-4515-8515-151515151515',
+        '/tmp/legacy.jsonl',
+        '',
+        '',
+        '/tmp/legacy',
+        '',
+        '2026-04-20T10:00:00.000Z',
+        '2026-04-20T10:01:00.000Z',
+        '2026-04-20',
+        2,
+        0,
+        0,
+        '2026-04-20T10:02:00.000Z',
+        'cxs-v6'
+      );
+      CREATE TABLE coverage (
+        id INTEGER PRIMARY KEY,
+        selector_json TEXT NOT NULL,
+        source_fingerprint TEXT NOT NULL,
+        source_file_count INTEGER NOT NULL,
+        indexed_session_count INTEGER NOT NULL,
+        completed_at TEXT NOT NULL,
+        index_version TEXT NOT NULL
+      );
+    `);
+    db.close();
+
+    const result = await runCli(["status", "--source", "codex", "--root", root, "--db", dbPath, "--json"]);
+
+    expect(result.exitCode).toBe(0);
+    const payload = JSON.parse(result.stdout) as {
+      index: { exists: boolean; sessionCount: number; messageCount: number };
+      coverage: unknown[];
+    };
+    expect(payload.index.exists).toBe(true);
+    expect(payload.index.sessionCount).toBe(1);
+    expect(payload.index.messageCount).toBe(2);
+    expect(payload.coverage).toEqual([]);
+  });
+
+  test("fixed commands accept explicit --source codex while omitted source remains Codex", async () => {
+    const base = mkdtempSync(join(tmpdir(), "cxs-cli-source-codex-"));
+    tempDirs.push(base);
+    const root = join(base, "sessions");
+    const day = join(root, "2026", "04", "20");
+    mkdirSync(day, { recursive: true });
+    writeFileSync(
+      join(day, "rollout-2026-04-20T10-00-00-14141414-1414-4414-8414-141414141414.jsonl"),
+      [
+        line("session_meta", { id: "14141414-1414-4414-8414-141414141414", cwd: "/tmp/source-codex" }),
+        line("event_msg", { type: "user_message", message: "source codex needle" }),
+        line("event_msg", { type: "agent_message", message: "source codex reply" }),
+      ].join("\n"),
+    );
+
+    const dbPath = join(base, "index.sqlite");
+    const synced = await runCli(["sync", "--source", "codex", "--root", root, "--db", dbPath, "--json"]);
+    expect(synced.exitCode).toBe(0);
+    const syncPayload = JSON.parse(synced.stdout) as { coverage: { selector: { source: string; kind: string; root: string } } };
+    expect(syncPayload.coverage.selector).toEqual({ source: "codex", kind: "all", root });
+
+    const status = await runCli(["status", "--source", "codex", "--root", root, "--db", dbPath, "--json"]);
+    expect(status.exitCode).toBe(0);
+    const statusPayload = JSON.parse(status.stdout) as {
+      context: { root: string };
+      sourceInventory: { totalFiles: number };
+      coverage: Array<{ selector: { source: string } }>;
+    };
+    expect(statusPayload.context.root).toBe(root);
+    expect(statusPayload.sourceInventory.totalFiles).toBe(1);
+    expect(statusPayload.coverage[0]?.selector.source).toBe("codex");
+
+    const defaultFind = await runCli(["find", "source codex needle", "--db", dbPath, "--json"]);
+    const explicitFind = await runCli(["find", "source codex needle", "--source", "codex", "--db", dbPath, "--json"]);
+    expect(defaultFind.exitCode).toBe(0);
+    expect(explicitFind.exitCode).toBe(0);
+    const defaultFindPayload = JSON.parse(defaultFind.stdout) as { results: Array<{ sessionUuid: string }> };
+    const explicitFindPayload = JSON.parse(explicitFind.stdout) as { results: Array<{ sessionUuid: string }> };
+    expect(explicitFindPayload.results.map((result) => result.sessionUuid)).toEqual(
+      defaultFindPayload.results.map((result) => result.sessionUuid),
+    );
+    expect(explicitFindPayload.results[0]?.sessionUuid).toBe("14141414-1414-4414-8414-141414141414");
+
+    const listed = await runCli(["list", "--source", "codex", "--db", dbPath, "--json"]);
+    expect(listed.exitCode).toBe(0);
+    const listPayload = JSON.parse(listed.stdout) as { query: { sourceId?: string }; results: Array<{ sessionUuid: string }> };
+    expect(listPayload.query.sourceId).toBe("codex");
+    expect(listPayload.results[0]?.sessionUuid).toBe("14141414-1414-4414-8414-141414141414");
+
+    const stats = await runCli(["stats", "--source", "codex", "--db", dbPath, "--json"]);
+    expect(stats.exitCode).toBe(0);
+    const statsPayload = JSON.parse(stats.stdout) as { sessionCount: number; messageCount: number };
+    expect(statsPayload.sessionCount).toBe(1);
+    expect(statsPayload.messageCount).toBe(2);
+
+    const range = await runCli([
+      "read-range",
+      "14141414-1414-4414-8414-141414141414",
+      "--source",
+      "codex",
+      "--seq",
+      "0",
+      "--before",
+      "0",
+      "--after",
+      "0",
+      "--db",
+      dbPath,
+      "--json",
+    ]);
+    expect(range.exitCode).toBe(0);
+    const rangePayload = JSON.parse(range.stdout) as { session: { sourceId: string; sessionUuid: string }; messages: Array<{ contentText: string }> };
+    expect(rangePayload.session.sourceId).toBe("codex");
+    expect(rangePayload.session.sessionUuid).toBe("14141414-1414-4414-8414-141414141414");
+    expect(rangePayload.messages[0]?.contentText).toBe("source codex needle");
+
+    const page = await runCli([
+      "read-page",
+      "14141414-1414-4414-8414-141414141414",
+      "--source",
+      "codex",
+      "--limit",
+      "1",
+      "--db",
+      dbPath,
+      "--json",
+    ]);
+    expect(page.exitCode).toBe(0);
+    const pagePayload = JSON.parse(page.stdout) as { session: { sourceId: string }; totalCount: number };
+    expect(pagePayload.session.sourceId).toBe("codex");
+    expect(pagePayload.totalCount).toBe(2);
+  });
+
   test("sync requires an explicit selector", async () => {
     const base = mkdtempSync(join(tmpdir(), "cxs-cli-sync-selector-required-"));
     tempDirs.push(base);
@@ -154,6 +318,44 @@ describe("cxs cli", () => {
     };
     expect(payload.error.code).toBe("selector_required");
     expect(payload.error.message).toContain("--selector");
+  });
+
+  test("fixed commands reject unsupported and non-public --source values before other work", async () => {
+    const base = mkdtempSync(join(tmpdir(), "cxs-cli-source-unsupported-"));
+    tempDirs.push(base);
+    const dbPath = join(base, "missing.sqlite");
+    const commands = [
+      ["status", "--source", "claude-code", "--db", dbPath, "--json"],
+      ["sync", "--source", "other", "--root", join(base, "sessions"), "--db", dbPath, "--json"],
+      ["find", "needle", "--source", "other", "--db", dbPath, "--json"],
+      ["read-range", "14141414-1414-4414-8414-141414141414", "--source", "other", "--db", dbPath, "--json"],
+      ["read-page", "14141414-1414-4414-8414-141414141414", "--source", "other", "--db", dbPath, "--json"],
+      ["list", "--source", "other", "--db", dbPath, "--json"],
+      ["stats", "--source", "other", "--db", dbPath, "--json"],
+    ];
+
+    for (const command of commands) {
+      const result = await runCli(command);
+      expect(result.exitCode).toBe(1);
+      const payload = JSON.parse(result.stdout) as { error: { code: string; source: string; message: string } };
+      expect(payload.error.code).toBe("unsupported_source");
+      expect(payload.error.message).toContain("Only \"codex\" is public");
+      expect(result.stderr).toBe("");
+    }
+  });
+
+  test("selector JSON source is rejected when it is not public Codex", async () => {
+    const base = mkdtempSync(join(tmpdir(), "cxs-cli-selector-source-unsupported-"));
+    tempDirs.push(base);
+    const selector = JSON.stringify({ source: "claude-code", kind: "all", root: join(base, "sessions") });
+
+    const result = await runCli(["sync", "--selector", selector, "--db", join(base, "index.sqlite"), "--json"]);
+
+    expect(result.exitCode).toBe(1);
+    const payload = JSON.parse(result.stdout) as { error: { code: string; source: string; message: string } };
+    expect(payload.error.code).toBe("unsupported_source");
+    expect(payload.error.source).toBe("claude-code");
+    expect(payload.error.message).toContain("Only \"codex\" is public");
   });
 
   test("sync with cwd selector writes coverage and find stays scoped", async () => {
@@ -257,7 +459,7 @@ describe("cxs cli", () => {
     const syncA = await runCli(["sync", "--root", rootA, "--db", dbPath, "--json"]);
     expect(syncA.exitCode).toBe(0);
     const syncPayload = JSON.parse(syncA.stdout) as { coverage: { selector: { kind: string; root: string } } };
-    expect(syncPayload.coverage.selector).toEqual({ kind: "all", root: rootA });
+    expect(syncPayload.coverage.selector).toEqual({ kind: "all", source: "codex", root: rootA });
 
     const syncB = await runCli(["sync", "--root", rootB, "--db", dbPath, "--json"]);
     expect(syncB.exitCode).toBe(0);
@@ -584,6 +786,43 @@ describe("cxs cli", () => {
     expect(result.stderr).toBe("");
   });
 
+  test("read-only commands emit upgrade guidance for source-unaware indexes", async () => {
+    const base = mkdtempSync(join(tmpdir(), "cxs-cli-source-schema-"));
+    tempDirs.push(base);
+    const dbPath = join(base, "index.sqlite");
+    createSourceUnawareIndex(dbPath);
+
+    const commands = [
+      ["find", "legacy"],
+      ["list"],
+      ["stats"],
+      ["read-page", "11111111-1111-4111-8111-111111111111"],
+      ["read-range", "11111111-1111-4111-8111-111111111111", "--seq", "0"],
+    ];
+
+    for (const command of commands) {
+      const result = await runCli([...command, "--json", "--db", dbPath]);
+
+      expect(result.exitCode).toBe(1);
+      expect(result.stderr).toBe("");
+      const payload = JSON.parse(result.stdout) as {
+        error: { code: string; message: string; dbPath: string; missingColumns: string[]; hint: string };
+      };
+      expect(payload.error.code).toBe("index_schema_upgrade_required");
+      expect(payload.error.message).toContain(dbPath);
+      expect(payload.error.dbPath).toBe(dbPath);
+      expect(payload.error.missingColumns).toEqual([
+        "sessions.source_id",
+        "sessions.native_session_id",
+        "sessions.session_key",
+        "coverage.source_id",
+      ]);
+      expect(payload.error.hint).toContain("cxs sync --source codex");
+      expect(result.stdout).not.toContain("SqliteError");
+      expect(result.stdout).not.toContain("no such column");
+    }
+  });
+
   test("list filters by cwd substring and respects sort", async () => {
     const base = mkdtempSync(join(tmpdir(), "cxs-cli-list-"));
     tempDirs.push(base);
@@ -759,6 +998,52 @@ function lineAt(timestamp: string, type: string, payload: Record<string, unknown
     type,
     payload,
   });
+}
+
+function createSourceUnawareIndex(dbPath: string): void {
+  const db = new Database(dbPath);
+  try {
+    db.exec(`
+      CREATE TABLE sessions (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        session_uuid TEXT NOT NULL UNIQUE,
+        file_path TEXT NOT NULL UNIQUE,
+        source_root TEXT NOT NULL DEFAULT '',
+        title TEXT NOT NULL DEFAULT '',
+        summary_text TEXT NOT NULL DEFAULT '',
+        compact_text TEXT NOT NULL DEFAULT '',
+        reasoning_summary_text TEXT NOT NULL DEFAULT '',
+        cwd TEXT NOT NULL DEFAULT '',
+        model TEXT NOT NULL DEFAULT '',
+        started_at TEXT NOT NULL,
+        ended_at TEXT NOT NULL,
+        path_date TEXT NOT NULL DEFAULT '',
+        message_count INTEGER NOT NULL DEFAULT 0,
+        raw_file_mtime INTEGER NOT NULL DEFAULT 0,
+        raw_file_size INTEGER NOT NULL DEFAULT 0,
+        index_version TEXT NOT NULL DEFAULT '',
+        updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+      );
+
+      CREATE TABLE coverage (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        selector_key TEXT NOT NULL UNIQUE,
+        selector_json TEXT NOT NULL,
+        selector_kind TEXT NOT NULL,
+        root TEXT NOT NULL,
+        cwd TEXT,
+        from_date TEXT,
+        to_date TEXT,
+        source_fingerprint TEXT NOT NULL,
+        source_file_count INTEGER NOT NULL,
+        indexed_session_count INTEGER NOT NULL,
+        completed_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        index_version TEXT NOT NULL
+      );
+    `);
+  } finally {
+    db.close();
+  }
 }
 
 async function runCli(args: string[]): Promise<{ exitCode: number; stdout: string; stderr: string }> {

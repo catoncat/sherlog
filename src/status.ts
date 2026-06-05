@@ -1,16 +1,17 @@
 import { existsSync, statSync } from "node:fs";
-import { collectSourceInventory, collectSourceSnapshot } from "./source-inventory";
-import { INDEX_VERSION, DEFAULT_DB_PATH, resolveCodexDir } from "./env";
-import { getStatsCounts, listCoverageRecords, withReadDb } from "./db";
-import { selectorImplies } from "./selector";
-import type { CoverageInventoryStatus, CoverageRecord, RequestedCoverageStatus, Selector, StatusSummary } from "./types";
+import { INDEX_VERSION, DEFAULT_DB_PATH } from "./env";
+import { getStatsCounts, listCoverageRecords, withReadDb, type Db } from "./db";
+import { selectorImplies, selectorSource } from "./selector";
+import { getSessionSourceAdapter } from "./sources";
+import type { CoverageInventoryStatus, CoverageRecord, RequestedCoverageStatus, Selector, SessionSourceId, StatusSummary } from "./types";
 
-export async function collectStatus(options: { rootDir?: string; dbPath?: string; cwd?: string; selector?: Selector } = {}): Promise<StatusSummary> {
-  const root = resolveCodexDir(options.rootDir);
+export async function collectStatus(options: { sourceId?: SessionSourceId; rootDir?: string; dbPath?: string; cwd?: string; selector?: Selector } = {}): Promise<StatusSummary> {
+  const source = getSessionSourceAdapter(options.sourceId ?? "codex");
+  const root = source.resolveRoot(options.rootDir);
   const dbPath = options.dbPath ?? DEFAULT_DB_PATH;
-  const sourceInventory = await collectSourceInventory(root);
+  const sourceInventory = await source.collectInventory(root);
   const index = collectIndexStatus(dbPath);
-  const coverage = existsSync(dbPath) ? withReadDb(dbPath, (db) => listCoverageRecords(db)) : [];
+  const coverage = existsSync(dbPath) ? withReadDb(dbPath, (db) => listCoverageRecordsForStatus(db, source.id)) : [];
   const coverageStatus: CoverageInventoryStatus[] = [];
   for (const record of coverage) {
     coverageStatus.push(await toCoverageInventoryStatus(record));
@@ -45,7 +46,11 @@ function collectIndexStatus(dbPath: string): StatusSummary["index"] {
     };
   }
 
-  const counts = withReadDb(dbPath, (db) => getStatsCounts(db));
+  const counts = withReadDb(dbPath, (db) => {
+    if (!tableExists(db, "sessions")) return emptyIndexCounts();
+    if (!tableColumnExists(db, "sessions", "source_id")) return getLegacyCodexStatsCounts(db);
+    return getStatsCounts(db);
+  });
   let dbSizeBytes = 0;
   try {
     dbSizeBytes = statSync(dbPath).size;
@@ -64,8 +69,56 @@ function collectIndexStatus(dbPath: string): StatusSummary["index"] {
   };
 }
 
+function listCoverageRecordsForStatus(db: Db, sourceId: SessionSourceId): CoverageRecord[] {
+  if (!tableColumnExists(db, "coverage", "source_id")) return [];
+  return listCoverageRecords(db, sourceId);
+}
+
+function emptyIndexCounts(): ReturnType<typeof getStatsCounts> {
+  return {
+    sessionCount: 0,
+    messageCount: 0,
+    earliestStartedAt: null,
+    latestEndedAt: null,
+    lastSyncAt: null,
+  };
+}
+
+function getLegacyCodexStatsCounts(db: Db): ReturnType<typeof getStatsCounts> {
+  const row = db
+    .prepare(`
+      SELECT
+        COUNT(*) AS sessionCount,
+        COALESCE(SUM(message_count), 0) AS messageCount,
+        MIN(started_at) AS earliestStartedAt,
+        MAX(ended_at) AS latestEndedAt,
+        MAX(updated_at) AS lastSyncAt
+      FROM sessions
+    `)
+    .get() as ReturnType<typeof getStatsCounts>;
+  return row;
+}
+
+function tableColumnExists(db: Db, tableName: string, columnName: string): boolean {
+  return db
+    .prepare<[string, string], { name: string }>(`
+      SELECT name
+      FROM pragma_table_info(?)
+      WHERE name = ?
+      LIMIT 1
+    `)
+    .get(tableName, columnName) !== undefined;
+}
+
+function tableExists(db: Db, tableName: string): boolean {
+  return db
+    .prepare<[string], unknown>("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ? LIMIT 1")
+    .get(tableName) !== undefined;
+}
+
 async function toCoverageInventoryStatus(record: CoverageRecord): Promise<CoverageInventoryStatus> {
-  const snapshot = await collectSourceSnapshot(record.selector);
+  const source = getSessionSourceAdapter(selectorSource(record.selector));
+  const snapshot = await source.collectSnapshot(record.selector);
   const fresh = snapshot.fingerprint === record.sourceFingerprint
     && snapshot.fileCount === record.sourceFileCount
     && record.indexVersion === INDEX_VERSION;
@@ -81,7 +134,8 @@ async function requestedCoverageStatus(
   selector: Selector,
   coverage: CoverageInventoryStatus[],
 ): Promise<RequestedCoverageStatus> {
-  const snapshot = await collectSourceSnapshot(selector);
+  const source = getSessionSourceAdapter(selectorSource(selector));
+  const snapshot = await source.collectSnapshot(selector);
   const coveringSelectors = coverage.filter((entry) =>
     entry.indexVersion === INDEX_VERSION && selectorImplies(entry.selector, selector)
   );

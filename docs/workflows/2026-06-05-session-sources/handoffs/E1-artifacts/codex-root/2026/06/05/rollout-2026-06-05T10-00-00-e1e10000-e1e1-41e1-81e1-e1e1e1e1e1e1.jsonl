@@ -1,0 +1,4 @@
+{"timestamp":"2026-06-05T10:00:00.000Z","type":"session_meta","payload":{"id":"e1e10000-e1e1-41e1-81e1-e1e1e1e1e1e1","cwd":"/tmp/cxs-e1-source-smoke"}}
+{"timestamp":"2026-06-05T10:00:01.000Z","type":"turn_context","payload":{"model":"gpt-5.4"}}
+{"timestamp":"2026-06-05T10:00:02.000Z","type":"event_msg","payload":{"type":"user_message","message":"e1 source codex smoke needle"}}
+{"timestamp":"2026-06-05T10:00:03.000Z","type":"event_msg","payload":{"type":"agent_message","message":"source-aware codex checkout smoke response"}}

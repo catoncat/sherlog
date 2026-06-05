@@ -112,7 +112,7 @@ describe("cxs retrieval flow", () => {
     const page = getMessagePage(dbPath, "45454545-4545-4545-8545-454545454545", 0, 10);
 
     expect(page.coverage.entries).toHaveLength(1);
-    expect(page.coverage.entries[0]?.selector).toEqual({ kind: "all", root });
+    expect(page.coverage.entries[0]?.selector).toEqual({ kind: "all", source: "codex", root });
   });
 
   test("sync stores derived session summary and find returns it", async () => {

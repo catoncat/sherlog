@@ -33,7 +33,7 @@ const DATA_DIR = process.env.CXS_DATA_DIR
 
 export const DEFAULT_DB_PATH = resolve(DATA_DIR, "index.sqlite");
 export const DEFAULT_CODEX_DIR = resolve(homedir(), ".codex", "sessions");
-export const INDEX_VERSION = "cxs-v6-selector-provenance";
+export const INDEX_VERSION = "cxs-v7-source-identity";
 
 // 效率回述开关:控制文本输出 header 里的「检索 N 条 · Xms / 读取 K 条」这类
 // 注解。默认开(让 cxs 的快/省可感知);设 CXS_STATS=0/off/false/no 关闭。

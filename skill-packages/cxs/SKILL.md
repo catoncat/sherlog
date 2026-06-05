@@ -5,7 +5,7 @@ description: "Use proactively for local Codex history and personal setup archaeo
 
 # cxs
 
-用 `cxs` 在自己的 SQLite index 里检索旧 Codex 对话。Codex 的 raw sessions 只是 ingest source；正常历史检索只读 cxs index,不要让用户切换 source root 去追 raw 文件位置。心法:**先选 retrieval primitive,再定位候选 session,最后用 cxs read 命令拿内容证据**。
+用 `cxs` 在自己的 SQLite index 里检索旧 Codex 对话。当前公开 CLI source 只有 `codex`；`--source codex` 可省略，`claude-code` 是 reserved/non-public，不要把它说成可同步或可查询。Codex 的 raw sessions 只是 ingest source；正常历史检索只读 cxs index,不要让用户切换 source root 去追 raw 文件位置。心法:**先选 retrieval primitive,再定位候选 session,最后用 cxs read 命令拿内容证据**。
 
 ## 安装(两步)
 
@@ -16,9 +16,12 @@ description: "Use proactively for local Codex history and personal setup archaeo
 ```bash
 "${CXS_BIN:-cxs}" --version       # 应输出 cxs 版本号
 "${CXS_BIN:-cxs}" --help          # 应列出 status/sync/find/read-range/read-page/list/stats
+"${CXS_BIN:-cxs}" status --help   # 若显示 --source <id>, public source 只有 codex
 ```
 
-如果 `cxs` 不在 PATH 里,设 `export CXS_BIN=/absolute/path/to/bin/cxs`。
+如果 `cxs` 不在 PATH 里,设 `export CXS_BIN=/absolute/path/to/bin/cxs`。如果安装版
+`status --help` 没有 `--source`,说明 CLI 早于 source-aware 行为；省略 source flags,
+或先更新到包含该行为的 CLI 发布版。
 
 **2. 装 skill**:
 
@@ -26,10 +29,10 @@ description: "Use proactively for local Codex history and personal setup archaeo
 # Codex agent runtime
 npx skills add catoncat/cxs --full-depth --skill cxs -g -a codex -y
 
-# Claude Code / Anthropic agent runtime — 把 -a codex 换成对应 runtime,或省略
+# 其他 agent runtime — 把 -a codex 换成对应 runtime,或省略
 ```
 
-`-a` 取值依赖目标 agent runtime,**装错 slot 会看不到 skill**。装完通常需要重启 agent / 开新 session。
+`-a` 取值依赖目标 agent runtime,**装错 slot 会看不到 skill**。这只是在对应 agent runtime 安装 skill，不代表 `cxs` 支持该 runtime 的 session source。装完通常需要重启 agent / 开新 session。
 
 ## 先选 retrieval primitive
 
@@ -43,13 +46,15 @@ npx skills add catoncat/cxs --full-depth --skill cxs -g -a codex -y
 | coverage/freshness/index availability: 索引缺失、coverage stale、要决定是否同步 | `cxs status --json` / `status --cwd` / `status --selector` | `status` 不回答内容问题,只决定 coverage 和 sync 需求 |
 | mutation: 建索引或更新 coverage | `cxs sync --cwd/--root/--selector` | 普通检索不要 `--prune`;只有用户明确要求清理已消失 source 的旧索引记录才用 |
 
+在支持 source-aware CLI 的版本里,所有固定命令都可带 `--source <id>`；当前只用 `codex`，省略等价于 `--source codex`。遇到 `unsupported_source`，不要改用 raw source root，也不要声称 Claude Code 支持已发布。如果安装版直接报 unknown option `--source`,它是旧 CLI；省略 source flags 或更新 CLI。
+
 `find` / `list` 返回零结果不是结束条件。遇到零结果、用户说“应该有”、问题涉及最近/当前 repo、或 JSON 里有 `nextAction` 时,必须先按同一范围做 coverage check:
 
 1. `status --cwd <path> --json` / `status --root <dir> --selector '<json>' --json`
 2. 若 `requestedCoverage.recommendedAction === "sync"`,跑同范围 `sync --cwd` / `sync --root` / `sync --selector`
 3. 再用同一 selector 重试 `find` / `list`;只有 fresh coverage 下仍无结果,才说没找到
 
-只读 SQLite 只允许查 cxs 自己的 index,不要查 Codex raw JSONL 或其他 source roots。稳定 session metadata 字段限于:`session_uuid`, `started_at`, `ended_at`, `cwd`, `title`, `summary_text`, `message_count`, `source_root`, `file_path`。
+只读 SQLite 只允许查 cxs 自己的 index,不要查 Codex raw JSONL 或其他 source roots。稳定 session metadata 字段限于:`source_id`, `native_session_id`, `session_key`, `session_uuid`, `started_at`, `ended_at`, `cwd`, `title`, `summary_text`, `message_count`, `source_root`, `file_path`。
 
 **反例**(应该用别的工具):
 
@@ -69,7 +74,7 @@ npx skills add catoncat/cxs --full-depth --skill cxs -g -a codex -y
 - `sync` 只是写入/更新 SQLite index 和 coverage;查找本身不需要 sync。只有目标范围 coverage 缺失或 stale 时才 `sync --cwd <path>` / `sync --root <dir>` / `sync --selector`
 - `sync` 默认保留已索引历史；raw JSONL 从 source snapshot 中消失后，不要引导用户改查另一个 root。只有用户明确要让 cxs 丢弃 source 中已经消失的旧记录时才用 `sync --prune`
 - 用 `status --cwd <path> --json` 或 `status --selector '<json>' --json` 检查目标范围；`requestedCoverage.recommendedAction === "query"` 时直接查，`"sync"` 时才同步
-- `stats.sessionCount` 很多不等于目标范围有 v6 complete coverage；fresh `{"kind":"all",...}` coverage 可以覆盖 cwd/date 子 selector
+- `stats.sessionCount` 很多不等于目标范围有 source-aware complete coverage；fresh `{"source":"codex","kind":"all",...}` coverage 可以覆盖同 source/root 下的 cwd/date 子 selector
 - "最新/最近 + 关键词"不要直接把默认 `find` 结果当最新；用 `find <query> --cwd <path> --sort ended` 或 `find <query> --root <dir> --sort ended`，必要时 `--exclude-session <current_uuid>` 排除当前会话/self-hit
 - 混合自然语言 + 英文技术词的问题可以先直接 `find` 原句；新版 CLI 在严格召回为 0 时会保守提取 ASCII 技术词做一次 relaxed recall。仍要用 `read-range` / `read-page` 验证内容，不要只凭命中标题下结论。
 - `matchSource = "session"` 时 `matchSeq = null`;这种命中先 `read-page` 抽样,**不要伪造 `read-range --seq`**

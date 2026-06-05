@@ -16,11 +16,17 @@ export CXS_BIN=/absolute/path/to/bin/cxs
 
 metadata-only 问题可以直接对 cxs SQLite index 做只读 projection,例如时间排序、数量、cwd 分布；内容判断仍必须回到 `read-page` / `read-range`。
 
+支持 source-aware CLI 的版本里,所有固定命令都接受 `--source <id>`。当前公开 source 只有 `codex`，省略等价于 `--source codex`。未知 source 或 reserved/non-public `claude-code` 会返回 `unsupported_source`，不要把它当成可用 Claude Code adapter。如果安装版直接报 unknown option `--source`,它是旧 CLI；省略 source flags 或更新 CLI。
+
 缺少 cxs 索引时,`find` / `read-range` / `read-page` / `list` / `stats --json` 返回:
 
 ```json
 { "error": { "code": "index_unavailable", "message": "...", "dbPath": "...", "hint": "..." } }
 ```
+
+已有索引是 source-aware 之前的旧 schema 时,同一批只读命令返回
+`index_schema_upgrade_required`。按 hint 跑一次 `sync --source codex --root ...`
+或等价 scoped sync；只读命令不会迁移索引。
 
 ## status
 
@@ -34,6 +40,8 @@ Example:
 "${CXS_BIN:-cxs}" status --root /Users/me/.codex/sessions --selector '{"kind":"all"}' --json
 ```
 
+常用 options: `--source <id>`(public: `codex`)、`--root`、`--selector`、`--cwd`、`--db`、`--json`。
+
 `status --selector` 是只读 coverage check。看 `requestedCoverage`:
 
 - `recommendedAction: "query"`: 目标范围已有 fresh complete coverage，可直接 `find/list`
@@ -45,10 +53,10 @@ Example:
 Selector shapes:
 
 ```json
-{"kind":"all","root":"/Users/me/.codex/sessions"}
-{"kind":"date_range","root":"/Users/me/.codex/sessions","fromDate":"2026-04-01","toDate":"2026-04-30"}
-{"kind":"cwd","root":"/Users/me/.codex/sessions","cwd":"/Users/me/work/foo"}
-{"kind":"cwd_date_range","root":"/Users/me/.codex/sessions","cwd":"/Users/me/work/foo","fromDate":"2026-04-01","toDate":"2026-04-30"}
+{"source":"codex","kind":"all","root":"/Users/me/.codex/sessions"}
+{"source":"codex","kind":"date_range","root":"/Users/me/.codex/sessions","fromDate":"2026-04-01","toDate":"2026-04-30"}
+{"source":"codex","kind":"cwd","root":"/Users/me/.codex/sessions","cwd":"/Users/me/work/foo"}
+{"source":"codex","kind":"cwd_date_range","root":"/Users/me/.codex/sessions","cwd":"/Users/me/work/foo","fromDate":"2026-04-01","toDate":"2026-04-30"}
 ```
 
 ## sync
@@ -59,6 +67,7 @@ Options:
 
 | option | 说明 |
 | --- | --- |
+| `--source <id>` | 当前唯一公开值是 `codex`;省略等价于 `codex` |
 | `--root <dir>` | 同步整个 sessions 根目录；也作为 selector 默认 root |
 | `--cwd <path>` | 同步指定 cwd selector；不必手写 selector JSON |
 | `--selector <json>` | 结构化同步范围；日期范围等高级范围用这个 |
@@ -102,6 +111,7 @@ Options:
 
 | option | 说明 |
 | --- | --- |
+| `--source <id>` | 当前唯一公开值是 `codex`;省略等价于 `codex` |
 | `--root <dir>` | 限定到整个 sessions 根目录；也作为 selector 默认 root |
 | `--cwd <path>` | 限定到指定 cwd selector |
 | `--selector <json>` | 结构化查询范围；可省略 `root` |
@@ -117,6 +127,7 @@ Notes:
 
 - 必须显式传 `<sessionUuid>`
 - 必须二选一提供 `--seq` 或 `--query`
+- 可选 `--source codex`;省略等价于 Codex。`codex:<uuid>` qualifier 只在 source 匹配时有效。
 
 Example:
 
@@ -129,6 +140,8 @@ Example:
 
 Purpose: 顺序分页读取某个 session 的消息。metadata projection 只能给候选;要确认"当时说了什么/是否有意义",用 `read-page` 或 `read-range`。
 
+可选 `--source codex`;省略等价于 Codex。
+
 Example:
 
 ```bash
@@ -138,6 +151,8 @@ Example:
 ## list
 
 Purpose: 列出已索引 session，不做全文检索。适合简单 session listing；更复杂的 metadata projection 可以用只读 SQLite 查询 cxs index。
+
+常用 options: `--source <id>`(public: `codex`)、`--cwd`、`--since`、`--root`、`--selector`、`--sort ended|started|messages`、`-n/--limit`、`--db`、`--json`。
 
 Example:
 
@@ -150,6 +165,8 @@ Example:
 ## stats
 
 Purpose: 展示索引状态统计。
+
+可选 `--source codex`;省略等价于 Codex。
 
 Example:
 

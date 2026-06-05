@@ -1,7 +1,7 @@
 import { INDEX_VERSION } from "../env";
-import { selectorImplies, selectorStorageKey } from "../selector";
-import type { CoverageRecord, Selector, SessionRecord } from "../types";
-import { deleteSessionByUuid } from "./session-store";
+import { canonicalizeSelector, selectorImplies, selectorSource, selectorStorageKey } from "../selector";
+import { DEFAULT_SESSION_SOURCE_ID, type CoverageRecord, type Selector, type SessionRecord, type SessionSourceId } from "../types";
+import { deleteSessionById } from "./session-store";
 import type { Db } from "./shared";
 import { selectorWhereSql, sessionRootFromFile, tableExists } from "./sql";
 
@@ -13,13 +13,15 @@ export function replaceCoverage(
   indexedSessionCount: number,
   indexVersion: string,
 ): CoverageRecord {
-  const key = selectorStorageKey(selector);
+  const canonical = canonicalizeSelector(selector);
+  const key = selectorStorageKey(canonical);
   const stmt = db.prepare(`
     INSERT INTO coverage (
-      selector_key, selector_json, selector_kind, root, cwd, from_date, to_date,
+      source_id, selector_key, selector_json, selector_kind, root, cwd, from_date, to_date,
       source_fingerprint, source_file_count, indexed_session_count, index_version
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     ON CONFLICT(selector_key) DO UPDATE SET
+      source_id = excluded.source_id,
       selector_json = excluded.selector_json,
       selector_kind = excluded.selector_kind,
       root = excluded.root,
@@ -33,13 +35,14 @@ export function replaceCoverage(
       index_version = excluded.index_version
   `);
   stmt.run(
+    selectorSource(canonical),
     key,
-    JSON.stringify(selector),
-    selector.kind,
-    selector.root,
-    "cwd" in selector ? selector.cwd : null,
-    "fromDate" in selector ? selector.fromDate : null,
-    "toDate" in selector ? selector.toDate : null,
+    JSON.stringify(canonical),
+    canonical.kind,
+    canonical.root,
+    "cwd" in canonical ? canonical.cwd : null,
+    "fromDate" in canonical ? canonical.fromDate : null,
+    "toDate" in canonical ? canonical.toDate : null,
     sourceFingerprint,
     sourceFileCount,
     indexedSessionCount,
@@ -48,9 +51,11 @@ export function replaceCoverage(
   return getCoverageRecordByKey(db, key)!;
 }
 
-export function listCoverageRecords(db: Db): CoverageRecord[] {
+export function listCoverageRecords(db: Db, sourceId: SessionSourceId = DEFAULT_SESSION_SOURCE_ID): CoverageRecord[] {
   if (!tableExists(db, "coverage")) return [];
-  const rows = db.prepare("SELECT * FROM coverage ORDER BY completed_at DESC, id DESC").all() as CoverageRow[];
+  const rows = db
+    .prepare<[SessionSourceId], CoverageRow>("SELECT * FROM coverage WHERE source_id = ? ORDER BY completed_at DESC, id DESC")
+    .all(sourceId) as CoverageRow[];
   return rows.map(rowToCoverageRecord);
 }
 
@@ -59,7 +64,7 @@ export function coverageStatusForSelector(db: Db, requested: Selector | null): {
   coveringSelectors: CoverageRecord[];
 } {
   if (!requested) return { complete: false, coveringSelectors: [] };
-  const entries = listCoverageRecords(db).filter((entry) =>
+  const entries = listCoverageRecords(db, selectorSource(requested)).filter((entry) =>
     entry.indexVersion === requestedIndexVersion(db) && selectorImplies(entry.selector, requested)
   );
   return {
@@ -87,17 +92,17 @@ export function deleteSessionsForSelectorExceptFilePaths(
 ): number {
   const where = selectorWhereSql(selector, "sessions");
   const rows = db
-    .prepare<typeof where.params, { sessionUuid: string; filePath: string }>(`
-      SELECT session_uuid AS sessionUuid, file_path AS filePath
+    .prepare<typeof where.params, { id: number; filePath: string }>(`
+      SELECT id, file_path AS filePath
       FROM sessions
       WHERE ${where.conditions.join(" AND ")}
     `)
-    .all(...where.params) as Array<{ sessionUuid: string; filePath: string }>;
+    .all(...where.params) as Array<{ id: number; filePath: string }>;
 
   let removed = 0;
   for (const row of rows) {
     if (retainedFilePaths.has(row.filePath)) continue;
-    deleteSessionByUuid(db, row.sessionUuid);
+    deleteSessionById(db, row.id);
     removed += 1;
   }
   return removed;
@@ -131,17 +136,19 @@ export function cleanupMismatchedMessagesForSelector(db: Db, selector: Selector)
 export function coverageEntriesForSession(db: Db, session: SessionRecord): CoverageRecord[] {
   const root = session.sourceRoot || sessionRootFromFile(session.filePath);
   const sessionSelectors: Selector[] = [
-    { kind: "all", root },
-    { kind: "cwd", root, cwd: session.cwd },
+    { source: session.sourceId, kind: "all", root },
+    { source: session.sourceId, kind: "cwd", root, cwd: session.cwd },
   ];
   if (session.pathDate) {
     sessionSelectors.push({
+      source: session.sourceId,
       kind: "date_range",
       root,
       fromDate: session.pathDate,
       toDate: session.pathDate,
     });
     sessionSelectors.push({
+      source: session.sourceId,
       kind: "cwd_date_range",
       root,
       cwd: session.cwd,
@@ -149,13 +156,14 @@ export function coverageEntriesForSession(db: Db, session: SessionRecord): Cover
       toDate: session.pathDate,
     });
   }
-  return listCoverageRecords(db).filter((entry) =>
+  return listCoverageRecords(db, session.sourceId).filter((entry) =>
     sessionSelectors.some((selector) => selectorImplies(entry.selector, selector))
   );
 }
 
 type CoverageRow = {
   id: number;
+  source_id: string;
   selector_json: string;
   source_fingerprint: string;
   source_file_count: number;

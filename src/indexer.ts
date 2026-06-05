@@ -1,4 +1,4 @@
-import { DEFAULT_DB_PATH, INDEX_VERSION, ensureDataDir, resolveCodexDir } from "./env";
+import { DEFAULT_DB_PATH, INDEX_VERSION, ensureDataDir } from "./env";
 import {
   cleanupMismatchedMessagesForSelector,
   countSessionsForSelector,
@@ -10,15 +10,16 @@ import {
   replaceCoverage,
   replaceSession,
 } from "./db";
-import { parseCodexSession } from "./parser";
-import { canonicalizeSelector } from "./selector";
-import { SourceInventoryError, collectSourceSnapshot } from "./source-inventory";
+import { canonicalizeSelector, selectorSource } from "./selector";
+import { getSessionSourceAdapter } from "./sources";
+import { SourceInventoryError } from "./source-inventory";
 import { withSyncLock } from "./sync-lock";
-import type { CoverageWriteSummary, ParsedSession, Selector, SyncErrorDetail, SyncSummary } from "./types";
+import type { CoverageWriteSummary, ParsedSession, Selector, SessionSourceId, SourceFileMeta, SyncErrorDetail, SyncSummary } from "./types";
 
 interface SyncOptions {
   dbPath?: string;
   rootDir?: string;
+  sourceId?: SessionSourceId;
   selector?: Selector;
   bestEffort?: boolean;
   prune?: boolean;
@@ -52,11 +53,15 @@ export class SyncError extends Error {
 export async function syncSessions(options: SyncOptions = {}): Promise<SyncSummary> {
   ensureDataDir();
   const dbPath = options.dbPath ?? DEFAULT_DB_PATH;
-  const selector = canonicalizeSelector(options.selector ?? { kind: "all", root: resolveCodexDir(options.rootDir) });
+  const source = getSessionSourceAdapter(options.sourceId ?? "codex");
+  const selector = canonicalizeSelector(
+    options.selector ?? { source: source.id, kind: "all", root: source.resolveRoot(options.rootDir) },
+    { defaultSource: source.id },
+  );
   return withSyncLock(dbPath, async () => {
     let sourceSnapshot;
     try {
-      sourceSnapshot = await collectSourceSnapshot(selector, { strict: true });
+      sourceSnapshot = await source.collectSnapshot(selector, { strict: true });
     } catch (error) {
       const summary = sourceUnavailableSummary(selector, error);
       throw new SyncError(summary);
@@ -80,6 +85,7 @@ export async function syncSessions(options: SyncOptions = {}): Promise<SyncSumma
 
     try {
       await collectSyncOperations(
+        source,
         db,
         sourceSnapshot.files,
         operations,
@@ -94,7 +100,7 @@ export async function syncSessions(options: SyncOptions = {}): Promise<SyncSumma
       if (!options.bestEffort) {
         let afterSnapshot;
         try {
-          afterSnapshot = await collectSourceSnapshot(selector, { strict: true });
+          afterSnapshot = await source.collectSnapshot(selector, { strict: true });
         } catch (error) {
           recordSyncError(summary, sourceErrorPath(selector, error), error);
           throw new SyncError(summary);
@@ -129,15 +135,16 @@ export async function syncSessions(options: SyncOptions = {}): Promise<SyncSumma
 }
 
 async function collectSyncOperations(
+  source: ReturnType<typeof getSessionSourceAdapter>,
   db: ReturnType<typeof openWriteDb>,
-  files: readonly { filePath: string; mtimeMs: number; size: number; pathDate: string | null }[],
+  files: readonly SourceFileMeta[],
   operations: SyncOperation[],
   unchangedFilePaths: Set<string>,
   summary: SyncSummary
 ): Promise<void> {
   // Pre-fetch indexed session metadata for all files using batching to avoid N+1 queries
   const filePaths = files.map((f) => f.filePath);
-  const indexedMetas = getIndexedSessionMetas(db, filePaths);
+  const indexedMetas = getIndexedSessionMetas(db, filePaths, selectorSource(summary.selector));
 
   // OPTIMIZATION: Parse codex sessions concurrently to avoid I/O bottlenecks.
   // We use a worker loop pattern to bound concurrency and prevent EMFILE errors.
@@ -156,7 +163,7 @@ async function collectSyncOperations(
           continue;
         }
 
-        const parsed = await parseCodexSession(filePath);
+        const parsed = await source.parseFile(file);
         if (parsed.kind === "filtered") {
           operations.push({ kind: "filtered", filePath });
           continue;
@@ -209,7 +216,7 @@ function applyOperations(
   if (bestEffort) {
     for (const operation of operations) {
       try {
-        applyOperation(db, operation);
+        applyOperation(db, operation, undefined, selectorSource(selector));
         recordAppliedOperation(summary, operation);
       } catch (error) {
         recordSyncError(summary, operation.filePath, error);
@@ -223,7 +230,7 @@ function applyOperations(
   const tx = db.transaction(() => {
     for (const operation of operations) {
       currentFilePath = operation.filePath;
-      applyOperation(db, operation, selector.root);
+      applyOperation(db, operation, selector.root, selectorSource(selector));
     }
     cleanupMismatchedMessagesForSelector(db, selector);
     if (prune) {
@@ -260,9 +267,14 @@ function applyOperations(
   return coverage ?? skippedCoverage(selector, sourceSnapshot.fingerprint, sourceSnapshot.fileCount, "not_written");
 }
 
-function applyOperation(db: ReturnType<typeof openWriteDb>, operation: SyncOperation, sourceRoot?: string): void {
+function applyOperation(
+  db: ReturnType<typeof openWriteDb>,
+  operation: SyncOperation,
+  sourceRoot: string | undefined,
+  sourceId: ReturnType<typeof selectorSource>,
+): void {
   if (operation.kind === "filtered") {
-    deleteSessionByFilePath(db, operation.filePath);
+    deleteSessionByFilePath(db, operation.filePath, sourceId);
     return;
   }
 

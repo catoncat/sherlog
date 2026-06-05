@@ -1,4 +1,4 @@
-import type { SessionListEntry, SessionListQuery } from "../types";
+import { DEFAULT_SESSION_SOURCE_ID, type SessionListEntry, type SessionListQuery } from "../types";
 import type { Db, SqlParams } from "./shared";
 import { escapeLike, selectorWhereSql } from "./sql";
 
@@ -9,6 +9,9 @@ export function listSessions(db: Db, query: SessionListQuery): SessionListEntry[
     const selectorWhere = selectorWhereSql(query.selector, "sessions");
     conditions.push(...selectorWhere.conditions);
     params.push(...selectorWhere.params);
+  } else {
+    conditions.push("source_id = ?");
+    params.push(query.sourceId ?? DEFAULT_SESSION_SOURCE_ID);
   }
   if (query.cwd) {
     // Substring match rather than prefix/equality: agent callers often pass

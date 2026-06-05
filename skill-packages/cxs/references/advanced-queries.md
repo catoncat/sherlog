@@ -63,6 +63,9 @@
 稳定可查字段只限:
 
 - `session_uuid`
+- `source_id`
+- `native_session_id`
+- `session_key`
 - `started_at`
 - `ended_at`
 - `cwd`
