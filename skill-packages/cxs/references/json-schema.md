@@ -65,6 +65,7 @@ Treat it as a retry gate: choose/check the same selector, run `sync` only if `st
   rangeEndSeq: number;
   messages: MessageRecord[];
   coverage: { entries: CoverageRecord[] };
+  elapsedMs: number; // 端到端耗时(进程启动到输出),仅 CLI 输出注入,非 query 层字段
 }
 ```
 
@@ -79,6 +80,7 @@ Treat it as a retry gate: choose/check the same selector, run `sync` only if `st
   hasMore: boolean;
   messages: MessageRecord[];
   coverage: { entries: CoverageRecord[] };
+  elapsedMs: number; // 端到端耗时(进程启动到输出),仅 CLI 输出注入,非 query 层字段
 }
 ```
 

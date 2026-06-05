@@ -79,17 +79,21 @@ skill_to_release() {
 }
 
 scope="${2:-both}"
+case "$scope" in
+  both|cli|skill|skills) ;;
+  *) echo "用法: cxs-switch {dev|release|status} [both|cli|skill|skills]"; exit 2 ;;
+esac
 case "${1:-status}" in
   dev)
-    [ "$scope" = skills ] || cli_to_dev
+    [ "$scope" = skill ] || [ "$scope" = skills ] || cli_to_dev
     [ "$scope" = cli ] || skill_to_dev
     ;;
   release)
-    [ "$scope" = skills ] || cli_to_release
+    [ "$scope" = skill ] || [ "$scope" = skills ] || cli_to_release
     [ "$scope" = cli ] || skill_to_release
     ;;
   status) ;;
-  *) echo "用法: cxs-switch {dev|release|status} [cli|skills]"; exit 2 ;;
+  *) echo "用法: cxs-switch {dev|release|status} [both|cli|skill|skills]"; exit 2 ;;
 esac
 
 echo "── cxs-switch status ──"
