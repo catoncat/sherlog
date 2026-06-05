@@ -3,7 +3,7 @@
 ## Snapshot
 
 - Updated: 2026-06-05
-- Status: Wave 3 I3 ready
+- Status: Wave 3 I3 active
 - Orchestrator Goal: `持续推进 cxs 多源架构工作流的所有 waves，直到完成设计、实现分派、验证和收口，或出现真实阻塞`
 - Mainline intent: `int_83393d3a`
 - Branch: `codex/session-sources-workflow`
@@ -12,11 +12,11 @@
 ## Active Wave
 
 Wave 3: I1 and I2 implementation slices are reconciled. I3 CLI source option
-behavior is ready to launch.
+behavior is active in worker thread `019e972f-6a4a-7bb3-bd64-99b803032f85`.
 
 Next:
 
-1. Launch I3 from canonical branch after this checkpoint is committed.
+1. Read I3 thread `019e972f-6a4a-7bb3-bd64-99b803032f85` when it becomes idle.
 2. Reconcile I3 commit and handoff into canonical state.
 3. Launch I4 after CLI behavior exists.
 4. Launch E1 and R1 after implementation commits are reconciled.
@@ -57,3 +57,4 @@ Pending:
 - 2026-06-05: Reconciled I1 commit `f5357c2` and handoff into canonical branch; I2 is ready.
 - 2026-06-05: Launched I2 worker `019e971b-b2f9-7a12-880c-556612b7b1d8` in `/Users/envvar/.codex/worktrees/3ff5/cxs`.
 - 2026-06-05: Reconciled I2 commit `d36fb22` and handoff into canonical branch as merge `cfa34f3`; I3 is ready.
+- 2026-06-05: Launched I3 worker `019e972f-6a4a-7bb3-bd64-99b803032f85` in `/Users/envvar/.codex/worktrees/b95e/cxs`.
