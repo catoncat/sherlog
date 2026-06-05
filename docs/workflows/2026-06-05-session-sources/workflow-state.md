@@ -3,7 +3,7 @@
 ## Snapshot
 
 - Updated: 2026-06-05
-- Status: Wave 0 in progress
+- Status: Wave 1 launch in progress
 - Orchestrator Goal: `启动 cxs 多源架构改造的 Codex Session Orchestrator 工作流 Wave 0`
 - Mainline intent: `int_c1da6c9e`
 - Branch: `codex/session-sources-workflow`
@@ -11,13 +11,13 @@
 
 ## Active Wave
 
-Wave 0: create durable control-plane files and starter prompts.
+Wave 1: A1, A2, and A3 worker sessions have been requested and are waiting for concrete thread ids.
 
-Next after Wave 0:
+Next:
 
-1. Commit and seal the control-plane slice if verification passes.
-2. Launch A1, A2, and A3 as read-only worker sessions.
-3. Update `session-registry.md` with actual thread ids.
+1. Resolve pending worktree ids to concrete thread ids.
+2. Read worker status through `codex_app.read_thread` once thread ids exist.
+3. Reconcile A1/A2/A3 handoffs into `handoffs/`.
 
 ## Decisions
 
@@ -46,4 +46,5 @@ Pending:
 
 - 2026-06-05: Created isolated worktree from `origin/main` because local `main` had proposed Mainline overlap.
 - 2026-06-05: Started Mainline intent `int_c1da6c9e`.
-
+- 2026-06-05: Created and sealed Wave 0 control-plane commit `9b34079`.
+- 2026-06-05: Requested A1/A2/A3 worker sessions; launcher returned pending worktree ids.

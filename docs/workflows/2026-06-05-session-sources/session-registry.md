@@ -2,9 +2,9 @@
 
 | Task | Thread | Goal | Status | Scope | Proof | Last Update | Next |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| A1 | TBD | `2026-06-05-session-sources: A1 - Inventory Codex single-source assumptions` | planned | read-only code inventory | pending | 2026-06-05 | launch |
-| A2 | TBD | `2026-06-05-session-sources: A2 - Decide source selector DB identity model` | planned | read-only architecture decision | pending | 2026-06-05 | launch |
-| A3 | TBD | `2026-06-05-session-sources: A3 - Assess Claude Code transcript risk boundary` | planned | read-only docs/sample evidence | pending | 2026-06-05 | launch |
+| A1 | pending `local:c51b9b86-b6c1-4a19-9f6c-cd76db19ad0e` | `2026-06-05-session-sources: A1 - Inventory Codex single-source assumptions` | launched | read-only code inventory | pending | 2026-06-05 | resolve pending thread id |
+| A2 | pending `local:d91e3a14-cc07-4a57-8128-cc7241a89697` | `2026-06-05-session-sources: A2 - Decide source selector DB identity model` | launched | read-only architecture decision | pending | 2026-06-05 | resolve pending thread id |
+| A3 | pending `local:70fe7e00-2966-4982-acf9-c65f996e1f16` | `2026-06-05-session-sources: A3 - Assess Claude Code transcript risk boundary` | launched | read-only docs/sample evidence | pending | 2026-06-05 | resolve pending thread id |
 | D1 | TBD | `2026-06-05-session-sources: D1 - Write architecture design packet` | planned | design doc only | pending | 2026-06-05 | wait for A1-A3 |
 | I1 | TBD | `2026-06-05-session-sources: I1 - Extract Codex source adapter` | planned | bounded source files | pending | 2026-06-05 | wait for D1 |
 | I2 | TBD | `2026-06-05-session-sources: I2 - Add source-aware storage and coverage` | planned | bounded DB/selector files | pending | 2026-06-05 | wait for D1 |
@@ -15,7 +15,6 @@
 
 ## Registry Rules
 
-- `TBD` thread ids must be replaced immediately after launch.
+- `TBD` or pending worktree ids must be replaced when actual thread ids are available.
 - A task is not `verified` until proof is recorded in `handoffs/<task-id>.md` or reconciled from the thread final.
 - Main thread must reconcile worker handoffs before launching dependent tasks.
-
