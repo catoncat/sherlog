@@ -1,4 +1,4 @@
-import { DEFAULT_DB_PATH, INDEX_VERSION, ensureDataDir, resolveCodexDir } from "./env";
+import { DEFAULT_DB_PATH, INDEX_VERSION, ensureDataDir } from "./env";
 import {
   cleanupMismatchedMessagesForSelector,
   countSessionsForSelector,
@@ -10,11 +10,11 @@ import {
   replaceCoverage,
   replaceSession,
 } from "./db";
-import { parseCodexSession } from "./parser";
 import { canonicalizeSelector } from "./selector";
-import { SourceInventoryError, collectSourceSnapshot } from "./source-inventory";
+import { getSessionSourceAdapter } from "./sources";
+import { SourceInventoryError } from "./source-inventory";
 import { withSyncLock } from "./sync-lock";
-import type { CoverageWriteSummary, ParsedSession, Selector, SyncErrorDetail, SyncSummary } from "./types";
+import type { CoverageWriteSummary, ParsedSession, Selector, SourceFileMeta, SyncErrorDetail, SyncSummary } from "./types";
 
 interface SyncOptions {
   dbPath?: string;
@@ -52,11 +52,12 @@ export class SyncError extends Error {
 export async function syncSessions(options: SyncOptions = {}): Promise<SyncSummary> {
   ensureDataDir();
   const dbPath = options.dbPath ?? DEFAULT_DB_PATH;
-  const selector = canonicalizeSelector(options.selector ?? { kind: "all", root: resolveCodexDir(options.rootDir) });
+  const source = getSessionSourceAdapter("codex");
+  const selector = canonicalizeSelector(options.selector ?? { kind: "all", root: source.resolveRoot(options.rootDir) });
   return withSyncLock(dbPath, async () => {
     let sourceSnapshot;
     try {
-      sourceSnapshot = await collectSourceSnapshot(selector, { strict: true });
+      sourceSnapshot = await source.collectSnapshot(selector, { strict: true });
     } catch (error) {
       const summary = sourceUnavailableSummary(selector, error);
       throw new SyncError(summary);
@@ -80,6 +81,7 @@ export async function syncSessions(options: SyncOptions = {}): Promise<SyncSumma
 
     try {
       await collectSyncOperations(
+        source,
         db,
         sourceSnapshot.files,
         operations,
@@ -94,7 +96,7 @@ export async function syncSessions(options: SyncOptions = {}): Promise<SyncSumma
       if (!options.bestEffort) {
         let afterSnapshot;
         try {
-          afterSnapshot = await collectSourceSnapshot(selector, { strict: true });
+          afterSnapshot = await source.collectSnapshot(selector, { strict: true });
         } catch (error) {
           recordSyncError(summary, sourceErrorPath(selector, error), error);
           throw new SyncError(summary);
@@ -129,8 +131,9 @@ export async function syncSessions(options: SyncOptions = {}): Promise<SyncSumma
 }
 
 async function collectSyncOperations(
+  source: ReturnType<typeof getSessionSourceAdapter>,
   db: ReturnType<typeof openWriteDb>,
-  files: readonly { filePath: string; mtimeMs: number; size: number; pathDate: string | null }[],
+  files: readonly SourceFileMeta[],
   operations: SyncOperation[],
   unchangedFilePaths: Set<string>,
   summary: SyncSummary
@@ -156,7 +159,7 @@ async function collectSyncOperations(
           continue;
         }
 
-        const parsed = await parseCodexSession(filePath);
+        const parsed = await source.parseFile(file);
         if (parsed.kind === "filtered") {
           operations.push({ kind: "filtered", filePath });
           continue;

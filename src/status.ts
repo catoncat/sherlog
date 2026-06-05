@@ -1,14 +1,15 @@
 import { existsSync, statSync } from "node:fs";
-import { collectSourceInventory, collectSourceSnapshot } from "./source-inventory";
-import { INDEX_VERSION, DEFAULT_DB_PATH, resolveCodexDir } from "./env";
+import { INDEX_VERSION, DEFAULT_DB_PATH } from "./env";
 import { getStatsCounts, listCoverageRecords, withReadDb } from "./db";
 import { selectorImplies } from "./selector";
+import { getSessionSourceAdapter } from "./sources";
 import type { CoverageInventoryStatus, CoverageRecord, RequestedCoverageStatus, Selector, StatusSummary } from "./types";
 
 export async function collectStatus(options: { rootDir?: string; dbPath?: string; cwd?: string; selector?: Selector } = {}): Promise<StatusSummary> {
-  const root = resolveCodexDir(options.rootDir);
+  const source = getSessionSourceAdapter("codex");
+  const root = source.resolveRoot(options.rootDir);
   const dbPath = options.dbPath ?? DEFAULT_DB_PATH;
-  const sourceInventory = await collectSourceInventory(root);
+  const sourceInventory = await source.collectInventory(root);
   const index = collectIndexStatus(dbPath);
   const coverage = existsSync(dbPath) ? withReadDb(dbPath, (db) => listCoverageRecords(db)) : [];
   const coverageStatus: CoverageInventoryStatus[] = [];
@@ -65,7 +66,8 @@ function collectIndexStatus(dbPath: string): StatusSummary["index"] {
 }
 
 async function toCoverageInventoryStatus(record: CoverageRecord): Promise<CoverageInventoryStatus> {
-  const snapshot = await collectSourceSnapshot(record.selector);
+  const source = getSessionSourceAdapter("codex");
+  const snapshot = await source.collectSnapshot(record.selector);
   const fresh = snapshot.fingerprint === record.sourceFingerprint
     && snapshot.fileCount === record.sourceFileCount
     && record.indexVersion === INDEX_VERSION;
@@ -81,7 +83,8 @@ async function requestedCoverageStatus(
   selector: Selector,
   coverage: CoverageInventoryStatus[],
 ): Promise<RequestedCoverageStatus> {
-  const snapshot = await collectSourceSnapshot(selector);
+  const source = getSessionSourceAdapter("codex");
+  const snapshot = await source.collectSnapshot(selector);
   const coveringSelectors = coverage.filter((entry) =>
     entry.indexVersion === INDEX_VERSION && selectorImplies(entry.selector, selector)
   );
