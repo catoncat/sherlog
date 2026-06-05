@@ -9,8 +9,8 @@
 | I1 | `019e9711-5a26-7530-bc95-40a38cd49061` | `2026-06-05-session-sources: I1 - Extract Codex source adapter` | verified | bounded source files | commit `f5357c2`, intent `int_6bfea808`, handoff written; original `019e970f-ab59-73c2-b5ec-f7d08d6d04bc` hit repeated `systemError` | 2026-06-05 | closed |
 | I2 | `019e971b-b2f9-7a12-880c-556612b7b1d8` | `2026-06-05-session-sources: I2 - Add source-aware storage and coverage` | verified | bounded DB/selector files | commit `d36fb22`, intent `int_737064b8`, handoff written, merged as `cfa34f3` | 2026-06-05 | closed |
 | I3 | `019e972f-6a4a-7bb3-bd64-99b803032f85` | `2026-06-05-session-sources: I3 - Add CLI source option behavior` | verified | bounded CLI/status/indexer files | commit `2ebeb6f`, intent `int_0a6d76cd`, handoff written, merged as `7c9c9a2` | 2026-06-05 | closed |
-| I4 | `019e973e-d6c5-7862-bbc4-178b92506b3d` | `2026-06-05-session-sources: I4 - Align docs and release skill` | active | docs/skill only | thread running in `/Users/envvar/.codex/worktrees/0bdd/cxs`; launcher pending id `local:d2d6437d-c5f9-41f1-be33-e4a99ec16b3d` | 2026-06-05 | wait for handoff |
-| E1 | TBD | `2026-06-05-session-sources: E1 - Verify multi-source foundation` | planned | evidence only | pending | 2026-06-05 | wait for implementation |
+| I4 | `019e973e-d6c5-7862-bbc4-178b92506b3d` | `2026-06-05-session-sources: I4 - Align docs and release skill` | verified | docs/skill only | commit `22b0d95`, intent `int_be172a7e`, handoff written, merged into canonical; worker verification passed `git diff --check`, CLI help/source smoke, `npm run check`, Mainline lint | 2026-06-05 | closed |
+| E1 | TBD | `2026-06-05-session-sources: E1 - Verify multi-source foundation` | planned | evidence only | pending | 2026-06-05 | ready to launch |
 | R1 | TBD | `2026-06-05-session-sources: R1 - Review final multi-source slice` | planned | findings only | pending | 2026-06-05 | wait for E1 |
 
 ## Registry Rules

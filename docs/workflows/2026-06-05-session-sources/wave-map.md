@@ -31,16 +31,16 @@ Build the multi-source foundation for `cxs` without publishing Claude Code suppo
 - Wave 0 control plane: complete.
 - Wave 1 A1/A2/A3 packets: complete and reconciled.
 - Wave 2 D1 design packet: complete and reconciled.
-- Wave 3 implementation: I1, I2, and I3 complete; I4 active.
-- Wave 4 evidence/review: pending implementation.
+- Wave 3 implementation: I1, I2, I3, and I4 complete.
+- Wave 4 evidence/review: E1 ready; R1 pending E1.
 
 ## Next Execution Order
 
 1. I1: complete. Extracted source adapter interface, registry, and Codex adapter while preserving current Codex behavior.
 2. I2: complete. Added source-aware selector, coverage, DB migration/backfill, and query/read identity safety.
 3. I3: complete. Wired `--source codex` through all fixed commands and rejected unsupported/non-public sources.
-4. I4: active. Update docs and `skill-packages/cxs` only after behavior exists.
-5. E1: run evidence gates and record source checkout, release skill, npm CLI, and installed CLI state separately.
+4. I4: complete. Updated docs and `skill-packages/cxs` source after behavior existed.
+5. E1: ready. Run evidence gates and record source checkout, release skill, npm CLI, and installed CLI state separately.
 6. R1: review source boundary, compatibility, and accidental Claude-public wording.
 
 ## Stop Lines
