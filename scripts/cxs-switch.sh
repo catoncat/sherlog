@@ -8,15 +8,65 @@
 #     dev/release 必须同时切这两个 slot,否则不同 agent 会看到不同 skill 文案。
 #
 # 用法:
-#   scripts/cxs-switch.sh dev        # CLI + Skill 都切到 repo 最新(会先 npm run build)
-#   scripts/cxs-switch.sh release    # CLI + Skill 都切回发布版
-#   scripts/cxs-switch.sh status     # 查看当前各自处于哪个版本
+#   scripts/cxs-switch.sh dev                         # CLI + Skill 都切到本 repo 最新(会先 npm run build)
+#   scripts/cxs-switch.sh dev --repo /path/to/cxs     # CLI + Skill 都切到指定 checkout/worktree
+#   scripts/cxs-switch.sh release                     # CLI + Skill 都切回发布版
+#   scripts/cxs-switch.sh status                      # 查看当前各自处于哪个版本
 #   第二参数可限定范围: ... dev cli  /  ... release skills
 set -euo pipefail
 
-REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+DEFAULT_REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+REPO="${CXS_SWITCH_REPO:-$DEFAULT_REPO}"
 STATE_DIR="$HOME/.cxs-switch"
 mkdir -p "$STATE_DIR"
+
+usage() {
+  cat <<'EOF'
+用法: cxs-switch {dev|release|status} [cli|skills|both] [--repo <path>]
+
+示例:
+  scripts/cxs-switch.sh dev
+  scripts/cxs-switch.sh dev --repo /path/to/cxs-worktree
+  scripts/cxs-switch.sh dev cli --repo /path/to/cxs-worktree
+  CXS_SWITCH_REPO=/path/to/cxs-worktree scripts/cxs-switch.sh dev
+EOF
+}
+
+action=status
+scope=both
+while [ "$#" -gt 0 ]; do
+  case "$1" in
+    dev|release|status)
+      action="$1"
+      shift
+      ;;
+    cli|skills|both)
+      scope="$1"
+      shift
+      ;;
+    --repo)
+      [ "${2:-}" ] || { echo "✗ --repo 需要路径"; exit 2; }
+      REPO="$2"
+      shift 2
+      ;;
+    --repo=*)
+      REPO="${1#--repo=}"
+      shift
+      ;;
+    -h|--help)
+      usage
+      exit 0
+      ;;
+    *)
+      usage
+      exit 2
+      ;;
+  esac
+done
+
+REPO="$(cd "$REPO" 2>/dev/null && pwd)" || { echo "✗ repo 不存在: $REPO"; exit 1; }
+[ -f "$REPO/package.json" ] || { echo "✗ 不是 cxs checkout: $REPO"; exit 1; }
+[ -d "$REPO/skill-packages/cxs" ] || { echo "✗ 缺少 skill-packages/cxs: $REPO"; exit 1; }
 
 # ---- CLI ----
 SHIM="$(command -v cxs || true)"
@@ -31,19 +81,44 @@ RELEASE_SKILL_BACKUP="$STATE_DIR/cxs.release-skill"
 
 note() { printf '  %s\n' "$*"; }
 
+cli_dev_target() {
+  [ -n "$SHIM" ] || return 0
+  sed -n 's/^# cxs-switch: DEV -> //p' "$SHIM" 2>/dev/null | head -n 1
+}
+
 cli_mode() {
   [ -n "$SHIM" ] || { echo "missing"; return; }
-  if grep -q "$DEV_CLI" "$SHIM" 2>/dev/null; then echo dev; else echo release; fi
+  local target
+  target="$(cli_dev_target)"
+  if [ -n "$target" ]; then
+    if [ "$target" = "$REPO" ]; then
+      echo "dev ($target)"
+    else
+      echo "dev-other ($target)"
+    fi
+  else
+    echo release
+  fi
 }
 
 skill_slot_mode() {
   local path="$1"
   [ -e "$path" ] || { echo "missing"; return; }
-  if [ -L "$path" ] && [ "$(readlink "$path")" = "$DEV_SKILL" ]; then
-    echo dev
-  else
-    echo release
+  if [ -L "$path" ]; then
+    local target
+    target="$(readlink "$path")"
+    if [ "$target" = "$DEV_SKILL" ]; then
+      echo "dev ($REPO)"
+      return
+    fi
+    case "$target" in
+      */skill-packages/cxs)
+        echo "dev-other (${target%/skill-packages/cxs})"
+        return
+        ;;
+    esac
   fi
+  echo release
 }
 
 skill_mode() {
@@ -51,9 +126,10 @@ skill_mode() {
 }
 
 cli_to_dev() {
+  [ -n "$SHIM" ] || { echo "✗ PATH 中找不到 cxs shim"; return 1; }
   ( cd "$REPO" && npm run build >/dev/null 2>&1 ) || { echo "✗ npm run build 失败"; return 1; }
   # 首次切 dev 前,把原始(发布版)shim 备份一次;已在 dev 时不覆盖备份
-  if [ ! -f "$SHIM_BACKUP" ] && ! grep -q "$DEV_CLI" "$SHIM" 2>/dev/null; then
+  if [ ! -f "$SHIM_BACKUP" ] && [ -z "$(cli_dev_target)" ]; then
     cp "$SHIM" "$SHIM_BACKUP"
   fi
   cat > "$SHIM" <<EOF
@@ -66,6 +142,7 @@ EOF
 }
 
 cli_to_release() {
+  [ -n "$SHIM" ] || { echo "✗ PATH 中找不到 cxs shim"; return 1; }
   if [ -f "$SHIM_BACKUP" ]; then
     cp "$SHIM_BACKUP" "$SHIM"; chmod +x "$SHIM"
     note "CLI    -> release  (还原 pnpm shim 备份)"
@@ -107,8 +184,7 @@ skill_to_release() {
   note "Skill  -> release  codex:$CODEX_SKILL claude:$CLAUDE_SKILL -> $CODEX_SKILL"
 }
 
-scope="${2:-both}"
-case "${1:-status}" in
+case "$action" in
   dev)
     [ "$scope" = skills ] || cli_to_dev
     [ "$scope" = cli ] || skill_to_dev
@@ -118,11 +194,11 @@ case "${1:-status}" in
     [ "$scope" = cli ] || skill_to_release
     ;;
   status) ;;
-  *) echo "用法: cxs-switch {dev|release|status} [cli|skills]"; exit 2 ;;
+  *) usage; exit 2 ;;
 esac
 
 echo "── cxs-switch status ──"
 echo "CLI:    $(cli_mode)"
 echo "Skill:  $(skill_mode)"
-echo "repo:   $REPO"
+echo "target repo: $REPO"
 echo "重启已开的 agent / 新开 session 后 skill 改动才完全生效。"
