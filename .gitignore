@@ -1,5 +1,9 @@
 node_modules/
 dist/
+site/.vinext/
+site/.wrangler/
+site/dist/
+site/node_modules/
 data/
 *.tgz
 .DS_Store
