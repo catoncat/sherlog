@@ -3,7 +3,7 @@
 ## Snapshot
 
 - Updated: 2026-06-05
-- Status: Wave 3 I2 ready
+- Status: Wave 3 I2 active
 - Orchestrator Goal: `持续推进 cxs 多源架构工作流的所有 waves，直到完成设计、实现分派、验证和收口，或出现真实阻塞`
 - Mainline intent: `int_c1da6c9e`
 - Branch: `codex/session-sources-workflow`
@@ -11,14 +11,15 @@
 
 ## Active Wave
 
-Wave 3: I1 Codex adapter extraction has been reconciled. I2 source-aware storage and coverage is ready to launch.
+Wave 3: I2 source-aware storage and coverage is active.
 
 Next:
 
-1. Launch I2 for `source_id`, selector, coverage, DB migration/backfill, query/read/delete/replace, and FTS safety.
-2. Launch I3 after source/selector/storage contracts are known.
-3. Launch I4 after CLI behavior exists.
-4. Launch E1 and R1 after implementation commits are reconciled.
+1. Read I2 thread `019e971b-b2f9-7a12-880c-556612b7b1d8` when it becomes idle.
+2. Reconcile I2 commit and handoff into canonical state.
+3. Launch I3 after source/selector/storage contracts are known.
+4. Launch I4 after CLI behavior exists.
+5. Launch E1 and R1 after implementation commits are reconciled.
 
 ## Decisions
 
@@ -56,3 +57,4 @@ Pending:
 - 2026-06-05: Launched I1 implementation worker `019e970f-ab59-73c2-b5ec-f7d08d6d04bc` in `/Users/envvar/.codex/worktrees/ee52/cxs`; it hit repeated `systemError`.
 - 2026-06-05: Launched replacement I1 worker `019e9711-5a26-7530-bc95-40a38cd49061` in `/Users/envvar/.codex/worktrees/b3c6/cxs`.
 - 2026-06-05: Reconciled I1 commit `f5357c2` and handoff into canonical branch; I2 is ready.
+- 2026-06-05: Launched I2 worker `019e971b-b2f9-7a12-880c-556612b7b1d8` in `/Users/envvar/.codex/worktrees/3ff5/cxs`.
