@@ -3,22 +3,23 @@
 ## Snapshot
 
 - Updated: 2026-06-05
-- Status: Wave 2 D1 launch in progress
-- Orchestrator Goal: `启动 cxs 多源架构改造的 Codex Session Orchestrator 工作流 Wave 0`
+- Status: Wave 3 implementation ready
+- Orchestrator Goal: `持续推进 cxs 多源架构工作流的所有 waves，直到完成设计、实现分派、验证和收口，或出现真实阻塞`
 - Mainline intent: `int_c1da6c9e`
 - Branch: `codex/session-sources-workflow`
 - Canonical control plane: `docs/workflows/2026-06-05-session-sources/`
 
 ## Active Wave
 
-Wave 2: D1 architecture design packet has been requested and is waiting for a concrete thread id.
+Wave 3: D1 design has been reconciled. Implementation slices are ready to launch in order.
 
 Next:
 
-1. Resolve D1 pending worktree id to a concrete thread id.
-2. Read D1 status through `codex_app.read_thread` once the thread id exists.
-3. Reconcile D1 into `design.md` and `handoffs/D1-architecture-design.md`.
-4. Decide whether to launch implementation slices I1/I2/I3.
+1. Launch I1 first: source adapter interface, source registry, and Codex adapter extraction.
+2. Launch I2 after I1 has a verified handoff or if I1 explicitly says storage work can proceed.
+3. Launch I3 after source/selector/storage contracts are known.
+4. Launch I4 after CLI behavior exists.
+5. Launch E1 and R1 after implementation commits are reconciled.
 
 ## Decisions
 
@@ -31,10 +32,11 @@ Locked:
 
 Pending:
 
-- Whether selector JSON gains required or optional `source`.
-- Whether DB introduces `source_id`, `native_session_id`, and internal `session_key`.
-- How to keep `read-range <sessionUuid>` compatible if future native IDs collide.
-- Whether `--source` defaults to `codex` for all commands or only selector-building commands.
+- Exact JSON output field names for source metadata.
+- SQLite migration mechanics for uniqueness changes.
+- Future ambiguous bare-id read error shape.
+- Future Claude Code public ingestion route.
+- Cross-source aggregate `stats`.
 
 ## Heartbeat
 
@@ -51,3 +53,4 @@ Pending:
 - 2026-06-05: Requested A1/A2/A3 worker sessions; launcher returned pending worktree ids.
 - 2026-06-05: Resolved A1/A2/A3 actual thread ids and reconciled their read-only handoffs.
 - 2026-06-05: Requested D1 architecture design worker; launcher returned pending worktree id.
+- 2026-06-05: Resolved D1 actual thread id `019e9700-f56c-7523-93b4-1da1c2a76b72`, reconciled `design.md` and `handoffs/D1-architecture-design.md`, and marked Wave 3 ready.
