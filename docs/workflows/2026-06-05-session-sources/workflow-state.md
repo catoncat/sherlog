@@ -15,7 +15,7 @@ Wave 3: I1 Codex adapter extraction is active.
 
 Next:
 
-1. Read I1 thread `019e970f-ab59-73c2-b5ec-f7d08d6d04bc` when it becomes idle.
+1. Read replacement I1 thread `019e9711-5a26-7530-bc95-40a38cd49061` when it becomes idle.
 2. Reconcile I1 handoff and committed slice into canonical state.
 3. Launch I2 after I1's adapter contract is verified, or earlier only if I1 explicitly reports storage work can proceed.
 4. Launch I3 after source/selector/storage contracts are known.
@@ -55,4 +55,5 @@ Pending:
 - 2026-06-05: Resolved A1/A2/A3 actual thread ids and reconciled their read-only handoffs.
 - 2026-06-05: Requested D1 architecture design worker; launcher returned pending worktree id.
 - 2026-06-05: Resolved D1 actual thread id `019e9700-f56c-7523-93b4-1da1c2a76b72`, reconciled `design.md` and `handoffs/D1-architecture-design.md`, and marked Wave 3 ready.
-- 2026-06-05: Launched I1 implementation worker `019e970f-ab59-73c2-b5ec-f7d08d6d04bc` in `/Users/envvar/.codex/worktrees/ee52/cxs`.
+- 2026-06-05: Launched I1 implementation worker `019e970f-ab59-73c2-b5ec-f7d08d6d04bc` in `/Users/envvar/.codex/worktrees/ee52/cxs`; it hit repeated `systemError`.
+- 2026-06-05: Launched replacement I1 worker `019e9711-5a26-7530-bc95-40a38cd49061` in `/Users/envvar/.codex/worktrees/b3c6/cxs`.
