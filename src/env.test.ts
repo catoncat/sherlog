@@ -2,7 +2,7 @@ import { afterEach, describe, expect, test } from "vitest";
 import { existsSync, mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { migrateLegacyCacheDir } from "./env";
+import { migrateLegacyCacheDir, statsReadoutEnabled } from "./env";
 
 const tempDirs: string[] = [];
 
@@ -61,5 +61,28 @@ describe("migrateLegacyCacheDir", () => {
 
     expect(migrateLegacyCacheDir(same, same)).toBe(false);
     expect(readFileSync(join(same, "index.sqlite"), "utf8")).toBe("stub");
+  });
+});
+
+describe("statsReadoutEnabled", () => {
+  const original = process.env.CXS_STATS;
+  afterEach(() => {
+    if (original === undefined) delete process.env.CXS_STATS;
+    else process.env.CXS_STATS = original;
+  });
+
+  test("默认(未设置)开启", () => {
+    delete process.env.CXS_STATS;
+    expect(statsReadoutEnabled()).toBe(true);
+  });
+
+  test.each(["0", "off", "false", "no", "OFF", " 0 "])("%s 关闭", (value) => {
+    process.env.CXS_STATS = value;
+    expect(statsReadoutEnabled()).toBe(false);
+  });
+
+  test.each(["1", "on", "true", ""])("%s 视为开启", (value) => {
+    process.env.CXS_STATS = value;
+    expect(statsReadoutEnabled()).toBe(true);
   });
 });

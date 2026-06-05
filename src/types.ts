@@ -169,6 +169,9 @@ export interface FindSummary {
   sort: FindSort;
   excludedSessions: string[];
   results: FindResult[];
+  // 诚实分母:本次检索覆盖范围(selector 限定后)内的消息总数。用来回述
+  // "从 ~N 条历史里定位",分母随搜索范围走,不灌水。
+  scannedMessageCount: number;
   coverage: CoverageStatus;
   nextAction?: QueryNextAction;
 }
