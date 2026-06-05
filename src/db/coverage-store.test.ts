@@ -3,7 +3,7 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { INDEX_VERSION } from "../env";
-import { cleanupMismatchedMessagesForSelector, deleteSessionsForSelectorExceptFilePaths } from "./coverage-store";
+import { cleanupMismatchedMessagesForSelector, coverageStatusForSelector, deleteSessionsForSelectorExceptFilePaths, listCoverageRecords, replaceCoverage } from "./coverage-store";
 import { openReadDb, openWriteDb, replaceSession } from "../db";
 
 const tempDirs: string[] = [];
@@ -59,6 +59,30 @@ describe("deleteSessionsForSelectorExceptFilePaths", () => {
 
     expect(removed).toBe(1);
     expect(count.count).toBe(0);
+  });
+});
+
+describe("source-aware coverage", () => {
+  test("keeps coverage implication and listing scoped by source", () => {
+    const base = mkdtempSync(join(tmpdir(), "cxs-coverage-source-aware-"));
+    tempDirs.push(base);
+    const dbPath = join(base, "index.sqlite");
+    const root = join(base, "sessions");
+    const db = openWriteDb(dbPath);
+
+    replaceCoverage(db, { source: "codex", kind: "all", root }, "codex-fingerprint", 1, 1, INDEX_VERSION);
+    replaceCoverage(db, { source: "claude-code", kind: "all", root }, "claude-fingerprint", 1, 1, INDEX_VERSION);
+
+    const codexStatus = coverageStatusForSelector(db, { source: "codex", kind: "cwd", root, cwd: "/tmp/project" });
+    const claudeStatus = coverageStatusForSelector(db, { source: "claude-code", kind: "cwd", root, cwd: "/tmp/project" });
+    const defaultCoverage = listCoverageRecords(db);
+    db.close();
+
+    expect(codexStatus.complete).toBe(true);
+    expect(codexStatus.coveringSelectors.map((entry) => entry.selector.source)).toEqual(["codex"]);
+    expect(claudeStatus.complete).toBe(true);
+    expect(claudeStatus.coveringSelectors.map((entry) => entry.selector.source)).toEqual(["claude-code"]);
+    expect(defaultCoverage.map((entry) => entry.selector.source)).toEqual(["codex"]);
   });
 });
 

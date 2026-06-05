@@ -1,7 +1,7 @@
 import { createReadStream } from "node:fs";
 import { basename } from "node:path";
 import { createInterface } from "node:readline";
-import type { ParsedMessage, ParseSessionResult } from "../types";
+import { DEFAULT_SESSION_SOURCE_ID, type ParsedMessage, type ParseSessionResult } from "../types";
 
 const INTERNAL_MARKERS = [
   "The following is the Codex agent history whose request action you are assessing",
@@ -80,6 +80,9 @@ export async function parseCodexSession(filePath: string): Promise<ParseSessionR
   return {
     kind: "parsed",
     session: {
+      sourceId: DEFAULT_SESSION_SOURCE_ID,
+      nativeSessionId: state.sessionUuid,
+      sessionKey: `${DEFAULT_SESSION_SOURCE_ID}:${state.sessionUuid}`,
       sessionUuid: state.sessionUuid,
       filePath,
       title,

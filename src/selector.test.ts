@@ -5,6 +5,7 @@ describe("selector", () => {
   test("canonicalizes selector roots to absolute paths", () => {
     expect(canonicalizeSelector({ kind: "all", root: "/tmp/../tmp/cxs-root" })).toEqual({
       kind: "all",
+      source: "codex",
       root: "/tmp/cxs-root",
     });
   });
@@ -12,9 +13,21 @@ describe("selector", () => {
   test("can fill a missing selector root from caller defaults", () => {
     expect(canonicalizeSelector({ kind: "cwd", cwd: "/tmp/project" }, { defaultRoot: "/tmp/../tmp/cxs-root" })).toEqual({
       kind: "cwd",
+      source: "codex",
       root: "/tmp/cxs-root",
       cwd: "/tmp/project",
     });
+  });
+
+  test("canonicalizes explicit selector source and rejects unknown sources", () => {
+    expect(canonicalizeSelector({ source: "claude-code", kind: "all", root: "/tmp/cxs-root" })).toEqual({
+      kind: "all",
+      source: "claude-code",
+      root: "/tmp/cxs-root",
+    });
+    expect(() =>
+      canonicalizeSelector({ source: "unknown", kind: "all", root: "/tmp/cxs-root" })
+    ).toThrow("selector.source must be codex or claude-code");
   });
 
   test("rejects date ranges with fromDate after toDate", () => {
@@ -42,6 +55,10 @@ describe("selector", () => {
     expect(selectorImplies(
       { kind: "cwd", root, cwd: "/tmp/other" },
       { kind: "cwd_date_range", root, cwd: "/tmp/project", fromDate: "2026-04-21", toDate: "2026-04-22" },
+    )).toBe(false);
+    expect(selectorImplies(
+      { source: "codex", kind: "all", root },
+      { source: "claude-code", kind: "cwd", root, cwd: "/tmp/project" },
     )).toBe(false);
   });
 });

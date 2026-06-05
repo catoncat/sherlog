@@ -1,20 +1,21 @@
 import { tokenizedText } from "../tokenize";
-import type { ParsedSession, SessionRecord } from "../types";
+import { DEFAULT_SESSION_SOURCE_ID, type ParsedSession, type SessionRecord, type SessionSourceId } from "../types";
 import type { Db } from "./shared";
 import { sessionRootFromFile } from "./sql";
 
 export function getIndexedSessionMeta(
   db: Db,
   filePath: string,
+  sourceId: SessionSourceId = DEFAULT_SESSION_SOURCE_ID,
 ): { rawFileMtime: number; rawFileSize: number; indexVersion: string } | null {
   const row = db
-    .prepare<[string], { rawFileMtime: number; rawFileSize: number; indexVersion: string }>(`
+    .prepare<[SessionSourceId, string], { rawFileMtime: number; rawFileSize: number; indexVersion: string }>(`
       SELECT raw_file_mtime AS rawFileMtime, raw_file_size AS rawFileSize, index_version AS indexVersion
       FROM sessions
-      WHERE file_path = ?
+      WHERE source_id = ? AND file_path = ?
       LIMIT 1
     `)
-    .get(filePath) as
+    .get(sourceId, filePath) as
     | { rawFileMtime: number; rawFileSize: number; indexVersion: string }
     | undefined;
 
@@ -24,6 +25,7 @@ export function getIndexedSessionMeta(
 export function getIndexedSessionMetas(
   db: Db,
   filePaths: string[],
+  sourceId: SessionSourceId = DEFAULT_SESSION_SOURCE_ID,
 ): Map<string, { rawFileMtime: number; rawFileSize: number; indexVersion: string }> {
   const map = new Map<string, { rawFileMtime: number; rawFileSize: number; indexVersion: string }>();
   if (filePaths.length === 0) return map;
@@ -33,12 +35,12 @@ export function getIndexedSessionMetas(
     const chunk = filePaths.slice(i, i + chunkSize);
     const placeholders = chunk.map(() => "?").join(",");
     const rows = db
-      .prepare<string[], { file_path: string; rawFileMtime: number; rawFileSize: number; indexVersion: string }>(`
+      .prepare<[SessionSourceId, ...string[]], { file_path: string; rawFileMtime: number; rawFileSize: number; indexVersion: string }>(`
         SELECT file_path, raw_file_mtime AS rawFileMtime, raw_file_size AS rawFileSize, index_version AS indexVersion
         FROM sessions
-        WHERE file_path IN (${placeholders})
+        WHERE source_id = ? AND file_path IN (${placeholders})
       `)
-      .all(...chunk) as { file_path: string; rawFileMtime: number; rawFileSize: number; indexVersion: string }[];
+      .all(sourceId, ...chunk) as { file_path: string; rawFileMtime: number; rawFileSize: number; indexVersion: string }[];
 
     for (const row of rows) {
       map.set(row.file_path, {
@@ -52,20 +54,28 @@ export function getIndexedSessionMetas(
   return map;
 }
 
-export function deleteSessionByFilePath(db: Db, filePath: string): void {
+export function deleteSessionByFilePath(db: Db, filePath: string, sourceId: SessionSourceId = DEFAULT_SESSION_SOURCE_ID): void {
   const row = db
-    .prepare<[string], { sessionUuid: string }>("SELECT session_uuid AS sessionUuid FROM sessions WHERE file_path = ? LIMIT 1")
-    .get(filePath) as { sessionUuid: string } | undefined;
+    .prepare<[SessionSourceId, string], { id: number }>("SELECT id FROM sessions WHERE source_id = ? AND file_path = ? LIMIT 1")
+    .get(sourceId, filePath) as { id: number } | undefined;
 
   if (!row) return;
-  deleteSessionByUuid(db, row.sessionUuid);
+  deleteSessionById(db, row.id);
 }
 
-export function deleteSessionByUuid(db: Db, sessionUuid: string): void {
-  db.prepare("DELETE FROM sessions_fts WHERE session_uuid = ?").run(sessionUuid);
-  db.prepare("DELETE FROM messages_fts WHERE session_uuid = ?").run(sessionUuid);
-  db.prepare("DELETE FROM messages WHERE session_uuid = ?").run(sessionUuid);
-  db.prepare("DELETE FROM sessions WHERE session_uuid = ?").run(sessionUuid);
+export function deleteSessionByUuid(db: Db, sessionUuid: string, sourceId: SessionSourceId = DEFAULT_SESSION_SOURCE_ID): void {
+  const row = db
+    .prepare<[SessionSourceId, string], { id: number }>("SELECT id FROM sessions WHERE source_id = ? AND native_session_id = ? LIMIT 1")
+    .get(sourceId, sessionUuid) as { id: number } | undefined;
+  if (!row) return;
+  deleteSessionById(db, row.id);
+}
+
+export function deleteSessionById(db: Db, sessionId: number): void {
+  db.prepare("DELETE FROM sessions_fts WHERE rowid = ?").run(sessionId);
+  db.prepare("DELETE FROM messages_fts WHERE rowid IN (SELECT id FROM messages WHERE session_id = ?)").run(sessionId);
+  db.prepare("DELETE FROM messages WHERE session_id = ?").run(sessionId);
+  db.prepare("DELETE FROM sessions WHERE id = ?").run(sessionId);
 }
 
 export function replaceSession(
@@ -77,21 +87,31 @@ export function replaceSession(
   pathDate: string,
   sourceRoot = sessionRootFromFile(session.filePath),
 ): void {
+  const identity = sessionIdentity(session);
   const tx = db.transaction(() => {
     const existing = db
-      .prepare<[string, string], { id: number; sessionUuid: string }>("SELECT id, session_uuid AS sessionUuid FROM sessions WHERE session_uuid = ? OR file_path = ? LIMIT 1")
-      .get(session.sessionUuid, session.filePath) as { id: number; sessionUuid: string } | undefined;
+      .prepare<[SessionSourceId, string, SessionSourceId, string], { id: number; sessionUuid: string }>(`
+        SELECT id, session_uuid AS sessionUuid
+        FROM sessions
+        WHERE (source_id = ? AND native_session_id = ?) OR (source_id = ? AND file_path = ?)
+        LIMIT 1
+      `)
+      .get(identity.sourceId, identity.nativeSessionId, identity.sourceId, session.filePath) as { id: number; sessionUuid: string } | undefined;
 
     if (existing) {
       db.prepare(
         `
           UPDATE sessions
-          SET session_uuid = ?, file_path = ?, source_root = ?, title = ?, summary_text = ?, compact_text = ?, reasoning_summary_text = ?,
+          SET source_id = ?, native_session_id = ?, session_key = ?, session_uuid = ?, file_path = ?, source_root = ?,
+              title = ?, summary_text = ?, compact_text = ?, reasoning_summary_text = ?,
               cwd = ?, model = ?, started_at = ?, ended_at = ?, path_date = ?,
               message_count = ?, raw_file_mtime = ?, raw_file_size = ?, index_version = ?, updated_at = CURRENT_TIMESTAMP
           WHERE id = ?
         `,
       ).run(
+        identity.sourceId,
+        identity.nativeSessionId,
+        identity.sessionKey,
         session.sessionUuid,
         session.filePath,
         sourceRoot,
@@ -114,12 +134,16 @@ export function replaceSession(
       db.prepare(
         `
           INSERT INTO sessions (
-            session_uuid, file_path, source_root, title, summary_text, compact_text, reasoning_summary_text,
+            source_id, native_session_id, session_key, session_uuid, file_path, source_root,
+            title, summary_text, compact_text, reasoning_summary_text,
             cwd, model, started_at, ended_at, path_date,
             message_count, raw_file_mtime, raw_file_size, index_version
-          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         `,
       ).run(
+        identity.sourceId,
+        identity.nativeSessionId,
+        identity.sessionKey,
         session.sessionUuid,
         session.filePath,
         sourceRoot,
@@ -140,17 +164,12 @@ export function replaceSession(
     }
 
     const sessionRow = db
-      .prepare<[string], { id: number }>("SELECT id FROM sessions WHERE session_uuid = ? LIMIT 1")
-      .get(session.sessionUuid) as { id: number };
+      .prepare<[string], { id: number }>("SELECT id FROM sessions WHERE session_key = ? LIMIT 1")
+      .get(identity.sessionKey) as { id: number };
 
     db.prepare("DELETE FROM messages_fts WHERE rowid IN (SELECT id FROM messages WHERE session_id = ?)").run(sessionRow.id);
     db.prepare("DELETE FROM messages WHERE session_id = ?").run(sessionRow.id);
-    if (existing && existing.sessionUuid !== session.sessionUuid) {
-      db.prepare("DELETE FROM messages_fts WHERE session_uuid = ?").run(existing.sessionUuid);
-      db.prepare("DELETE FROM sessions_fts WHERE session_uuid = ?").run(existing.sessionUuid);
-    }
-    db.prepare("DELETE FROM messages_fts WHERE session_uuid = ?").run(session.sessionUuid);
-    db.prepare("DELETE FROM sessions_fts WHERE rowid = ? OR session_uuid = ?").run(sessionRow.id, session.sessionUuid);
+    db.prepare("DELETE FROM sessions_fts WHERE rowid = ?").run(sessionRow.id);
 
     db.prepare(
       `
@@ -204,9 +223,14 @@ export function replaceSession(
 }
 
 export function getSessionRecord(db: Db, sessionUuid: string): SessionRecord | null {
+  const identity = parseSessionRef(sessionUuid);
   const row = db
-    .prepare<[string], SessionRecord & { filePath: string }>(`
+    .prepare<[SessionSourceId, string], SessionRecord & { filePath: string }>(`
       SELECT
+        id,
+        source_id AS sourceId,
+        native_session_id AS nativeSessionId,
+        session_key AS sessionKey,
         session_uuid AS sessionUuid,
         file_path AS filePath,
         source_root AS sourceRoot,
@@ -219,11 +243,35 @@ export function getSessionRecord(db: Db, sessionUuid: string): SessionRecord | n
         path_date AS pathDate,
         message_count AS messageCount
       FROM sessions
-      WHERE session_uuid = ?
+      WHERE source_id = ? AND native_session_id = ?
       LIMIT 1
     `)
-    .get(sessionUuid) as (SessionRecord & { filePath: string }) | undefined;
+    .get(identity.sourceId, identity.nativeSessionId) as (SessionRecord & { filePath: string }) | undefined;
 
   if (!row) return null;
   return row;
+}
+
+function sessionIdentity(session: ParsedSession): {
+  sourceId: SessionSourceId;
+  nativeSessionId: string;
+  sessionKey: string;
+} {
+  const sourceId = session.sourceId ?? DEFAULT_SESSION_SOURCE_ID;
+  const nativeSessionId = session.nativeSessionId ?? session.sessionUuid;
+  return {
+    sourceId,
+    nativeSessionId,
+    sessionKey: session.sessionKey ?? `${sourceId}:${nativeSessionId}`,
+  };
+}
+
+function parseSessionRef(sessionRef: string): { sourceId: SessionSourceId; nativeSessionId: string } {
+  const separator = sessionRef.indexOf(":");
+  if (separator > 0) {
+    const sourceId = sessionRef.slice(0, separator);
+    const nativeSessionId = sessionRef.slice(separator + 1);
+    if (sourceId === "codex" || sourceId === "claude-code") return { sourceId, nativeSessionId };
+  }
+  return { sourceId: DEFAULT_SESSION_SOURCE_ID, nativeSessionId: sessionRef };
 }

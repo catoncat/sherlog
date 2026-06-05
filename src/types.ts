@@ -1,6 +1,9 @@
 export type MessageRole = "user" | "assistant";
 export type MatchSource = "message" | "session";
 export type FindMatchRole = MessageRole | "session";
+export type SessionSourceId = "codex" | "claude-code";
+
+export const DEFAULT_SESSION_SOURCE_ID: SessionSourceId = "codex";
 
 export interface ParsedMessage {
   role: MessageRole;
@@ -11,6 +14,9 @@ export interface ParsedMessage {
 }
 
 export interface ParsedSession {
+  sourceId?: SessionSourceId;
+  nativeSessionId?: string;
+  sessionKey?: string;
   sessionUuid: string;
   filePath: string;
   title: string;
@@ -35,10 +41,10 @@ export interface SyncErrorDetail {
 }
 
 export type Selector =
-  | { kind: "all"; root: string }
-  | { kind: "date_range"; root: string; fromDate: string; toDate: string }
-  | { kind: "cwd"; root: string; cwd: string }
-  | { kind: "cwd_date_range"; root: string; cwd: string; fromDate: string; toDate: string };
+  | { source?: SessionSourceId; kind: "all"; root: string }
+  | { source?: SessionSourceId; kind: "date_range"; root: string; fromDate: string; toDate: string }
+  | { source?: SessionSourceId; kind: "cwd"; root: string; cwd: string }
+  | { source?: SessionSourceId; kind: "cwd_date_range"; root: string; cwd: string; fromDate: string; toDate: string };
 
 export type SelectorKind = Selector["kind"];
 
@@ -125,6 +131,10 @@ export interface RequestedCoverageStatus {
 }
 
 export interface SessionRecord {
+  id: number;
+  sourceId: SessionSourceId;
+  nativeSessionId: string;
+  sessionKey: string;
   sessionUuid: string;
   filePath: string;
   sourceRoot: string;

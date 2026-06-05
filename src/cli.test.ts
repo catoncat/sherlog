@@ -257,7 +257,7 @@ describe("cxs cli", () => {
     const syncA = await runCli(["sync", "--root", rootA, "--db", dbPath, "--json"]);
     expect(syncA.exitCode).toBe(0);
     const syncPayload = JSON.parse(syncA.stdout) as { coverage: { selector: { kind: string; root: string } } };
-    expect(syncPayload.coverage.selector).toEqual({ kind: "all", root: rootA });
+    expect(syncPayload.coverage.selector).toEqual({ kind: "all", source: "codex", root: rootA });
 
     const syncB = await runCli(["sync", "--root", rootB, "--db", dbPath, "--json"]);
     expect(syncB.exitCode).toBe(0);

@@ -66,7 +66,7 @@ function searchRows(
 }
 
 function rawHitKey(row: RawHitRow): string {
-  return `${row.sessionUuid}\0${row.matchSource}\0${row.matchSeq ?? "session"}`;
+  return `${row.sessionKey ?? row.sessionUuid}\0${row.matchSource}\0${row.matchSeq ?? "session"}`;
 }
 
 function compareByTime(left: FindResult, right: FindResult, sort: FindSort): number {

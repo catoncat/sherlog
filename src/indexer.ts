@@ -10,7 +10,7 @@ import {
   replaceCoverage,
   replaceSession,
 } from "./db";
-import { canonicalizeSelector } from "./selector";
+import { canonicalizeSelector, selectorSource } from "./selector";
 import { getSessionSourceAdapter } from "./sources";
 import { SourceInventoryError } from "./source-inventory";
 import { withSyncLock } from "./sync-lock";
@@ -140,7 +140,7 @@ async function collectSyncOperations(
 ): Promise<void> {
   // Pre-fetch indexed session metadata for all files using batching to avoid N+1 queries
   const filePaths = files.map((f) => f.filePath);
-  const indexedMetas = getIndexedSessionMetas(db, filePaths);
+  const indexedMetas = getIndexedSessionMetas(db, filePaths, selectorSource(summary.selector));
 
   // OPTIMIZATION: Parse codex sessions concurrently to avoid I/O bottlenecks.
   // We use a worker loop pattern to bound concurrency and prevent EMFILE errors.
@@ -212,7 +212,7 @@ function applyOperations(
   if (bestEffort) {
     for (const operation of operations) {
       try {
-        applyOperation(db, operation);
+        applyOperation(db, operation, undefined, selectorSource(selector));
         recordAppliedOperation(summary, operation);
       } catch (error) {
         recordSyncError(summary, operation.filePath, error);
@@ -226,7 +226,7 @@ function applyOperations(
   const tx = db.transaction(() => {
     for (const operation of operations) {
       currentFilePath = operation.filePath;
-      applyOperation(db, operation, selector.root);
+      applyOperation(db, operation, selector.root, selectorSource(selector));
     }
     cleanupMismatchedMessagesForSelector(db, selector);
     if (prune) {
@@ -263,9 +263,14 @@ function applyOperations(
   return coverage ?? skippedCoverage(selector, sourceSnapshot.fingerprint, sourceSnapshot.fileCount, "not_written");
 }
 
-function applyOperation(db: ReturnType<typeof openWriteDb>, operation: SyncOperation, sourceRoot?: string): void {
+function applyOperation(
+  db: ReturnType<typeof openWriteDb>,
+  operation: SyncOperation,
+  sourceRoot: string | undefined,
+  sourceId: ReturnType<typeof selectorSource>,
+): void {
   if (operation.kind === "filtered") {
-    deleteSessionByFilePath(db, operation.filePath);
+    deleteSessionByFilePath(db, operation.filePath, sourceId);
     return;
   }
 
