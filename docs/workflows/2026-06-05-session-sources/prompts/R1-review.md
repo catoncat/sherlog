@@ -14,8 +14,10 @@ Read:
 - `docs/workflows/2026-06-05-session-sources/README.md`
 - `docs/workflows/2026-06-05-session-sources/operating-rules.md`
 - `docs/workflows/2026-06-05-session-sources/milestone-plan.md`
+- `docs/workflows/2026-06-05-session-sources/wave-map.md`
 - `docs/workflows/2026-06-05-session-sources/tasks/R1-review.md`
 - `docs/workflows/2026-06-05-session-sources/design.md`
+- `docs/workflows/2026-06-05-session-sources/handoffs/D1-architecture-design.md`
 - all implementation and evidence handoffs.
 
 Work:

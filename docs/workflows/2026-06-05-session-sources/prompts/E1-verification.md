@@ -14,8 +14,10 @@ Read:
 - `docs/workflows/2026-06-05-session-sources/README.md`
 - `docs/workflows/2026-06-05-session-sources/operating-rules.md`
 - `docs/workflows/2026-06-05-session-sources/milestone-plan.md`
+- `docs/workflows/2026-06-05-session-sources/wave-map.md`
 - `docs/workflows/2026-06-05-session-sources/tasks/E1-verification.md`
 - `docs/workflows/2026-06-05-session-sources/design.md`
+- `docs/workflows/2026-06-05-session-sources/handoffs/D1-architecture-design.md`
 - I1/I2/I3/I4 handoffs.
 
 Work:

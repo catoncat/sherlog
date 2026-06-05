@@ -14,8 +14,11 @@ Read:
 - `docs/workflows/2026-06-05-session-sources/README.md`
 - `docs/workflows/2026-06-05-session-sources/operating-rules.md`
 - `docs/workflows/2026-06-05-session-sources/milestone-plan.md`
+- `docs/workflows/2026-06-05-session-sources/wave-map.md`
 - `docs/workflows/2026-06-05-session-sources/tasks/I3-cli-source-option.md`
 - `docs/workflows/2026-06-05-session-sources/design.md`
+- `docs/workflows/2026-06-05-session-sources/handoffs/D1-architecture-design.md`
+- I1/I2 handoffs after the orchestrator has written them.
 
 Work:
 
