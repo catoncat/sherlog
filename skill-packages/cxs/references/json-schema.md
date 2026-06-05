@@ -83,6 +83,7 @@ Treat it as a retry gate: choose/check the same selector, run `sync` only if `st
 ```ts
 {
   query: {
+    sourceId?: "codex";
     cwd?: string;
     since?: string;
     selector?: Selector;
@@ -108,7 +109,7 @@ Treat it as a retry gate: choose/check the same selector, run `sync` only if `st
   dbPath: string;
   dbSizeBytes: number;
   lastSyncAt: string | null;
-  coverage: CoverageInventoryStatus[];
+  coverage: CoverageRecord[];
 }
 ```
 
@@ -170,6 +171,10 @@ Treat it as a retry gate: choose/check the same selector, run `sync` only if `st
 
 ```ts
 {
+  id: number;
+  sourceId: "codex";
+  nativeSessionId: string;
+  sessionKey: string;
   sessionUuid: string;
   filePath: string;
   sourceRoot: string;
@@ -201,11 +206,13 @@ Treat it as a retry gate: choose/check the same selector, run `sync` only if `st
 
 ```ts
 type Selector =
-  | { kind: "all"; root: string }
-  | { kind: "date_range"; root: string; fromDate: string; toDate: string }
-  | { kind: "cwd"; root: string; cwd: string }
-  | { kind: "cwd_date_range"; root: string; cwd: string; fromDate: string; toDate: string };
+  | { source?: "codex"; kind: "all"; root: string }
+  | { source?: "codex"; kind: "date_range"; root: string; fromDate: string; toDate: string }
+  | { source?: "codex"; kind: "cwd"; root: string; cwd: string }
+  | { source?: "codex"; kind: "cwd_date_range"; root: string; cwd: string; fromDate: string; toDate: string };
 ```
+
+Input selector JSON may omit `source`; canonical selectors returned by checkout commands include `source: "codex"`. `claude-code` is reserved/non-public and rejected at the CLI boundary.
 
 `CoverageStatus`:
 
