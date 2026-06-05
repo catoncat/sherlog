@@ -32,7 +32,7 @@ Build the multi-source foundation for `cxs` without publishing Claude Code suppo
 - Wave 1 A1/A2/A3 packets: complete and reconciled.
 - Wave 2 D1 design packet: complete and reconciled.
 - Wave 3 implementation: I1, I2, I3, and I4 complete.
-- Wave 4 evidence/review: E1 complete; R1 ready.
+- Wave 4 evidence/review/remediation: E1 complete; R1 complete; remediation complete.
 
 ## Next Execution Order
 
@@ -41,7 +41,8 @@ Build the multi-source foundation for `cxs` without publishing Claude Code suppo
 3. I3: complete. Wired `--source codex` through all fixed commands and rejected unsupported/non-public sources.
 4. I4: complete. Updated docs and `skill-packages/cxs` source after behavior existed.
 5. E1: complete. Evidence recorded source checkout, release skill, npm CLI, installed CLI, and default-index boundary separately.
-6. R1: ready. Review source boundary, compatibility, default-index migration boundary, and accidental Claude-public wording.
+6. R1: complete. Review found old-schema UX, release/install wording, and coverage doc drift findings.
+7. Remediation: complete. Old-schema read commands now return `index_schema_upgrade_required`; README/skill wording and coverage design docs are source-aware and release-bounded.
 
 ## Stop Lines
 

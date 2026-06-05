@@ -3,22 +3,21 @@
 ## Snapshot
 
 - Updated: 2026-06-05
-- Status: Wave 4 R1 active
+- Status: R1 remediation complete; local closeout ready
 - Orchestrator Goal: `持续推进 cxs 多源架构工作流的所有 waves，直到完成设计、实现分派、验证和收口，或出现真实阻塞`
-- Mainline intent: `int_38729f3b`
+- Mainline intent: `int_462a342b`
 - Branch: `codex/session-sources-workflow`
 - Canonical control plane: `docs/workflows/2026-06-05-session-sources/`
 
 ## Active Wave
 
-Wave 4: R1 final review is active in worker thread
-`019e9754-bece-70f0-9945-c344683a11c3`.
+All planned waves are complete. R1 findings were remediated in the canonical
+branch and recorded in `handoffs/R1-remediation.md`.
 
 Next:
 
-1. Read R1 thread `019e9754-bece-70f0-9945-c344683a11c3` when it becomes idle.
-2. Reconcile R1 findings into canonical state.
-3. Close the workflow after R1 findings are fixed, deferred, or accepted.
+1. Commit and seal remediation under Mainline intent `int_462a342b`.
+2. Stop before push, PR, npm release, global CLI update, or global skill update unless explicitly authorized.
 
 ## Decisions
 
@@ -62,3 +61,5 @@ Pending:
 - 2026-06-05: Launched E1 worker `019e974b-751b-7030-8cd3-d0b9b7455971` in `/Users/envvar/.codex/worktrees/d0f2/cxs`.
 - 2026-06-05: Reconciled E1 handoff and artifacts into canonical state; R1 is ready.
 - 2026-06-05: Launched R1 worker `019e9754-bece-70f0-9945-c344683a11c3` in `/Users/envvar/.codex/worktrees/f85a/cxs`.
+- 2026-06-05: Reconciled R1 findings; remediation is active.
+- 2026-06-05: Completed R1 remediation: old-schema read commands now return `index_schema_upgrade_required`, docs/skill release wording is bounded, coverage design is source-aware, and verification passed.

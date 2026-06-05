@@ -113,6 +113,19 @@ Treat it as a retry gate: choose/check the same selector, run `sync` only if `st
 }
 ```
 
+## Read Command Errors
+
+`find` / `read-range` / `read-page` / `list` / `stats` return structured
+errors in `--json` mode for expected index setup failures:
+
+```ts
+{
+  error:
+    | { code: "index_unavailable"; message: string; dbPath: string; hint: string }
+    | { code: "index_schema_upgrade_required"; message: string; dbPath: string; missingColumns: string[]; hint: string };
+}
+```
+
 ## status
 
 ```ts

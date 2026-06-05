@@ -16,13 +16,17 @@ export CXS_BIN=/absolute/path/to/bin/cxs
 
 metadata-only 问题可以直接对 cxs SQLite index 做只读 projection,例如时间排序、数量、cwd 分布；内容判断仍必须回到 `read-page` / `read-range`。
 
-所有固定命令都接受 `--source <id>`。当前公开 source 只有 `codex`，省略等价于 `--source codex`。未知 source 或 reserved/non-public `claude-code` 会返回 `unsupported_source`，不要把它当成可用 Claude Code adapter。
+支持 source-aware CLI 的版本里,所有固定命令都接受 `--source <id>`。当前公开 source 只有 `codex`，省略等价于 `--source codex`。未知 source 或 reserved/non-public `claude-code` 会返回 `unsupported_source`，不要把它当成可用 Claude Code adapter。如果安装版直接报 unknown option `--source`,它是旧 CLI；省略 source flags 或更新 CLI。
 
 缺少 cxs 索引时,`find` / `read-range` / `read-page` / `list` / `stats --json` 返回:
 
 ```json
 { "error": { "code": "index_unavailable", "message": "...", "dbPath": "...", "hint": "..." } }
 ```
+
+已有索引是 source-aware 之前的旧 schema 时,同一批只读命令返回
+`index_schema_upgrade_required`。按 hint 跑一次 `sync --source codex --root ...`
+或等价 scoped sync；只读命令不会迁移索引。
 
 ## status
 

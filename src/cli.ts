@@ -4,7 +4,7 @@ import {
   DEFAULT_DB_PATH,
   migrateLegacyCacheDirIfNeeded,
 } from "./env";
-import { IndexUnavailableError } from "./db";
+import { IndexSchemaUpgradeRequiredError, IndexUnavailableError } from "./db";
 import { getSessionSourceAdapter } from "./sources";
 
 // One-shot migration from legacy ~/.cache/cxs/ to ~/.local/state/cxs/. Runs
@@ -319,6 +319,10 @@ function runReadCommand(jsonMode: boolean, action: () => void): void {
       emitIndexUnavailableError(error, jsonMode);
       return;
     }
+    if (error instanceof IndexSchemaUpgradeRequiredError) {
+      emitIndexSchemaUpgradeRequiredError(error, jsonMode);
+      return;
+    }
     if (error instanceof SelectorParseError) {
       emitSelectorError(error, jsonMode);
       return;
@@ -375,6 +379,31 @@ function emitIndexUnavailableError(error: IndexUnavailableError, jsonMode: boole
             code: "index_unavailable",
             message: error.message,
             dbPath: error.dbPath,
+            hint,
+          },
+        },
+        null,
+        2,
+      ),
+    );
+  } else {
+    console.error(`${error.message}\n${hint}`);
+  }
+  process.exitCode = 1;
+}
+
+function emitIndexSchemaUpgradeRequiredError(error: IndexSchemaUpgradeRequiredError, jsonMode: boolean): void {
+  const hint =
+    "Run `cxs sync --source codex --root <sessions-root>` or the equivalent scoped sync to migrate the index, then retry.";
+  if (jsonMode) {
+    console.log(
+      JSON.stringify(
+        {
+          error: {
+            code: "index_schema_upgrade_required",
+            message: error.message,
+            dbPath: error.dbPath,
+            missingColumns: error.missingColumns,
             hint,
           },
         },

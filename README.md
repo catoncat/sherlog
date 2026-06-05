@@ -11,6 +11,11 @@ The only public session source in this checkout is `codex`. The CLI accepts
 Claude Code is reserved for a future adapter; it is not a public source and
 `--source claude-code` is rejected.
 
+When reading this from a source checkout, the installed `cxs` on your `PATH`
+may still be an older npm release. Check `cxs status --help` before using
+`--source`; if help does not list `--source`, omit source flags or update the
+installed CLI from a release that includes source-aware behavior.
+
 Core workflow:
 
 ```text
@@ -108,8 +113,8 @@ npx @act0r/cxs@latest find "health check" --root /Users/you/.codex/sessions
 All commands that read indexed content support `--json`. Read commands fail
 cleanly if the index has not been created yet.
 
-All fixed commands accept `--source <id>`. The only public value is `codex`, so
-these are equivalent:
+In source-aware builds, all fixed commands accept `--source <id>`. The only
+public value is `codex`, so these are equivalent:
 
 ```bash
 cxs find "health check"
@@ -117,7 +122,9 @@ cxs find "health check" --source codex
 ```
 
 Unknown sources and reserved non-public sources such as `claude-code` return
-`unsupported_source` before doing command work.
+`unsupported_source` before doing command work. If an installed CLI rejects the
+`--source` option itself, that installation predates this behavior; update the
+CLI or run the checkout with `npm run cxs -- ...`.
 
 ## Selectors
 
@@ -194,7 +201,9 @@ coverage record covers narrower selectors under the same source and root; a high
 Indexes created before `cxs-v7-source-identity` should be refreshed with
 `sync --root`, `sync --cwd`, or `sync --selector` so selector coverage and reads
 use source-aware identity, current `path_date`, and source-root provenance
-fields.
+fields. Source-aware read commands do not migrate old indexes because they are
+read-only; they return `index_schema_upgrade_required` with a `cxs sync` hint
+when the index needs this refresh.
 
 Older `cxs <= 0.2.0` indexes stored under `~/.cache/cxs/` are migrated
 automatically on first run when the new state directory is empty. If the new

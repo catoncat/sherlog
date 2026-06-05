@@ -786,6 +786,43 @@ describe("cxs cli", () => {
     expect(result.stderr).toBe("");
   });
 
+  test("read-only commands emit upgrade guidance for source-unaware indexes", async () => {
+    const base = mkdtempSync(join(tmpdir(), "cxs-cli-source-schema-"));
+    tempDirs.push(base);
+    const dbPath = join(base, "index.sqlite");
+    createSourceUnawareIndex(dbPath);
+
+    const commands = [
+      ["find", "legacy"],
+      ["list"],
+      ["stats"],
+      ["read-page", "11111111-1111-4111-8111-111111111111"],
+      ["read-range", "11111111-1111-4111-8111-111111111111", "--seq", "0"],
+    ];
+
+    for (const command of commands) {
+      const result = await runCli([...command, "--json", "--db", dbPath]);
+
+      expect(result.exitCode).toBe(1);
+      expect(result.stderr).toBe("");
+      const payload = JSON.parse(result.stdout) as {
+        error: { code: string; message: string; dbPath: string; missingColumns: string[]; hint: string };
+      };
+      expect(payload.error.code).toBe("index_schema_upgrade_required");
+      expect(payload.error.message).toContain(dbPath);
+      expect(payload.error.dbPath).toBe(dbPath);
+      expect(payload.error.missingColumns).toEqual([
+        "sessions.source_id",
+        "sessions.native_session_id",
+        "sessions.session_key",
+        "coverage.source_id",
+      ]);
+      expect(payload.error.hint).toContain("cxs sync --source codex");
+      expect(result.stdout).not.toContain("SqliteError");
+      expect(result.stdout).not.toContain("no such column");
+    }
+  });
+
   test("list filters by cwd substring and respects sort", async () => {
     const base = mkdtempSync(join(tmpdir(), "cxs-cli-list-"));
     tempDirs.push(base);
@@ -961,6 +998,52 @@ function lineAt(timestamp: string, type: string, payload: Record<string, unknown
     type,
     payload,
   });
+}
+
+function createSourceUnawareIndex(dbPath: string): void {
+  const db = new Database(dbPath);
+  try {
+    db.exec(`
+      CREATE TABLE sessions (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        session_uuid TEXT NOT NULL UNIQUE,
+        file_path TEXT NOT NULL UNIQUE,
+        source_root TEXT NOT NULL DEFAULT '',
+        title TEXT NOT NULL DEFAULT '',
+        summary_text TEXT NOT NULL DEFAULT '',
+        compact_text TEXT NOT NULL DEFAULT '',
+        reasoning_summary_text TEXT NOT NULL DEFAULT '',
+        cwd TEXT NOT NULL DEFAULT '',
+        model TEXT NOT NULL DEFAULT '',
+        started_at TEXT NOT NULL,
+        ended_at TEXT NOT NULL,
+        path_date TEXT NOT NULL DEFAULT '',
+        message_count INTEGER NOT NULL DEFAULT 0,
+        raw_file_mtime INTEGER NOT NULL DEFAULT 0,
+        raw_file_size INTEGER NOT NULL DEFAULT 0,
+        index_version TEXT NOT NULL DEFAULT '',
+        updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+      );
+
+      CREATE TABLE coverage (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        selector_key TEXT NOT NULL UNIQUE,
+        selector_json TEXT NOT NULL,
+        selector_kind TEXT NOT NULL,
+        root TEXT NOT NULL,
+        cwd TEXT,
+        from_date TEXT,
+        to_date TEXT,
+        source_fingerprint TEXT NOT NULL,
+        source_file_count INTEGER NOT NULL,
+        indexed_session_count INTEGER NOT NULL,
+        completed_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        index_version TEXT NOT NULL
+      );
+    `);
+  } finally {
+    db.close();
+  }
 }
 
 async function runCli(args: string[]): Promise<{ exitCode: number; stdout: string; stderr: string }> {

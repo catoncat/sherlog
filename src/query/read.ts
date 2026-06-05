@@ -1,4 +1,4 @@
-import { coverageEntriesForSession, getMessagesForPage, getMessagesForRange, getSessionRecord, withReadDb } from "../db";
+import { coverageEntriesForSession, getMessagesForPage, getMessagesForRange, getSessionRecord, withSourceAwareReadDb } from "../db";
 import { rerankHits } from "../ranking";
 import type { FindResult, SessionRecord } from "../types";
 import type { Db } from "../db";
@@ -16,7 +16,7 @@ export function getMessageRange(
   messages: ReturnType<typeof getMessagesForRange>;
   coverage: { entries: ReturnType<typeof coverageEntriesForSession> };
 } {
-  return withReadDb(dbPath, (db) => {
+  return withSourceAwareReadDb(dbPath, (db) => {
     const session = getSessionRecord(db, sessionUuid);
     if (!session) throw new Error(`session not found: ${sessionUuid}`);
     const anchorSeq = resolveAnchorSeq(db, session, options.seq, options.query);
@@ -49,7 +49,7 @@ export function getMessagePage(
   messages: ReturnType<typeof getMessagesForPage>;
   coverage: { entries: ReturnType<typeof coverageEntriesForSession> };
 } {
-  return withReadDb(dbPath, (db) => {
+  return withSourceAwareReadDb(dbPath, (db) => {
     const session = getSessionRecord(db, sessionUuid);
     if (!session) throw new Error(`session not found: ${sessionUuid}`);
     const messages = getMessagesForPage(db, session.id, offset, limit);

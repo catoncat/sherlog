@@ -11,7 +11,7 @@
 | I3 | `019e972f-6a4a-7bb3-bd64-99b803032f85` | `2026-06-05-session-sources: I3 - Add CLI source option behavior` | verified | bounded CLI/status/indexer files | commit `2ebeb6f`, intent `int_0a6d76cd`, handoff written, merged as `7c9c9a2` | 2026-06-05 | closed |
 | I4 | `019e973e-d6c5-7862-bbc4-178b92506b3d` | `2026-06-05-session-sources: I4 - Align docs and release skill` | verified | docs/skill only | commit `22b0d95`, intent `int_be172a7e`, handoff written, merged into canonical; worker verification passed `git diff --check`, CLI help/source smoke, `npm run check`, Mainline lint | 2026-06-05 | closed |
 | E1 | `019e974b-751b-7030-8cd3-d0b9b7455971` | `2026-06-05-session-sources: E1 - Verify multi-source foundation` | verified | evidence only | handoff and artifacts written; checkout verification passed; fresh-db source smoke passed; default local index and installed CLI/skill boundaries recorded | 2026-06-05 | closed |
-| R1 | `019e9754-bece-70f0-9945-c344683a11c3` | `2026-06-05-session-sources: R1 - Review final multi-source slice` | active | findings only | thread running in `/Users/envvar/.codex/worktrees/f85a/cxs`; launcher pending id `local:615095e1-2bc0-4559-82c1-01b29cdbcee5` | 2026-06-05 | wait for findings |
+| R1 | `019e9754-bece-70f0-9945-c344683a11c3` | `2026-06-05-session-sources: R1 - Review final multi-source slice` | verified | findings only | final review returned 2 P1 findings and 1 P2 finding; remediation handoff written | 2026-06-05 | closed |
 
 ## Registry Rules
 

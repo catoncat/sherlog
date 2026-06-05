@@ -1,4 +1,4 @@
-import { withReadDb, type Db } from "../db";
+import { withSourceAwareReadDb, type Db } from "../db";
 import type { RawHitRow } from "../ranking";
 import { rerankHits } from "../ranking";
 import type { FindResult, FindSort, FindSummary, Selector, SessionSourceId } from "../types";
@@ -20,7 +20,7 @@ export function findSessions(
   selector: Selector | null = null,
   options: FindSessionsOptions = {},
 ): FindSummary {
-  return withReadDb(dbPath, (db) => {
+  return withSourceAwareReadDb(dbPath, (db) => {
     const sort = options.sort ?? "relevance";
     const excludedSessions = uniqueNonEmpty(options.excludeSessions ?? []);
     const recallLimit = sort === "relevance" ? Math.max(limit * 12, 50) : Math.max(limit * 100, 1000);
