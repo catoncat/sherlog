@@ -1,6 +1,6 @@
-import type { ParseSessionResult, Selector, SourceFileMeta, SourceInventory, SourceSnapshot } from "../types";
+import type { ParseSessionResult, Selector, SessionSourceId, SourceFileMeta, SourceInventory, SourceSnapshot } from "../types";
 
-export type SessionSourceId = "codex" | "claude-code";
+export type { SessionSourceId } from "../types";
 
 export interface SourceSnapshotOptions {
   strict?: boolean;

@@ -1,7 +1,7 @@
-import type { CwdCount } from "../types";
+import { DEFAULT_SESSION_SOURCE_ID, type CwdCount, type SessionSourceId } from "../types";
 import type { Db } from "./shared";
 
-export function getStatsCounts(db: Db): {
+export function getStatsCounts(db: Db, sourceId: SessionSourceId = DEFAULT_SESSION_SOURCE_ID): {
   sessionCount: number;
   messageCount: number;
   earliestStartedAt: string | null;
@@ -9,7 +9,7 @@ export function getStatsCounts(db: Db): {
   lastSyncAt: string | null;
 } {
   const row = db
-    .prepare(`
+    .prepare<[SessionSourceId]>(`
       SELECT
         COUNT(*) AS sessionCount,
         COALESCE(SUM(message_count), 0) AS messageCount,
@@ -17,8 +17,9 @@ export function getStatsCounts(db: Db): {
         MAX(ended_at) AS latestEndedAt,
         MAX(updated_at) AS lastSyncAt
       FROM sessions
+      WHERE source_id = ?
     `)
-    .get() as {
+    .get(sourceId) as {
       sessionCount: number;
       messageCount: number;
       earliestStartedAt: string | null;
@@ -28,15 +29,15 @@ export function getStatsCounts(db: Db): {
   return row;
 }
 
-export function getTopCwds(db: Db, limit: number): CwdCount[] {
+export function getTopCwds(db: Db, limit: number, sourceId: SessionSourceId = DEFAULT_SESSION_SOURCE_ID): CwdCount[] {
   return db
-    .prepare<[number], CwdCount>(`
+    .prepare<[SessionSourceId, number], CwdCount>(`
       SELECT cwd, COUNT(*) AS count
       FROM sessions
-      WHERE cwd != ''
+      WHERE source_id = ? AND cwd != ''
       GROUP BY cwd
       ORDER BY count DESC, cwd ASC
       LIMIT ?
     `)
-    .all(limit) as CwdCount[];
+    .all(sourceId, limit) as CwdCount[];
 }

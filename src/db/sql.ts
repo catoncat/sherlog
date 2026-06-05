@@ -1,3 +1,4 @@
+import { selectorSource } from "../selector";
 import type { Selector } from "../types";
 import type { Db, SqlParams } from "./shared";
 
@@ -5,8 +6,8 @@ export function selectorWhereSql(selector: Selector, alias: string): { condition
   if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(alias)) {
     throw new Error("Invalid table alias");
   }
-  const conditions = [`(${alias}.file_path = ? OR ${alias}.file_path LIKE ? ESCAPE '\\')`];
-  const params: SqlParams = [selector.root, `${escapeLike(selector.root)}/%`];
+  const conditions = [`${alias}.source_id = ?`, `(${alias}.file_path = ? OR ${alias}.file_path LIKE ? ESCAPE '\\')`];
+  const params: SqlParams = [selectorSource(selector), selector.root, `${escapeLike(selector.root)}/%`];
   if (selector.kind === "cwd" || selector.kind === "cwd_date_range") {
     conditions.push(`${alias}.cwd = ?`);
     params.push(selector.cwd);

@@ -1,7 +1,7 @@
 import { selectorWhereSql } from "../db";
 import type { RawHitRow } from "../ranking";
 import { hasCjk, queryTerms } from "../tokenize";
-import type { FindSort, Selector } from "../types";
+import { DEFAULT_SESSION_SOURCE_ID, type FindSort, type Selector } from "../types";
 import type { Db, SqlParams } from "../db";
 import { makeLikeSnippet, makeRawSnippet } from "./snippet";
 
@@ -14,7 +14,7 @@ export function searchMessageHits(
   db: Db,
   query: string,
   limit: number,
-  sessionUuid?: string,
+  sessionId?: number,
   selector: Selector | null = null,
   options: SearchOptions = {},
 ): RawHitRow[] {
@@ -27,11 +27,11 @@ export function searchMessageHits(
   // back to a bounded LIKE scan so single-character CJK probes still work
   // even though they are discouraged.
   if (terms.length === 0) {
-    if (hasCjk(normalized)) return searchByLike(db, normalized, limit, sessionUuid, selector, options);
+    if (hasCjk(normalized)) return searchByLike(db, normalized, limit, sessionId, selector, options);
     return [];
   }
 
-  return searchByFts(db, terms, limit, sessionUuid, selector, options);
+  return searchByFts(db, terms, limit, sessionId, selector, options);
 }
 
 export function searchSessionHits(
@@ -57,7 +57,7 @@ function searchByFts(
   db: Db,
   terms: string[],
   limit: number,
-  sessionUuid?: string,
+  sessionId?: number,
   selector: Selector | null = null,
   options: SearchOptions = {},
 ): RawHitRow[] {
@@ -69,10 +69,13 @@ function searchByFts(
     const selectorWhere = selectorWhereSql(selector, "s");
     conditions.push(...selectorWhere.conditions);
     params.push(...selectorWhere.params);
+  } else {
+    conditions.push("s.source_id = ?");
+    params.push(DEFAULT_SESSION_SOURCE_ID);
   }
-  if (sessionUuid) {
-    conditions.push("m.session_uuid = ?");
-    params.push(sessionUuid);
+  if (sessionId) {
+    conditions.push("m.session_id = ?");
+    params.push(sessionId);
   }
   addExcludedSessions(conditions, params, "m", options.excludeSessions);
   params.push(limit);
@@ -82,6 +85,8 @@ function searchByFts(
   return db
     .prepare<typeof params, RawHitRow>(`
       SELECT
+        s.source_id AS sourceId,
+        s.session_key AS sessionKey,
         s.session_uuid AS sessionUuid,
         s.title AS title,
         s.summary_text AS summaryText,
@@ -120,6 +125,9 @@ function searchSessionsByFts(
     const selectorWhere = selectorWhereSql(selector, "s");
     conditions.push(...selectorWhere.conditions);
     params.push(...selectorWhere.params);
+  } else {
+    conditions.push("s.source_id = ?");
+    params.push(DEFAULT_SESSION_SOURCE_ID);
   }
   addExcludedSessions(conditions, params, "s", options.excludeSessions);
   params.push(limit);
@@ -127,6 +135,8 @@ function searchSessionsByFts(
   const rows = db
     .prepare<typeof params, RawHitRow>(`
       SELECT
+        s.source_id AS sourceId,
+        s.session_key AS sessionKey,
         s.session_uuid AS sessionUuid,
         s.title AS title,
         s.summary_text AS summaryText,
@@ -175,6 +185,9 @@ function searchSessionsByLike(
     const selectorWhere = selectorWhereSql(selector, "s");
     conditions.push(...selectorWhere.conditions);
     params.push(...selectorWhere.params);
+  } else {
+    conditions.push("s.source_id = ?");
+    params.push(DEFAULT_SESSION_SOURCE_ID);
   }
   addExcludedSessions(conditions, params, "s", options.excludeSessions);
   params.push(limit);
@@ -183,6 +196,8 @@ function searchSessionsByLike(
   const rows = db
     .prepare<typeof params, RawHitRow & { contentText: string }>(`
       SELECT
+        s.source_id AS sourceId,
+        s.session_key AS sessionKey,
         s.session_uuid AS sessionUuid,
         s.title AS title,
         s.summary_text AS summaryText,
@@ -212,7 +227,7 @@ function searchByLike(
   db: Db,
   query: string,
   limit: number,
-  sessionUuid?: string,
+  sessionId?: number,
   selector: Selector | null = null,
   options: SearchOptions = {},
 ): RawHitRow[] {
@@ -222,10 +237,13 @@ function searchByLike(
     const selectorWhere = selectorWhereSql(selector, "s");
     conditions.push(...selectorWhere.conditions);
     params.push(...selectorWhere.params);
+  } else {
+    conditions.push("s.source_id = ?");
+    params.push(DEFAULT_SESSION_SOURCE_ID);
   }
-  if (sessionUuid) {
-    conditions.push("m.session_uuid = ?");
-    params.push(sessionUuid);
+  if (sessionId) {
+    conditions.push("m.session_id = ?");
+    params.push(sessionId);
   }
   addExcludedSessions(conditions, params, "m", options.excludeSessions);
   params.push(limit);
@@ -234,6 +252,8 @@ function searchByLike(
   const rows = db
     .prepare<typeof params, RawHitRow & { contentText: string }>(`
       SELECT
+        s.source_id AS sourceId,
+        s.session_key AS sessionKey,
         s.session_uuid AS sessionUuid,
         s.title AS title,
         s.summary_text AS summaryText,

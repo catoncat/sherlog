@@ -1,10 +1,11 @@
 import { resolve } from "node:path";
-import type { Selector } from "./types";
+import { DEFAULT_SESSION_SOURCE_ID, type Selector, type SessionSourceId } from "./types";
 
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 
 export interface SelectorDefaults {
   defaultRoot?: string;
+  defaultSource?: SessionSourceId;
 }
 
 export function parseSelectorJson(value: string, defaults: SelectorDefaults = {}): Selector {
@@ -28,7 +29,8 @@ export function canonicalizeSelector(value: unknown, defaults: SelectorDefaults 
   if (!isRecord(value)) throw new SelectorParseError("selector must be an object");
   const kind = value.kind;
   const root = requireString(value.root ?? defaults.defaultRoot, "root");
-  const base = { root: resolve(root) };
+  const source = requireSource(value.source ?? defaults.defaultSource ?? DEFAULT_SESSION_SOURCE_ID);
+  const base = { source, root: resolve(root) };
 
   if (kind === "all") {
     return { kind, ...base };
@@ -53,6 +55,7 @@ export function canonicalizeSelector(value: unknown, defaults: SelectorDefaults 
 }
 
 export function selectorImplies(covering: Selector, requested: Selector): boolean {
+  if (selectorSource(covering) !== selectorSource(requested)) return false;
   if (covering.root !== requested.root) return false;
   if (covering.kind === "all") return true;
 
@@ -81,7 +84,11 @@ export function selectorContainsFile(selector: Selector, file: { pathDate: strin
 }
 
 export function selectorStorageKey(selector: Selector): string {
-  return JSON.stringify(selector);
+  return JSON.stringify(canonicalizeSelector(selector));
+}
+
+export function selectorSource(selector: Selector): SessionSourceId {
+  return selector.source ?? DEFAULT_SESSION_SOURCE_ID;
 }
 
 function containsDateRange(
@@ -108,6 +115,12 @@ function requireDate(value: unknown, field: string): string {
     throw new SelectorParseError(`selector.${field} must be YYYY-MM-DD`);
   }
   return date;
+}
+
+function requireSource(value: unknown): SessionSourceId {
+  const source = requireString(value, "source");
+  if (source === "codex" || source === "claude-code") return source;
+  throw new SelectorParseError("selector.source must be codex or claude-code");
 }
 
 function assertDateOrder(fromDate: string, toDate: string): void {

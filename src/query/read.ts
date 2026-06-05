@@ -17,13 +17,13 @@ export function getMessageRange(
   coverage: { entries: ReturnType<typeof coverageEntriesForSession> };
 } {
   return withReadDb(dbPath, (db) => {
-    const anchorSeq = resolveAnchorSeq(db, sessionUuid, options.seq, options.query);
     const session = getSessionRecord(db, sessionUuid);
     if (!session) throw new Error(`session not found: ${sessionUuid}`);
+    const anchorSeq = resolveAnchorSeq(db, session, options.seq, options.query);
 
     const rangeStartSeq = Math.max(0, anchorSeq - options.before);
     const rangeEndSeq = anchorSeq + options.after;
-    const messages = getMessagesForRange(db, sessionUuid, rangeStartSeq, rangeEndSeq);
+    const messages = getMessagesForRange(db, session.id, rangeStartSeq, rangeEndSeq);
     return {
       session,
       anchorSeq,
@@ -52,7 +52,7 @@ export function getMessagePage(
   return withReadDb(dbPath, (db) => {
     const session = getSessionRecord(db, sessionUuid);
     if (!session) throw new Error(`session not found: ${sessionUuid}`);
-    const messages = getMessagesForPage(db, sessionUuid, offset, limit);
+    const messages = getMessagesForPage(db, session.id, offset, limit);
     const totalCount = session.messageCount;
     const hasMore = offset + messages.length < totalCount;
     return {
@@ -69,7 +69,7 @@ export function getMessagePage(
 
 function resolveAnchorSeq(
   db: Db,
-  sessionUuid: string,
+  session: SessionRecord,
   seq?: number,
   query?: string,
 ): number {
@@ -78,15 +78,15 @@ function resolveAnchorSeq(
   }
 
   if (query) {
-    const best = searchTopHitInSession(db, sessionUuid, query);
+    const best = searchTopHitInSession(db, session, query);
     if (best && typeof best.matchSeq === "number") return best.matchSeq;
   }
 
   throw new Error("read-range requires explicit session_uuid plus either --seq or --query");
 }
 
-function searchTopHitInSession(db: Db, sessionUuid: string, query: string): FindResult | null {
-  const rows = searchMessageHits(db, query, 20, sessionUuid);
+function searchTopHitInSession(db: Db, session: SessionRecord, query: string): FindResult | null {
+  const rows = searchMessageHits(db, query, 20, session.id);
   const result = rerankHits(rows, query, 1)[0];
   return result ?? null;
 }
