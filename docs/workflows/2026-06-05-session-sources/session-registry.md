@@ -10,7 +10,7 @@
 | I2 | `019e971b-b2f9-7a12-880c-556612b7b1d8` | `2026-06-05-session-sources: I2 - Add source-aware storage and coverage` | verified | bounded DB/selector files | commit `d36fb22`, intent `int_737064b8`, handoff written, merged as `cfa34f3` | 2026-06-05 | closed |
 | I3 | `019e972f-6a4a-7bb3-bd64-99b803032f85` | `2026-06-05-session-sources: I3 - Add CLI source option behavior` | verified | bounded CLI/status/indexer files | commit `2ebeb6f`, intent `int_0a6d76cd`, handoff written, merged as `7c9c9a2` | 2026-06-05 | closed |
 | I4 | `019e973e-d6c5-7862-bbc4-178b92506b3d` | `2026-06-05-session-sources: I4 - Align docs and release skill` | verified | docs/skill only | commit `22b0d95`, intent `int_be172a7e`, handoff written, merged into canonical; worker verification passed `git diff --check`, CLI help/source smoke, `npm run check`, Mainline lint | 2026-06-05 | closed |
-| E1 | TBD | `2026-06-05-session-sources: E1 - Verify multi-source foundation` | planned | evidence only | pending | 2026-06-05 | ready to launch |
+| E1 | `019e974b-751b-7030-8cd3-d0b9b7455971` | `2026-06-05-session-sources: E1 - Verify multi-source foundation` | active | evidence only | thread running in `/Users/envvar/.codex/worktrees/d0f2/cxs`; launcher pending id `local:f13d864a-cc2a-41f0-aa56-25f5048e131c` | 2026-06-05 | wait for handoff |
 | R1 | TBD | `2026-06-05-session-sources: R1 - Review final multi-source slice` | planned | findings only | pending | 2026-06-05 | wait for E1 |
 
 ## Registry Rules
