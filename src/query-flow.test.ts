@@ -150,4 +150,46 @@ describe("cxs retrieval flow", () => {
     const found = findSessions(dbPath, "deploy", 5);
     expect(found.results[0]?.summaryText).toContain("排查 fly deploy 失败");
   });
+
+  test("scannedMessageCount 是诚实分母,随 selector 范围收窄", async () => {
+    const base = mkdtempSync(join(tmpdir(), "cxs-scanned-"));
+    tempDirs.push(base);
+    const sessionsRoot = join(base, "sessions", "2026", "04", "21");
+    mkdirSync(sessionsRoot, { recursive: true });
+
+    // project-a: 4 条 event_msg;project-b: 2 条 event_msg;全库 = 6。
+    writeFileSync(
+      join(sessionsRoot, "rollout-2026-04-21T10-00-00-11111111-1111-4111-8111-111111111111.jsonl"),
+      [
+        line("session_meta", { id: "11111111-1111-4111-8111-111111111111", cwd: "/tmp/project-a" }),
+        line("event_msg", { type: "user_message", message: "排查 fly deploy 失败" }),
+        line("event_msg", { type: "agent_message", message: "先看 health check" }),
+        line("event_msg", { type: "user_message", message: "还是 500" }),
+        line("event_msg", { type: "agent_message", message: "核对 secrets readback" }),
+      ].join("\n"),
+    );
+    writeFileSync(
+      join(sessionsRoot, "rollout-2026-04-21T11-00-00-22222222-2222-4222-8222-222222222222.jsonl"),
+      [
+        line("session_meta", { id: "22222222-2222-4222-8222-222222222222", cwd: "/tmp/project-b" }),
+        line("event_msg", { type: "user_message", message: "重构 markdown parser" }),
+        line("event_msg", { type: "agent_message", message: "先补失败测试" }),
+      ].join("\n"),
+    );
+
+    const root = join(base, "sessions");
+    const dbPath = join(base, "index.sqlite");
+    await syncSessions({ dbPath, rootDir: root });
+
+    // 无 selector:全库语料规模 = 6。
+    expect(findSessions(dbPath, "health", 5).scannedMessageCount).toBe(6);
+    // 限定到 project-a:分母收窄到 4。
+    expect(
+      findSessions(dbPath, "health", 5, { kind: "cwd", root, cwd: "/tmp/project-a" }).scannedMessageCount,
+    ).toBe(4);
+    // 限定到 project-b:分母收窄到 2。
+    expect(
+      findSessions(dbPath, "parser", 5, { kind: "cwd", root, cwd: "/tmp/project-b" }).scannedMessageCount,
+    ).toBe(2);
+  });
 });

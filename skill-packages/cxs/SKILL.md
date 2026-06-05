@@ -39,7 +39,7 @@ npx skills add catoncat/cxs --full-depth --skill cxs -g -a codex -y
 | --- | --- | --- |
 | metadata projection: 最早/最新、数量、分布、cwd/session 清单、大 session、时间排序 | 只读 SQLite/bash/jq 查询 cxs index 的 `sessions` 表;必要时用 `list` 辅助 | 只能投影稳定 metadata;任何内容判断都要再 `read-page` / `read-range` |
 | semantic recall: 主题、关键词、"之前讨论过 X 吗"、本机配置考古 | `cxs find <query> --json`,按需要带 `--cwd` / `--root` / `--selector` / `--sort ended` | 用 `find` 召回候选,再用 `read-range` 或 `read-page` 验证 |
-| context reading: 已知 `sessionUuid`、命中 seq、或需要扩大上下文 | `cxs read-range <uuid> --seq/--query` 或 `cxs read-page <uuid>` | 内容证据只来自 `read-*` 输出 |
+| context reading: 已知 `sessionUuid`、命中 seq、或需要扩大上下文 | `cxs read-range <uuid> --seq/--query [--before N --after M]` 或 `cxs read-page <uuid>` | 内容证据只来自 `read-*` 输出 |
 | coverage/freshness/index availability: 索引缺失、coverage stale、要决定是否同步 | `cxs status --json` / `status --cwd` / `status --selector` | `status` 不回答内容问题,只决定 coverage 和 sync 需求 |
 | mutation: 建索引或更新 coverage | `cxs sync --cwd/--root/--selector` | 普通检索不要 `--prune`;只有用户明确要求清理已消失 source 的旧索引记录才用 |
 
@@ -77,6 +77,27 @@ npx skills add catoncat/cxs --full-depth --skill cxs -g -a codex -y
 - `find --json` / `list --json` 零结果时看 `nextAction`:它是防止 agent 放弃的机器可读提示。按提示选择/检查 selector、必要时同步、再重试。
 - `cwd` 只是候选过滤,不是主题真相;还要再看 `title`、`summaryText`、开头几条 message
 - 同主题可能多个 uuid;按 `cwd / startedAt / matchCount` 选,不要按 title 脑补去重
+
+## 结果回述（给用户，克制）
+
+cxs 的工具输出在对话里通常是折叠的，只有你（agent）看得到。要让用户感知到
+「快 / 省」，得靠你在回述时**克制地**带一句——但绝不刷屏、绝不诱导自己少读。
+
+- 仅当答案确实压在一次**有规模**的 cxs 调查上（检索语料上了量级，或跨多个
+  session / 多次 read）时，在实质答案末尾追加**最多一句**效率尾注。
+- 措辞锚到 CLI header 里的**真实测量值**：检索覆盖规模（find 的「检索 ~N 条」）、
+  实际读取条数（各次 read 的「读取 K 条」累加）、端到端耗时（各次 `Xms` 粗略
+  相加）。模板：`（从 ~N 条历史里用 ~Yms 定位，读了 Z 条）`。
+- 跨多次调用就把读取条数和 ms **粗略加总，只报量级、不假装精确**。
+- **不报编造的「省 X%」**。「省」靠两个真实数字的落差自己说话（17 万条里读了几条），
+  不要挂一个估出来的分母。
+- **绝不**在零结果 / coverage-miss / 单条直查时附效率尾注——没找到、或本来就没
+  省下什么时说「省」= 自打脸。
+- 这一句是**给用户看的答案尾注**，和下面「使用后自评」（内部反思、不输出给用户）
+  是两回事，不要混。
+- 效率回述默认开。用户嫌吵可设 `CXS_STATS=0`（或 `off`）关掉 CLI header 里的
+  注解；这时文本里就没有「检索 ~N 条 / 读取 K 条 / Xms」可锚，**别硬编数字**，
+  直接省掉效率尾注即可（`--json` 的 `scannedMessageCount` / `elapsedMs` 不受影响）。
 
 ## 使用后自评
 

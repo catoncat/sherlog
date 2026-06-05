@@ -1,4 +1,4 @@
-import { withReadDb, type Db } from "../db";
+import { selectorWhereSql, withReadDb, type Db } from "../db";
 import type { RawHitRow } from "../ranking";
 import { rerankHits } from "../ranking";
 import type { FindResult, FindSort, FindSummary, Selector } from "../types";
@@ -45,10 +45,30 @@ export function findSessions(
       sort,
       excludedSessions,
       results,
+      scannedMessageCount: countScannedMessages(db, selector),
       coverage,
       nextAction: results.length === 0 ? buildZeroResultsNextAction(selector, "this find") : undefined,
     };
   });
+}
+
+// 范围内语料规模:按 selector 聚合各 session 的 message_count。SUM 比 join
+// messages 全表 COUNT 便宜,且与 stats.messageCount 口径一致。无 selector 时
+// 退化成全库消息总数。
+function countScannedMessages(db: Db, selector: Selector | null): number {
+  if (!selector) {
+    const row = db
+      .prepare<[], { n: number }>("SELECT COALESCE(SUM(message_count), 0) AS n FROM sessions")
+      .get() as { n: number };
+    return row.n;
+  }
+  const where = selectorWhereSql(selector, "s");
+  const row = db
+    .prepare<typeof where.params, { n: number }>(
+      `SELECT COALESCE(SUM(message_count), 0) AS n FROM sessions s WHERE ${where.conditions.join(" AND ")}`,
+    )
+    .get(...where.params) as { n: number };
+  return row.n;
 }
 
 function searchRows(
