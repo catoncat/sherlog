@@ -7,8 +7,8 @@
 | A3 | `019e96fb-47ef-7531-a6ef-918b1b9f3209` | `2026-06-05-session-sources: A3 - Assess Claude Code transcript risk boundary` | verified | read-only docs/sample evidence | handoff written | 2026-06-05 | closed |
 | D1 | `019e9700-f56c-7523-93b4-1da1c2a76b72` | `2026-06-05-session-sources: D1 - Write architecture design packet` | verified | design doc only | design and handoff written | 2026-06-05 | closed |
 | I1 | `019e9711-5a26-7530-bc95-40a38cd49061` | `2026-06-05-session-sources: I1 - Extract Codex source adapter` | verified | bounded source files | commit `f5357c2`, intent `int_6bfea808`, handoff written; original `019e970f-ab59-73c2-b5ec-f7d08d6d04bc` hit repeated `systemError` | 2026-06-05 | closed |
-| I2 | `019e971b-b2f9-7a12-880c-556612b7b1d8` | `2026-06-05-session-sources: I2 - Add source-aware storage and coverage` | active | bounded DB/selector files | thread running in `/Users/envvar/.codex/worktrees/3ff5/cxs` | 2026-06-05 | wait for handoff |
-| I3 | TBD | `2026-06-05-session-sources: I3 - Add CLI source option behavior` | ready-after-I2 | bounded CLI/status/indexer files | design ready | 2026-06-05 | wait for source-aware storage |
+| I2 | `019e971b-b2f9-7a12-880c-556612b7b1d8` | `2026-06-05-session-sources: I2 - Add source-aware storage and coverage` | verified | bounded DB/selector files | commit `d36fb22`, intent `int_737064b8`, handoff written, merged as `cfa34f3` | 2026-06-05 | closed |
+| I3 | TBD | `2026-06-05-session-sources: I3 - Add CLI source option behavior` | ready | bounded CLI/status/indexer files | I2 contract merged | 2026-06-05 | launch worker |
 | I4 | TBD | `2026-06-05-session-sources: I4 - Align docs and release skill` | planned | docs/skill only | pending | 2026-06-05 | wait for I3 |
 | E1 | TBD | `2026-06-05-session-sources: E1 - Verify multi-source foundation` | planned | evidence only | pending | 2026-06-05 | wait for implementation |
 | R1 | TBD | `2026-06-05-session-sources: R1 - Review final multi-source slice` | planned | findings only | pending | 2026-06-05 | wait for E1 |
