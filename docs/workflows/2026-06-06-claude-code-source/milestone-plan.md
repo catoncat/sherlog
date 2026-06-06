@@ -71,7 +71,7 @@ Gate:
 
 ### R2: Post-Rework Review
 
-Status: `launchable`
+Status: `reconciled`
 
 Mode: `review-session`
 
@@ -82,10 +82,13 @@ Task:
 
 Required exit evidence:
 
-- Independent review handoff for C1 diff.
+- Independent review handoff for C1 diff:
+  `handoffs/R2-post-rework-review.md`.
 - Findings classified as fixed, accepted residual risk, or blocker.
 - No public-surface overclaim.
 - No committed real transcript content.
+- R2 thread `019e9c46-2e32-7683-bb63-5c1b30d35c35` found no unresolved P1 and
+  recommended V1.
 
 Gate:
 
@@ -94,7 +97,7 @@ Gate:
 
 ### V1: Verification Gate
 
-Status: `blocked-on-R2`
+Status: `reconciled`
 
 Mode: `evidence-session`
 
@@ -106,6 +109,13 @@ Required exit evidence:
 - Codex regression smoke proving default behavior is preserved.
 - Review of test timeouts and coverage relevance.
 - `git status --short`.
+- Handoff `handoffs/V1-verification.md` proves this gate passed against C1
+  commit `55c0638`.
+
+Task:
+
+- `tasks/V1-verification.md`
+- `prompts/V1-verification.md`
 
 Gate:
 
@@ -114,7 +124,7 @@ Gate:
 
 ### D1: Public Docs And Contract Update
 
-Status: `blocked-on-V1`
+Status: `reconciled`
 
 Mode: `implementation-slice`
 
@@ -130,10 +140,17 @@ Required exit evidence:
 - Docs diff reviewed against current code.
 - No stale target-state claims.
 - `git diff --check`.
+- Handoff `handoffs/D1-docs-contract-update.md` proves this gate passed against
+  C1 commit `55c0638` with docs-only changes.
+
+Task:
+
+- `tasks/D1-docs-contract-update.md`
+- `prompts/D1-docs-contract-update.md`
 
 ### S1: Skill Source Update
 
-Status: `blocked-on-D1`
+Status: `reconciled`
 
 Mode: `implementation-slice`
 
@@ -148,10 +165,12 @@ Required exit evidence:
 - Skill source diff.
 - `npx skills` source/packaging checks where applicable.
 - CLI help/readback used by the skill still matches current source behavior.
+- Handoff `handoffs/S1-skill-source-update.md` proves this gate passed against
+  C1 commit `55c0638` plus D1 docs changes.
 
 ### L1: Lifecycle Commit And Mainline Seal
 
-Status: `blocked-on-source-skill-verification`
+Status: `committed-pending-seal`
 
 Mode: `commit-seal-prep`
 
@@ -159,7 +178,8 @@ Required exit evidence:
 
 - Clean or scoped worktree.
 - Focused verification rerun after final source/skill/doc changes.
-- Scoped commit.
+- Scoped L1 commit integrating C1 implementation, D1 docs, S1 skill source,
+  and controller handoffs.
 - Mainline seal prepared/submitted with conflicts surfaced if any.
 
 Gate:
@@ -208,5 +228,5 @@ Gate:
 
 ## Next Launch
 
-Launch R2 next. Do not pre-launch V1/D1/S1/L1/P1/I1; each depends on the prior
+Finish L1 seal/lint next. Do not pre-launch P1/I1; each depends on the prior
 milestone's handoff and evidence.

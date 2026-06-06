@@ -16,7 +16,7 @@ export CXS_BIN=/absolute/path/to/bin/cxs
 
 metadata-only 问题可以直接对 cxs SQLite index 做只读 projection,例如时间排序、数量、cwd 分布；内容判断仍必须回到 `read-page` / `read-range`。
 
-支持 source-aware CLI 的版本里,所有固定命令都接受 `--source <id>`。当前公开 source 只有 `codex`，省略等价于 `--source codex`。未知 source 或 reserved/non-public `claude-code` 会返回 `unsupported_source`，不要把它当成可用 Claude Code adapter。如果安装版直接报 unknown option `--source`,它是旧 CLI；省略 source flags 或更新 CLI。
+支持 source-aware CLI 的版本里,所有固定命令都接受 `--source <id>`。当前公开 source 只有 `codex`，省略等价于 `--source codex`。未知 source 或非公开 `claude-code` 会返回 `unsupported_source`，不要把它当成 public CLI 可用 adapter。当前源码 checkout 有 private/non-public Claude Code adapter path,只用于 synthetic programmatic verification 和未来 promotion 候选；它不代表已发布、已安装、可同步真实 Claude transcript,也不是稳定 public raw JSONL 格式决定。如果安装版直接报 unknown option `--source`,它是旧 CLI；省略 source flags 或更新 CLI。
 
 缺少 cxs 索引时,`find` / `read-range` / `read-page` / `list` / `stats --json` 返回:
 
@@ -179,3 +179,4 @@ Example:
 - 仓库内 `src/cli.ts`
 - 仓库内 `src/env.ts`
 - 仓库内 `README.md`
+- 仓库内 `docs/ARCHITECTURE.md`

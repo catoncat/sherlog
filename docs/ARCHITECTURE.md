@@ -6,7 +6,7 @@
 
 `status -> sync --root/--cwd/--selector -> message/session recall -> session heuristic rerank -> read-range/read-page`
 
-它已经可用，但仍是轻量 retrieval 后端，不是完整的 resource-level retrieval 系统。当前公开 session source 只有 `codex`；`claude-code` 只是保留的非公开 source id，没有公开 adapter、同步能力或文档承诺。
+它已经可用，但仍是轻量 retrieval 后端，不是完整的 resource-level retrieval 系统。当前公开 session source 只有 `codex`；`claude-code` 已有 private / non-public adapter 路径用于 synthetic verification 和后续 promotion 工作，但没有公开 CLI 同步能力或发布承诺。
 
 ## 当前命令面
 
@@ -26,11 +26,12 @@
 
 ### 0. Source adapter
 
-`src/sources/` 定义 source adapter 边界和 registry。当前 registry 只公开 Codex adapter：
+`src/sources/` 定义 source adapter 边界和 registry。当前 registry 公开 Codex adapter，并保留一个非公开 Claude Code adapter：
 
 - `codex` adapter 负责默认 root、Codex JSONL inventory/snapshot、Codex parser。
+- `claude-code` adapter 是 private / non-public：它只允许内部 programmatic verification，通过 synthetic JSONL 证明 source-aware indexing / read isolation，不接受 public CLI `--source claude-code`。
 - 核心层负责 selector、coverage、DB、query/read/list/stats。
-- `claude-code` 只作为未来保留 id 存在，不是可用 source。
+- 公开命令面仍只有 `codex` source；未知 source 或非公开 `claude-code` 会在 CLI 边界返回 `unsupported_source`。
 
 Codex adapter 会把原有 `sessionUuid` 映射为 source-aware identity：
 
@@ -132,6 +133,7 @@ SQLite 访问层当前已经按 reader / writer 分流：
 - complete coverage 记录
 - manual eval 导出
 - eval batch compare
+- private / non-public Claude Code adapter synthetic path（不是 public CLI source）
 
 ## 当前未落地能力
 
@@ -143,6 +145,7 @@ SQLite 访问层当前已经按 reader / writer 分流：
 - 强约束 gold set / rubric / error taxonomy
 - watcher / daemon / realtime sync
 - 公开 Claude Code adapter / `cxs sync --source claude-code`
+- Claude Code raw JSONL public format decision；private adapter 目前不等同于稳定公开格式承诺
 
 ## 为什么当前文档改成这版
 

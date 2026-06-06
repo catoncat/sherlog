@@ -3,7 +3,7 @@
 ## Snapshot
 
 - Updated: 2026-06-06
-- Status: C1 reconciled; R2 review next
+- Status: L1 committed; Mainline seal/lint next
 - Controller thread: `019e9b54-7344-7a51-86a8-db3d2e3db02b`
 - Controller worktree: `/Users/envvar/.codex/worktrees/4b9e/cxs`
 - Controller branch: `codex/claude-code-source-controller`
@@ -78,6 +78,114 @@ Controller reconciliation after C1:
 - Next gate is R2 post-rework review. V1 verification may run only after R2
   does not find unresolved P1 blockers.
 
+Controller reconciliation after R2:
+
+- R2 review thread `019e9c46-2e32-7683-bb63-5c1b30d35c35` completed in
+  worktree `/Users/envvar/.codex/worktrees/3004/cxs`.
+- R2 handoff was copied into the canonical controller control plane at
+  `handoffs/R2-post-rework-review.md`.
+- R2 found no unresolved P1 and recommended proceeding to V1 verification.
+- No product code, tests, package metadata, public docs, public skill source,
+  release, install, push, PR, or global skill update occurred.
+- Next gate is V1 verification. Public docs/skill/release/install work remains
+  gated until V1 proof is reconciled.
+
+Active V1 launch:
+
+- Task and starter prompt prepared at `tasks/V1-verification.md` and
+  `prompts/V1-verification.md`.
+- Expected implementation checkout is C1 branch `codex/claude-code-source-C1`
+  at commit `55c0638`.
+- V1 thread `019e9c5b-2e38-72f3-9439-2762d5cbe64f` was forked from the C1
+  worker into `/Users/envvar/.codex/worktrees/35c5/cxs` and sent the V1
+  evidence-only prompt.
+- V1 is evidence-only: no product edits, public docs/skill edits, commit, seal,
+  push, PR, release, install, or global skill update.
+
+Controller reconciliation after V1:
+
+- The forked V1 worker thread
+  `019e9c5b-2e38-72f3-9439-2762d5cbe64f` produced no visible handoff or C1
+  worktree writes after repeated controller polls; controller sent a stop
+  message and took over V1 serially.
+- V1 verification ran against C1 checkout
+  `/Users/envvar/.codex/worktrees/35c5/cxs` at commit `55c0638`.
+- `npm run check`, public CLI help/status/rejection smokes, Codex synthetic
+  smoke, private Claude synthetic smoke, timeout grep, `git diff --check`, and
+  final C1 status all passed.
+- V1 handoff was written to `handoffs/V1-verification.md`.
+- Next gate is D1 public docs and contract update. S1, lifecycle, release,
+  installed CLI, and global skill state remain gated.
+
+Controller reconciliation after D1:
+
+- Task and starter prompt prepared at `tasks/D1-docs-contract-update.md` and
+  `prompts/D1-docs-contract-update.md`.
+- D1 ran against C1 implementation checkout
+  `/Users/envvar/.codex/worktrees/35c5/cxs` at commit `55c0638`.
+- D1 updated only current-state docs (`README.md`, `docs/ARCHITECTURE.md`,
+  `docs/ROADMAP.md`, `docs/INDEX_COVERAGE_DESIGN.md`) and wrote
+  `handoffs/D1-docs-contract-update.md`.
+- D1 public wording keeps `codex` as the only public CLI source and describes
+  `claude-code` only as a private/non-public synthetic-verification path.
+- D1 proof included CLI help/readback, unsupported-source smoke, and
+  `git diff --check`.
+- D1 did not touch `skill-packages/cxs`, product code/tests, package metadata,
+  release/install/global skill, push, PR, commit, or seal.
+- Next gate is S1 skill-source update. Lifecycle, release, installed CLI, and
+  global skill state remain gated.
+
+Active S1 launch:
+
+- Task and starter prompt prepared at `tasks/S1-skill-source-update.md` and
+  `prompts/S1-skill-source-update.md`.
+- S1 must run against a checkout containing C1 commit `55c0638` plus D1 docs
+  changes.
+- S1 is skill-source only: no product code/tests, package metadata,
+  release/install/global skill, push, PR, commit, or seal.
+- S1 fork requested from C1 thread `019e9c11-bf21-7921-8128-9123ef439c61` with
+  pending worktree id `local:de428e65-8a27-430e-a46d-53db11089100`.
+- S1 child resolved as thread `019e9c7a-42f5-7022-854f-c635286dfd09` in
+  worktree `/Users/envvar/.codex/worktrees/c2b0/cxs`.
+- S1 prompt has been sent. The worker must update only `skill-packages/cxs/**`
+  and `handoffs/S1-skill-source-update.md`.
+
+Controller reconciliation after S1:
+
+- S1 thread `019e9c7a-42f5-7022-854f-c635286dfd09` ran in worktree
+  `/Users/envvar/.codex/worktrees/c2b0/cxs`.
+- S1 handoff was copied into the canonical controller control plane at
+  `handoffs/S1-skill-source-update.md`.
+- S1 updated only `skill-packages/cxs/**` and its handoff in the worker
+  checkout, keeping the distributable skill source Codex-only for public CLI
+  use while describing `claude-code` as a private/non-public checkout adapter
+  path for synthetic verification and future promotion.
+- S1 proof included `git diff -- skill-packages/cxs`,
+  `npx skills ls -g --json`, `git diff --check`, `npm run cxs -- --help`,
+  `npm run cxs -- status --help`, and the expected
+  `npm run cxs -- status --source claude-code --json` unsupported-source
+  smoke.
+- S1 did not commit, seal, push, PR, release, install, npm publish, update
+  package metadata, or update global skill state.
+- Next gate is L1 lifecycle integration: combine C1 implementation, D1 docs,
+  and S1 skill-source changes into a scoped verified commit and Mainline seal.
+  P1 release and I1 installed smoke remain gated.
+
+L1 lifecycle integration:
+
+- Controller integrated C1 implementation, D1 docs, S1 skill source, and
+  controller handoffs into branch `codex/claude-code-source-controller`.
+- L1 verification before commit included `npm run check` passing 28 test files /
+  178 tests, CLI help/readback, public `claude-code` status and selector
+  rejection smokes returning `unsupported_source`, `npx skills ls -g --json`,
+  `git diff --check`, and focused source tests.
+- A parallel focused subset run of `src/cli.test.ts` once hit the existing 5s
+  per-test timeout; the exact timed-out test passed when run alone in 2.62s,
+  and the full `npm run check` passed.
+- Local L1 commit `feat(sources): 集成 Claude 私有适配器` was created.
+- Next step is Mainline seal/lint for L1. No push, PR, release, npm publish,
+  installed CLI update, or global skill update has occurred.
+
 Current correction after user clarification:
 
 - Do not launch new replacement workers.
@@ -136,3 +244,35 @@ Current correction after user clarification:
 - 2026-06-06: C1 committed local implementation `55c0638` and produced
   `handoffs/C1-private-adapter-rework.md`; controller copied the handoff,
   reviewed the C1 diff/readback, and marked C1 reconciled in the checklist.
+- 2026-06-06: R2 review thread
+  `019e9c46-2e32-7683-bb63-5c1b30d35c35` completed with no unresolved P1;
+  controller copied `handoffs/R2-post-rework-review.md` into the canonical
+  control plane and marked V1 as next.
+- 2026-06-06: Prepared `tasks/V1-verification.md` and
+  `prompts/V1-verification.md` to run evidence-only verification on the C1
+  implementation checkout.
+- 2026-06-06: Forked C1 thread into V1 thread
+  `019e9c5b-2e38-72f3-9439-2762d5cbe64f` and sent the evidence-only V1 prompt.
+- 2026-06-06: V1 worker did not produce handoff or worktree writes after
+  repeated polling; controller sent a stop message, ran V1 serially on C1
+  checkout `55c0638`, wrote `handoffs/V1-verification.md`, and marked D1 as
+  next.
+- 2026-06-06: Prepared `tasks/D1-docs-contract-update.md` and
+  `prompts/D1-docs-contract-update.md` for docs/contract-only update after V1.
+- 2026-06-06: Reconciled D1 docs/contract update from C1 checkout; copied
+  `handoffs/D1-docs-contract-update.md` into the canonical control plane,
+  marked S1 as next, and prepared `tasks/S1-skill-source-update.md` plus
+  `prompts/S1-skill-source-update.md`.
+- 2026-06-06: Requested S1 fork from C1 thread with pending worktree id
+  `local:de428e65-8a27-430e-a46d-53db11089100`; no child thread id was visible
+  on the first thread-list poll.
+- 2026-06-06: Resolved S1 as thread
+  `019e9c7a-42f5-7022-854f-c635286dfd09` in worktree
+  `/Users/envvar/.codex/worktrees/c2b0/cxs`; sent the S1 skill-source-only
+  prompt.
+- 2026-06-06: Reconciled S1 skill-source handoff into the canonical control
+  plane and marked L1 lifecycle integration as next; no lifecycle, release,
+  install, or global skill action was performed.
+- 2026-06-06: Integrated C1 implementation, D1 docs, S1 skill source, and
+  controller handoffs; verified the combined checkout and created local commit
+  `feat(sources): 集成 Claude 私有适配器`. Mainline seal/lint remains next.

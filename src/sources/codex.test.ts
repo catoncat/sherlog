@@ -16,7 +16,8 @@ describe("codex source adapter", () => {
   test("is the registered public default adapter", () => {
     expect(getSessionSourceAdapter()).toBe(codexSourceAdapter);
     expect(getSessionSourceAdapter("codex")).toBe(codexSourceAdapter);
-    expect(listSessionSourceAdapters().map((adapter) => adapter.id)).toEqual(["codex"]);
+    expect(listSessionSourceAdapters().map((adapter) => adapter.id)).toContain("codex");
+    expect(listSessionSourceAdapters().filter((adapter) => adapter.public).map((adapter) => adapter.id)).toEqual(["codex"]);
     expect(codexSourceAdapter.public).toBe(true);
   });
 

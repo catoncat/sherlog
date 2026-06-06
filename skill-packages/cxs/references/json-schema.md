@@ -231,7 +231,7 @@ type Selector =
   | { source?: "codex"; kind: "cwd_date_range"; root: string; cwd: string; fromDate: string; toDate: string };
 ```
 
-Input selector JSON may omit `source`; canonical selectors returned by checkout commands include `source: "codex"`. `claude-code` is reserved/non-public and rejected at the CLI boundary.
+Input selector JSON may omit `source`; canonical selectors returned by public CLI commands include `source: "codex"`. `claude-code` is private/non-public and rejected at the CLI boundary with `unsupported_source`. A source checkout may have an internal synthetic-verification adapter path for `claude-code`, but these public CLI schemas should not be read as a release, install, or stable raw-format promise.
 
 `CoverageStatus`:
 
