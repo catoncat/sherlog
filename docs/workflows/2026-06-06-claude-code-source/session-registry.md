@@ -2,8 +2,8 @@
 
 | Task | Thread | Worktree | Branch | Commit | Status | Proof | Handoff | Next |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| W1A | pending `local:6d326344-134f-4b64-8e51-ce1a5d78adcd` | pending | pending | none | launching | pending | `handoffs/W1A-truth-reconciliation.md` | resolve thread id |
-| W1B | pending `local:f2298802-b5fe-4d6d-8c34-d688e58d61b4` | pending | pending | none | launching | pending | `handoffs/W1B-private-adapter-review.md` | resolve thread id |
+| W1A | pending `local:486ec5a5-236c-4984-9749-1df16d8aaccf` | pending | pending | none | launching | pending | `handoffs/W1A-truth-reconciliation.md` | resolve thread id |
+| W1B | `019e9b58-31fd-7b00-9c7d-c6085e9cf25c` | `/Users/envvar/.codex/worktrees/eaa1/cxs` | detached at `783e17a` | none | active | pending | `handoffs/W1B-private-adapter-review.md` | wait for handoff |
 
 ## Registry Rules
 

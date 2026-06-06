@@ -52,3 +52,5 @@ Required controller synthesis after Wave 1:
 - 2026-06-06: Started Mainline intent `int_c0ac32dc`.
 - 2026-06-06: Committed control-plane baseline as `783e17a`.
 - 2026-06-06: Requested W1A and W1B worker sessions; launcher returned pending worktree ids.
+- 2026-06-06: Resolved W1B thread `019e9b58-31fd-7b00-9c7d-c6085e9cf25c` in `/Users/envvar/.codex/worktrees/eaa1/cxs`; it launched from `783e17a`, which has task files but not the later pending-registry update.
+- 2026-06-06: Original W1A pending thread did not appear in thread search; launched replacement W1A with pending id `local:486ec5a5-236c-4984-9749-1df16d8aaccf`.
