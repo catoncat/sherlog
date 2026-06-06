@@ -3,7 +3,8 @@
 ## 目标
 
 cxs 是面向 agent 的本地 session retrieval backend。当前公开 source 只有
-Codex；其他 source 必须先经过明确 adapter 边界才能进入公开命令行为。
+Codex。非公开 source 可以先作为 private adapter 做 synthetic verification，
+但必须经过明确 promotion / docs / release / install 边界后才能进入公开命令行为。
 
 目标态：
 

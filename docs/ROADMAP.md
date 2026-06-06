@@ -4,7 +4,7 @@
 
 `cxs` 现在已经有一条可用的 retrieval 主链。`title + summary_text + compact_text + reasoning_summary_text` 已作为 session-level recall 面接入，并通过 FTS5 column weights 显式分权；下一步仍不该盲目继续堆排序逻辑，当前最缺的是更可信的 acceptance gate。
 
-当前 source foundation 已落地到 checkout：公开 CLI source 只有 `codex`，`--source codex` 可省略，selector / coverage / DB / query-read 已有 source 维度。`claude-code` 仍是 reserved/non-public，不能写成已发布或可同步能力。
+当前 source foundation 已落地到 checkout：公开 CLI source 只有 `codex`，`--source codex` 可省略，selector / coverage / DB / query-read 已有 source 维度。`claude-code` 已有 private/non-public adapter 路径，并通过 synthetic programmatic sync/read smoke 验证；但它仍不能写成已发布、已安装或 public CLI 可同步能力。
 
 ## 优先级
 
@@ -93,6 +93,7 @@
 
 未来如果要公开 Claude Code source，需要单独设计和验收：
 
+- 从当前 private/non-public adapter 出发，重新确认 public surface 和 release wording。
 - 优先重新评估官方 SDK/session API，而不是直接承诺 raw JSONL。
 - 明确 tool results、attachments、diagnostics、snapshots、hook payloads、thinking、sidechain/subagent 语义。
 - 增加 source-specific privacy tests 和 public docs review。

@@ -58,6 +58,7 @@ export async function syncSessions(options: SyncOptions = {}): Promise<SyncSumma
     options.selector ?? { source: source.id, kind: "all", root: source.resolveRoot(options.rootDir) },
     { defaultSource: source.id },
   );
+  assertSelectorSourceMatches(selector, source.id);
   return withSyncLock(dbPath, async () => {
     let sourceSnapshot;
     try {
@@ -132,6 +133,13 @@ export async function syncSessions(options: SyncOptions = {}): Promise<SyncSumma
       db.close();
     }
   });
+}
+
+function assertSelectorSourceMatches(selector: Selector, sourceId: SessionSourceId): void {
+  const actualSource = selectorSource(selector);
+  if (actualSource !== sourceId) {
+    throw new Error(`selector.source must match session source ${sourceId}`);
+  }
 }
 
 async function collectSyncOperations(

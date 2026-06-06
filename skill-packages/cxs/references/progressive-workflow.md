@@ -19,7 +19,7 @@ Hard rules:
 - Do not use `sync --prune` for normal retrieval.
 - `find` default sort is relevance; use `--sort ended` only when the user's question is time-oriented.
 - `matchSource = "session"` means `matchSeq = null`; use `read-page` instead of inventing a seq.
-- Current public source is only `codex`; omit `--source` or pass `--source codex`. Do not claim Claude Code source support.
+- Current public source is only `codex`; omit `--source` or pass `--source codex`. Do not claim published, installed, or public CLI Claude Code source support. A checkout may contain a private/non-public `claude-code` adapter path for synthetic verification, but that is not normal retrieval guidance and not a public raw-format promise.
 
 ## Scenario 1: Metadata Projection
 

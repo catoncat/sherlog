@@ -8,7 +8,8 @@ range or page.
 
 The only public session source in this checkout is `codex`. The CLI accepts
 `--source codex` on the fixed command set, and omitting `--source` means Codex.
-Claude Code is reserved for a future adapter; it is not a public source and
+Claude Code has a private, non-public adapter path for synthetic verification
+and future promotion work; it is not a public CLI source and
 `--source claude-code` is rejected.
 
 When reading this from a source checkout, the installed `cxs` on your `PATH`
@@ -121,10 +122,12 @@ cxs find "health check"
 cxs find "health check" --source codex
 ```
 
-Unknown sources and reserved non-public sources such as `claude-code` return
-`unsupported_source` before doing command work. If an installed CLI rejects the
-`--source` option itself, that installation predates this behavior; update the
-CLI or run the checkout with `npm run cxs -- ...`.
+Unknown sources and non-public sources such as `claude-code` return
+`unsupported_source` before doing command work. The private Claude Code adapter
+is available only to internal programmatic paths in this checkout and has been
+verified with synthetic fixtures, not real transcripts. If an installed CLI
+rejects the `--source` option itself, that installation predates this behavior;
+update the CLI or run the checkout with `npm run cxs -- ...`.
 
 ## Selectors
 
@@ -236,6 +239,7 @@ Not implemented yet:
 - Range cache.
 - Duplicate-family collapse or diversity control.
 - Strong gold-set acceptance suite.
+- Public Claude Code CLI support.
 
 More detail: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md). Roadmap:
 [docs/ROADMAP.md](docs/ROADMAP.md).
