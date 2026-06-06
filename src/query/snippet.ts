@@ -23,27 +23,35 @@ export function makeRawSnippet(content: string, query: string, terms: string[]):
   }
 
   const termLowers = uniqueNonEmpty(terms.map((term) => term.toLowerCase()));
-  const termHits = termLowers.flatMap((term) => collectTermHits(lower, term));
-  if (termHits.length === 0) return content.slice(0, 160);
 
   // OPTIMIZATION: Track best window in a single pass.
-  // Avoids intermediate array allocations from map() and O(N log N) overhead from sort().
+  // Avoids intermediate array allocations from flatMap/map and O(N log N) overhead from sort().
   let bestStart = 0;
   let bestEnd = 0;
   let bestAnchor = Infinity;
   let bestScore = -1;
+  let anyHit = false;
 
-  for (const hit of termHits) {
-    const start = Math.max(0, hit.index - 40);
-    const end = Math.min(content.length, hit.index + hit.length + 80);
-    const score = scoreSnippetWindow(lower.slice(start, end), termLowers);
-    if (score > bestScore || (score === bestScore && hit.index < bestAnchor)) {
-      bestStart = start;
-      bestEnd = end;
-      bestAnchor = hit.index;
-      bestScore = score;
+  for (const term of termLowers) {
+    let cursor = 0;
+    while (cursor < lower.length) {
+      const index = lower.indexOf(term, cursor);
+      if (index < 0) break;
+      anyHit = true;
+      const start = Math.max(0, index - 40);
+      const end = Math.min(content.length, index + term.length + 80);
+      const score = scoreSnippetWindow(lower.slice(start, end), termLowers);
+      if (score > bestScore || (score === bestScore && index < bestAnchor)) {
+        bestStart = start;
+        bestEnd = end;
+        bestAnchor = index;
+        bestScore = score;
+      }
+      cursor = index + term.length;
     }
   }
+
+  if (!anyHit) return content.slice(0, 160);
 
   return snippetWindow(content, bestStart, bestEnd, termLowers);
 }
