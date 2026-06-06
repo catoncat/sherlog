@@ -2,8 +2,8 @@
 
 | Task | Thread | Worktree | Branch | Commit | Status | Proof | Handoff | Next |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| W1A | TBD | TBD | TBD | none | planned | pending | `handoffs/W1A-truth-reconciliation.md` | launch |
-| W1B | TBD | TBD | TBD | none | planned | pending | `handoffs/W1B-private-adapter-review.md` | launch |
+| W1A | pending `local:6d326344-134f-4b64-8e51-ce1a5d78adcd` | pending | pending | none | launching | pending | `handoffs/W1A-truth-reconciliation.md` | resolve thread id |
+| W1B | pending `local:f2298802-b5fe-4d6d-8c34-d688e58d61b4` | pending | pending | none | launching | pending | `handoffs/W1B-private-adapter-review.md` | resolve thread id |
 
 ## Registry Rules
 

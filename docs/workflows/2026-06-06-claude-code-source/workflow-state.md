@@ -50,3 +50,5 @@ Required controller synthesis after Wave 1:
 - 2026-06-06: Read handoff, AGENTS, roadmap, prior workflow control plane, R1 remediation, Mainline current context, and `int_b6b9939a`.
 - 2026-06-06: Created controller branch `codex/claude-code-source-controller` from main HEAD.
 - 2026-06-06: Started Mainline intent `int_c0ac32dc`.
+- 2026-06-06: Committed control-plane baseline as `783e17a`.
+- 2026-06-06: Requested W1A and W1B worker sessions; launcher returned pending worktree ids.
