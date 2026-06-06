@@ -189,7 +189,7 @@ Gate:
 
 ### P1: Push, Release, And Registry Verification
 
-Status: `release-prep-committed`
+Status: `draft-pr-open-ci-green`
 
 Mode: `release-session`
 
@@ -198,9 +198,14 @@ Required exit evidence:
 - Package version bumped from `0.3.4` to `0.3.5`.
 - Release-prep verification: `npm run check`, `npm run build`, and
   `npm pack --dry-run`.
-- Push main or release branch according to repo process.
-- Tag or release workflow evidence.
-- GitHub Actions readback.
+- Branch pushed: `origin/codex/claude-code-source-controller`.
+- Draft PR #51 opened against `main`: `https://github.com/catoncat/cxs/pull/51`.
+- PR CI readback: workflow `ci`, run `27061046513`, job `test`, conclusion
+  `SUCCESS`.
+- Current PR readback: `state=OPEN`, `isDraft=true`,
+  `mergeStateStatus=CLEAN`, `reviewDecision=""`, and `latestReviews=[]`.
+- Still required before registry publication: merge PR, push `v0.3.5` tag or
+  otherwise trigger release workflow, then read back GitHub Actions publish.
 - `npm view @act0r/cxs version` proves registry publication.
 
 Gate:
@@ -234,6 +239,7 @@ Gate:
 
 ## Next Launch
 
-Seal release-prep next, then push the branch and open a draft PR. Do not merge,
-tag, publish to npm, update PATH `cxs`, or update the global skill until the
-review and release gates provide evidence.
+Next gate is a human release decision: review/merge PR #51, then create or push
+`v0.3.5` according to the repository release workflow. Do not call the release
+complete until GitHub Actions and `npm view @act0r/cxs version` prove registry
+publication; do not update PATH `cxs` or the global skill until after that.

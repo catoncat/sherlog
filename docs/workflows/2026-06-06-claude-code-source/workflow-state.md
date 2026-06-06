@@ -3,7 +3,7 @@
 ## Snapshot
 
 - Updated: 2026-06-06
-- Status: release-prep committed; seal and draft PR next
+- Status: draft PR #51 open with CI green; release/install pending
 - Controller thread: `019e9b54-7344-7a51-86a8-db3d2e3db02b`
 - Controller worktree: `/Users/envvar/.codex/worktrees/4b9e/cxs`
 - Controller branch: `codex/claude-code-source-controller`
@@ -201,8 +201,35 @@ P1 release-prep:
 - `npm pack --dry-run` reported package `@act0r/cxs@0.3.5`, tarball
   `act0r-cxs-0.3.5.tgz`, and contents `LICENSE`, `README.md`, `dist/cli.js`,
   and `package.json`.
-- Local commit `chore(release): bump 0.3.5` was created. Seal, push, and draft
-  PR are next. No merge, tag, GitHub Actions publish, npm registry update,
+- Local commit `chore(release): bump 0.3.5` was created.
+- Mainline seal submit for `int_c9461f18` succeeded with code commit
+  `209b2e85c2be8139888af9d509150b28b199ab27`; it returned a medium-confidence
+  overlap with `int_c0ac32dc` because release-prep stacks on the sealed source
+  integration files. This is a workflow dependency, not a contradictory
+  implementation plan.
+- `mainline lint int_c9461f18 --json` passed.
+- Branch `codex/claude-code-source-controller` was pushed to origin.
+- Draft PR #51 was opened against `main`:
+  `https://github.com/catoncat/cxs/pull/51`.
+- PR #51 readback via
+  `gh pr view 51 --repo catoncat/cxs --json number,title,url,isDraft,state,mergeStateStatus,headRefName,baseRefName,reviewDecision,statusCheckRollup,latestReviews,commits`:
+  `state=OPEN`, `isDraft=true`, `mergeStateStatus=CLEAN`,
+  `headRefName=codex/claude-code-source-controller`, `baseRefName=main`,
+  `reviewDecision=""`, and `latestReviews=[]`.
+- PR #51 CI readback via `statusCheckRollup`: workflow `ci`, job `test`,
+  `status=COMPLETED`, `conclusion=SUCCESS`, details URL
+  `https://github.com/catoncat/cxs/actions/runs/27061046513/job/79873841382`.
+- Branch run readback via
+  `gh run list --repo catoncat/cxs --branch codex/claude-code-source-controller --limit 10 --json databaseId,workflowName,displayTitle,status,conclusion,createdAt,updatedAt,headSha,event,url`:
+  run `27061046513`, workflow `ci`, event `pull_request`, head SHA
+  `209b2e85c2be8139888af9d509150b28b199ab27`, status `completed`,
+  conclusion `success`, URL `https://github.com/catoncat/cxs/actions/runs/27061046513`.
+- Registry and install readback after PR creation still show old published
+  state: `npm view @act0r/cxs version --json` returned `"0.3.4"`;
+  `command -v cxs` returned `/Users/envvar/Library/pnpm/bin/cxs`;
+  `which -a cxs` returned `/Users/envvar/Library/pnpm/bin/cxs` and
+  `/Users/envvar/Library/pnpm/cxs`; PATH `cxs --version` returned `0.3.4`.
+- No PR merge, tag, GitHub Actions release/publish, npm registry update,
   installed CLI update, or global skill update has occurred.
 
 Current correction after user clarification:
@@ -300,3 +327,11 @@ Current correction after user clarification:
   `npm run check`, `npm run build`, and `npm pack --dry-run`, then created local
   release-prep commit `chore(release): bump 0.3.5`. Push/PR/release/install are
   still pending.
+- 2026-06-06: Sealed and linted release-prep intent `int_c9461f18`, pushed
+  branch `codex/claude-code-source-controller`, opened draft PR #51, and read
+  back CI `test` success plus old registry/PATH version `0.3.4`. Release and
+  install gates remain pending.
+- 2026-06-06: Rechecked live PR/CI/install truth for PR #51: PR remains
+  `OPEN` and draft, `mergeStateStatus=CLEAN`, no reviews are present, CI run
+  `27061046513` succeeded, npm registry remains `0.3.4`, and PATH `cxs`
+  remains `/Users/envvar/Library/pnpm/bin/cxs` at `0.3.4`.
