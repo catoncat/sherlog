@@ -13,21 +13,25 @@ tests, project docs, and Mainline evidence.
 - The controller does not implement product code, tests, package changes,
   release config, installed CLI state, or global skill changes.
 - Product implementation, review, verification, docs, skill, release, and
-  install work belongs to bounded worker sessions after the current pause is
-  lifted.
+  install work belongs to bounded worker sessions or narrowly scoped controller
+  follow-up when a later gate exposes drift.
 
 ## Current Boundary
 
-The latest active goal continuation has lifted the old pre-C1 pause. Current
-boundary:
+Current gate:
 
-- Do not start replacement workers for already reconciled W1/C1 work.
-- C1 is complete and reconciled; do not relaunch it.
-- R2 post-rework review may be launched against C1 commit `55c0638`.
-- Do not commit, Mainline append/seal, push, PR, release, install, or update
-  global skills unless the specific lifecycle gate is reached and authorized.
+- Do not relaunch W1, C1, R2, V1, D1, or S1. Those slices are already
+  reconciled into the controller branch.
+- PR #51 is open and ready for review. `test` and Cubic checks are green, but
+  review comments still need technical evaluation before merge/release.
+- Do not merge, tag, publish, install, or update global skills until the PR is
+  accepted and the later release/install gates collect fresh evidence.
+- Focus follow-up work on review feedback, proof drift, and control-plane
+  accuracy. Avoid reopening completed worker slices unless new evidence proves a
+  real regression.
 - Control-plane edits are allowed when they clarify state, reduce future
-  coordination risk, prepare a launch packet, or reconcile worker handoffs.
+  coordination risk, prepare the next launch packet, or reconcile verified
+  review feedback.
 
 Do not treat an automatic Goal continuation as full release authorization. It
 does authorize concrete progress through the next evidence gate when the prior
@@ -61,12 +65,14 @@ gate is proven.
 
 Current launch sequence:
 
-1. C1 is already reconciled at `55c0638`; do not relaunch it.
-2. Launch `R2-post-rework-review` next.
-3. Require a compact handoff at `handoffs/R2-post-rework-review.md`.
-4. Do not pre-launch V1, docs, skill, release, or install workers.
-5. Advance later milestones only after reading the prior handoff and checking
-   the proof named in `milestone-plan.md`.
+1. Review-fix the current PR only when live review feedback proves a real issue.
+2. Keep worker relaunches exceptional; prefer a local focused fix when the
+   issue is small and already understood on the controller branch.
+3. Re-run the relevant verification before updating PR state or lifecycle docs.
+4. Advance to merge/release only after the PR is accepted and the proof named
+   in `milestone-plan.md` stays current.
+5. Advance to installed CLI/global skill work only after registry publication
+   is proven.
 
 ## Release And Install Rules
 

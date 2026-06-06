@@ -88,7 +88,7 @@ source/selector and metadata/privacy boundaries.
 ## Expected Handoff
 
 Write a compact handoff at the allowed handoff path. Use
-`templates/C1-handoff-template.md` as the structure and include:
+`../templates/C1-handoff-template.md` as the structure and include:
 
 - task_id, thread_id, cwd, branch, commit
 - summary of code/test changes

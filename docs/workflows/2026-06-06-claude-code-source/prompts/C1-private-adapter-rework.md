@@ -58,6 +58,6 @@ Allowed handoff write:
 - `docs/workflows/2026-06-06-claude-code-source/handoffs/C1-private-adapter-rework.md`
 
 Expected final/handoff:
-Use `templates/C1-handoff-template.md`. Summarize code/test changes, how each W1B P1 risk was fixed, public-boundary proof, commands and decisive results, files touched, residual risks/blockers, noise_events, efficiency_notes, and tool_fit. Include enough evidence for the controller to fill every row in `C1-acceptance-checklist.md`.</input>
+Use `../templates/C1-handoff-template.md`. Summarize code/test changes, how each W1B P1 risk was fixed, public-boundary proof, commands and decisive results, files touched, residual risks/blockers, noise_events, efficiency_notes, and tool_fit. Include enough evidence for the controller to fill every row in `C1-acceptance-checklist.md`.</input>
 </codex_delegation>
 ```

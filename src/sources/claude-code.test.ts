@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, test } from "vitest";
 import { existsSync, mkdtempSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join, resolve } from "node:path";
+import { dirname, join, resolve } from "node:path";
 import { syncSessions } from "../indexer";
 import { findSessions } from "../query/find";
 import { getMessagePage } from "../query/read";
@@ -256,6 +256,74 @@ describe("claude-code source adapter", () => {
     expect(JSON.stringify(page)).not.toContain("meta sync text must not leak");
   });
 
+  test("fallback session ids stay unique when different directories share the same file name", async () => {
+    const { root } = writeClaudeFixtureTree("fallback-session-id", [
+      {
+        relativePath: "projects/alpha/conversation.jsonl",
+        lines: [
+          claudeLine({
+            type: "user",
+            cwd: "/tmp/alpha-cwd",
+            timestamp: "2026-06-05T00:00:00.000Z",
+            message: { content: "alpha fallback needle" },
+          }),
+          claudeLine({
+            type: "assistant",
+            cwd: "/tmp/alpha-cwd",
+            timestamp: "2026-06-05T00:00:01.000Z",
+            message: { content: "alpha fallback answer" },
+          }),
+        ],
+      },
+      {
+        relativePath: "projects/beta/conversation.jsonl",
+        lines: [
+          claudeLine({
+            type: "user",
+            cwd: "/tmp/beta-cwd",
+            timestamp: "2026-06-05T00:00:02.000Z",
+            message: { content: "beta fallback needle" },
+          }),
+          claudeLine({
+            type: "assistant",
+            cwd: "/tmp/beta-cwd",
+            timestamp: "2026-06-05T00:00:03.000Z",
+            message: { content: "beta fallback answer" },
+          }),
+        ],
+      },
+    ]);
+    const dbPath = join(root, "index.sqlite");
+
+    const summary = await syncSessions({
+      dbPath,
+      sourceId: "claude-code",
+      selector: { source: "claude-code", kind: "all", root },
+    });
+
+    expect(summary.added).toBe(2);
+    expect(summary.coverage.indexedSessionCount).toBe(2);
+
+    const foundAlpha = findSessions(
+      dbPath,
+      "alpha fallback needle",
+      10,
+      { source: "claude-code", kind: "all", root },
+      { sourceId: "claude-code" },
+    );
+    const foundBeta = findSessions(
+      dbPath,
+      "beta fallback needle",
+      10,
+      { source: "claude-code", kind: "all", root },
+      { sourceId: "claude-code" },
+    );
+
+    expect(foundAlpha.results).toHaveLength(1);
+    expect(foundBeta.results).toHaveLength(1);
+    expect(foundAlpha.results[0]?.sessionUuid).not.toBe(foundBeta.results[0]?.sessionUuid);
+  });
+
   test("keeps current-main Codex adapter as the only public adapter", () => {
     expect(getSessionSourceAdapter().id).toBe("codex");
     expect(listSessionSourceAdapters().filter((adapter) => adapter.public).map((adapter) => adapter.id)).toEqual(["codex"]);
@@ -270,6 +338,23 @@ function writeClaudeFixture(name: string, lines: string[]): { root: string; file
   const filePath = join(root, `${name}.jsonl`);
   writeFileSync(filePath, `${lines.join("\n")}\n`);
   return { root: resolve(root), filePath };
+}
+
+function writeClaudeFixtureTree(
+  name: string,
+  files: Array<{ relativePath: string; lines: string[] }>,
+): { root: string } {
+  const base = mkdtempSync(join(tmpdir(), `cxs-claude-tree-${name}-`));
+  tempDirs.push(base);
+  const root = resolve(base);
+
+  for (const file of files) {
+    const filePath = join(root, file.relativePath);
+    mkdirSync(dirname(filePath), { recursive: true });
+    writeFileSync(filePath, `${file.lines.join("\n")}\n`);
+  }
+
+  return { root };
 }
 
 function claudeLine(record: Record<string, unknown>): string {

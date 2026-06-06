@@ -20,7 +20,8 @@ Boundary:
 - Do not ingest, copy, quote, or commit real Claude transcript content.
 
 Important checkout context:
-- Work on a checkout that includes C1 implementation commit `55c0638bcab28ee431b7ca70f145615e07d25f69` plus D1 docs changes.
+- Work on a checkout that includes the C1 implementation files (for example `src/sources/claude-code.ts`, `src/sources/claude-code-parser.ts`, and `src/sources/registry.ts`) plus the D1 docs changes.
+- Historical reference: the original S1 worker ran after C1 worker commit `55c0638bcab28ee431b7ca70f145615e07d25f69`, but a later checkout does not need that exact commit hash as long as the same implementation and D1 docs are present.
 - If your checkout lacks D1 docs/handoff or C1 files such as `src/sources/claude-code.ts`, stop and report stale checkout.
 - Public CLI source remains `codex` only. `claude-code` remains private/non-public.
 

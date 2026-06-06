@@ -128,8 +128,9 @@ function buildSessionSummary(messages: ParsedMessage[]): string {
 
 function fallbackSessionId(file: SourceFileMeta): string {
   const fileName = basename(file.filePath).replace(/\.jsonl$/i, "");
-  if (fileName) return fileName;
-  return createHash("sha256").update(file.filePath).digest("hex").slice(0, 16);
+  const pathDigest = createHash("sha256").update(file.filePath).digest("hex").slice(0, 12);
+  if (fileName) return `${fileName}-${pathDigest}`;
+  return pathDigest;
 }
 
 function normalizeSummaryText(text: string): string {
