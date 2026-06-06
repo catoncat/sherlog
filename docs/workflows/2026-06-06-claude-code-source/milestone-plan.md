@@ -47,7 +47,7 @@ Exit decision:
 
 ### C1: Private Adapter Rework
 
-Status: `planned-not-launched`
+Status: `reconciled`
 
 Task:
 
@@ -57,6 +57,7 @@ Task:
 Required exit evidence:
 
 - Implementation handoff `handoffs/C1-private-adapter-rework.md`.
+- C1 local commit `55c0638`.
 - W1B P1 fixes proven by focused tests.
 - Public CLI still rejects `claude-code`.
 - Private synthetic-fixture sync/read smoke succeeds without real transcript
@@ -70,9 +71,14 @@ Gate:
 
 ### R2: Post-Rework Review
 
-Status: `blocked-on-C1`
+Status: `launchable`
 
 Mode: `review-session`
+
+Task:
+
+- `tasks/R2-post-rework-review.md`
+- `prompts/R2-post-rework-review.md`
 
 Required exit evidence:
 
@@ -88,7 +94,7 @@ Gate:
 
 ### V1: Verification Gate
 
-Status: `blocked-on-C1-and-R2`
+Status: `blocked-on-R2`
 
 Mode: `evidence-session`
 
@@ -200,7 +206,7 @@ Gate:
 - Do not report local install complete until PATH and installed binary behavior
   are proven.
 
-## Next Launch When Boundary Lifts
+## Next Launch
 
-Launch only C1 first. Do not pre-launch R2/V1/D1/S1/L1/P1/I1; each depends on
-the prior milestone's handoff and evidence.
+Launch R2 next. Do not pre-launch V1/D1/S1/L1/P1/I1; each depends on the prior
+milestone's handoff and evidence.

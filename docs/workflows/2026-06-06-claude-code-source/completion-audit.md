@@ -9,9 +9,10 @@ This audit tracks the full objective:
 > Promote Claude Code support only after adapter strategy, privacy filtering,
 > tests, docs, skill source, release, and installed smoke all pass.
 
-The goal is not complete. Current evidence proves only the source-aware
-foundation and Wave 1 control-plane reconciliation. Product implementation,
-verification, public docs/skill, release, and installed smoke are still pending.
+The goal is not complete. Current evidence proves the source-aware foundation,
+Wave 1 control-plane reconciliation, and C1 private Claude Code adapter rework.
+Independent review, verification, public docs/skill, lifecycle, release, and
+installed smoke are still pending.
 
 ## Evidence Classes
 
@@ -25,17 +26,17 @@ verification, public docs/skill, release, and installed smoke are still pending.
 
 | Requirement | Status | Current Evidence | Missing Evidence / Next Gate |
 | --- | --- | --- | --- |
-| Preserve fixed command surface: `status`, `sync`, `find`, `read-range`, `read-page`, `list`, `stats` | partial | `README.md` and project `AGENTS.md` record this boundary | C1/V1 must prove public CLI behavior remains unchanged |
-| Preserve existing Codex behavior by default | partial | Foundation is already on main; C1 task requires Codex regression proof | C1 implementation proof and V1 Codex regression smoke |
-| Treat source identity as first-class retrieval architecture | partial | Prior source-aware foundation is on main; W1A/W1B inputs and `milestone-plan.md` preserve this direction | C1 must rework Claude adapter onto current source architecture |
+| Preserve fixed command surface: `status`, `sync`, `find`, `read-range`, `read-page`, `list`, `stats` | partial | `README.md` and project `AGENTS.md` record this boundary; C1 public CLI smokes keep `claude-code` rejected | V1 must prove public CLI behavior remains unchanged after integration |
+| Preserve existing Codex behavior by default | partial | Foundation is already on main; C1 focused Codex tests and `npm run check` passed | R2/V1 Codex regression review and smoke |
+| Treat source identity as first-class retrieval architecture | partial | Prior source-aware foundation is on main; C1 commit `55c0638` registers private `claude-code` with source-qualified identity | R2/V1 review of integrated behavior |
 | Do not promote `1a080b1` as-is | proved | `handoffs/controller-wave1-synthesis.md` says do not promote/merge/release/install candidate as-is | None for this decision |
-| Rework private Claude Code adapter from latest main | pending | `tasks/C1-private-adapter-rework.md` and `prompts/C1-private-adapter-rework.md` prepared | Launch C1 after pause lifts; require implementation handoff |
-| Fix selector/source mismatch risk | pending | W1B P1 finding captured; C1 task requires fix | C1 tests and handoff proving mismatch rejection before sync/coverage/prune |
-| Fix skipped-record metadata/privacy risk | pending | W1B P1 findings captured; C1 task requires fix | C1 tests proving skipped/meta/sidechain records cannot set identity, cwd, timestamps, inventory, fingerprints, coverage, or projections |
-| Keep Claude Code private until promotion gate | partial | `operating-rules.md`, `milestone-plan.md`, and C1 prompt all require private/non-public behavior | C1/R2/V1 must verify no public CLI/docs/skill overclaim |
-| Use only synthetic fixtures; no real Claude transcript content | partial | Operating rules and C1 task forbid real transcript content | C1/R2 must inspect changed fixtures and proof |
-| Independent post-rework review | blocked | R2 milestone exists | Blocked on C1 handoff |
-| Verification gate covers actual requirements | blocked | V1 milestone names required proof | Blocked on C1 and R2 |
+| Rework private Claude Code adapter from latest main | proved | C1 commit `55c0638` and `handoffs/C1-private-adapter-rework.md`; checklist all pass | None for C1; still needs R2/V1 before promotion |
+| Fix selector/source mismatch risk | proved | C1 focused test and `src/indexer.ts` / `src/sources/claude-code-inventory.ts` guards reject source mismatch before sync/snapshot/coverage/prune | R2 review should confirm no missed path |
+| Fix skipped-record metadata/privacy risk | proved | C1 parser/inventory/sync-read tests prove meta/sidechain/tool-only sentinels cannot set identity, cwd, timestamps, grouping, fingerprints, coverage input, or projections | R2 review should confirm no missed skipped-record class |
+| Keep Claude Code private until promotion gate | partial | C1 registers `claude-code` as `public: false`; CLI smokes reject public `claude-code`; docs/skill/package were not promoted | R2/V1 and later docs/skill review must verify no overclaim |
+| Use only synthetic fixtures; no real Claude transcript content | partial | C1 tests and smoke use synthetic temp JSONL; controller diff review found no real transcript fixture/content in touched files | R2 independent review must confirm |
+| Independent post-rework review | pending | R2 milestone exists; C1 is reconciled and ready for review | Launch R2 |
+| Verification gate covers actual requirements | blocked | V1 milestone names required proof | Blocked on R2 |
 | Update public docs only after behavior is proven | blocked | D1 milestone is blocked on V1 | Blocked on V1 |
 | Update `skill-packages/cxs` source to match verified CLI behavior | blocked | S1 milestone is blocked on D1 | Blocked on docs and source verification |
 | Commit and Mainline seal scoped verified work | blocked | L1 milestone records required lifecycle proof | Blocked on source/skill verification and current user pause |
@@ -46,13 +47,13 @@ verification, public docs/skill, release, and installed smoke are still pending.
 ## Current Authoritative State
 
 - Current controller branch: `codex/claude-code-source-controller`.
-- Current workflow status: Wave 1 reconciled; paused before next worker.
-- Next launch after pause lifts: C1 only.
-- C1 is not launched.
-- No worker after W1 has been launched.
-- No product code has been changed by this controller after the pause.
-- No commit, Mainline append/seal, push, release, install, or global skill
-  update has occurred after the pause.
+- Current workflow status: C1 reconciled; R2 review next.
+- C1 worker thread: `019e9c11-bf21-7921-8128-9123ef439c61`.
+- C1 worktree: `/Users/envvar/.codex/worktrees/35c5/cxs`.
+- C1 commit: `55c0638`.
+- Product implementation exists only on the C1 worker branch; controller copied
+  the handoff into the control plane but did not edit product code.
+- No push, PR, release, install, or global skill update has occurred.
 
 ## Completion Rule
 
@@ -63,6 +64,6 @@ own proof when they are in scope.
 
 ## Next Evidence To Collect
 
-When the user lifts the pause, launch C1 and require its handoff to update this
-audit. The controller should then reclassify the affected rows before deciding
-whether R2 can launch.
+Launch R2 post-rework review against C1 commit `55c0638`. If R2 finds no P1
+blocker, run V1 verification before touching public docs, skill source,
+lifecycle, release, or installed state.

@@ -16,20 +16,22 @@ tests, project docs, and Mainline evidence.
   install work belongs to bounded worker sessions after the current pause is
   lifted.
 
-## Current Pause
+## Current Boundary
 
-The latest user correction is the active stop line:
+The latest active goal continuation has lifted the old pre-C1 pause. Current
+boundary:
 
-- Do not start new replacement workers.
-- Do not launch C1 or any later worker yet.
+- Do not start replacement workers for already reconciled W1/C1 work.
+- C1 is complete and reconciled; do not relaunch it.
+- R2 post-rework review may be launched against C1 commit `55c0638`.
 - Do not commit, Mainline append/seal, push, PR, release, install, or update
-  global skills.
+  global skills unless the specific lifecycle gate is reached and authorized.
 - Control-plane edits are allowed when they clarify state, reduce future
-  coordination risk, or prepare a launch packet without launching it.
+  coordination risk, prepare a launch packet, or reconcile worker handoffs.
 
-If an automatic Goal continuation arrives, it does not override this pause. The
-controller may keep preparing control-plane artifacts, but lifecycle advancement
-requires the user to lift the pause explicitly.
+Do not treat an automatic Goal continuation as full release authorization. It
+does authorize concrete progress through the next evidence gate when the prior
+gate is proven.
 
 ## Evidence Rules
 
@@ -57,13 +59,12 @@ requires the user to lift the pause explicitly.
 
 ## Launch Rules
 
-When the user lifts the pause:
+Current launch sequence:
 
-1. Launch only `C1-private-adapter-rework` first.
-2. Use `prompts/C1-private-adapter-rework.md` as the worker starter.
-3. Require a compact handoff at
-   `handoffs/C1-private-adapter-rework.md`.
-4. Do not pre-launch R2, V1, docs, skill, release, or install workers.
+1. C1 is already reconciled at `55c0638`; do not relaunch it.
+2. Launch `R2-post-rework-review` next.
+3. Require a compact handoff at `handoffs/R2-post-rework-review.md`.
+4. Do not pre-launch V1, docs, skill, release, or install workers.
 5. Advance later milestones only after reading the prior handoff and checking
    the proof named in `milestone-plan.md`.
 

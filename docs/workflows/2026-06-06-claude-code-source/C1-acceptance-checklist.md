@@ -1,6 +1,6 @@
 # C1 Acceptance Checklist
 
-status: `planned`
+status: `reconciled-pass`
 
 Use this checklist when the pause is lifted, C1 has run, and the controller is
 reconciling `handoffs/C1-private-adapter-rework.md`. It is not a worker launch
@@ -37,21 +37,21 @@ Mark each item `pass`, `fail`, or `unknown` while reconciling C1.
 
 | Item | Expected Evidence | Result |
 | --- | --- | --- |
-| Worktree identity recorded | `pwd`, repo root, branch/detached, HEAD, `git status --short` in handoff | pending |
-| Latest-main basis confirmed | C1 states whether it started from `b82d052e8af9d0460cf73f82e587d84b969500b9` or explains rebase/cherry-pick basis | pending |
-| Selector/source mismatch fixed | focused test and code summary show mismatch rejected before Claude inventory/snapshot/sync/coverage/count/prune | pending |
-| Parser skipped-record metadata fixed | focused test shows skipped/meta/sidechain-first records cannot set session identity, `cwd`, timestamps, or read projections | pending |
-| Inventory skipped-record metadata fixed | focused test shows skipped/meta/sidechain records cannot set inventory grouping, fingerprints, or coverage freshness | pending |
-| Search/read privacy fixed | synthetic sentinel strings from skipped records absent from searchable/read projections | pending |
-| Public CLI rejection preserved | CLI smoke and tests show `--source claude-code` rejected | pending |
-| Public selector rejection preserved | CLI smoke and tests show selector JSON requesting `claude-code` rejected | pending |
-| Codex default behavior preserved | focused regression test or smoke for default Codex path | pending |
-| Current-main drift avoided | C1 identifies preservation of parser truncation and snippet/format fixes | pending |
-| Synthetic fixture only | C1 describes fixture source and confirms no real transcript content | pending |
-| Timeout changes justified | C1 explains no timeout changes or gives evidence for scoped changes | pending |
-| `npm run check` passed | command and decisive result in handoff | pending |
-| `git diff --check` passed | command and decisive result in handoff | pending |
-| Final dirty scope known | final `git status --short` in handoff | pending |
+| Worktree identity recorded | `pwd`, repo root, branch/detached, HEAD, `git status --short` in handoff | pass: handoff records `/Users/envvar/.codex/worktrees/35c5/cxs`, branch `codex/claude-code-source-C1`, pre-commit HEAD `bfdefa8`, and scoped dirty files; controller readback sees commit `55c0638`. |
+| Latest-main basis confirmed | C1 states whether it started from `b82d052e8af9d0460cf73f82e587d84b969500b9` or explains rebase/cherry-pick basis | pass: handoff records `git merge-base --is-ancestor b82d052e8af9d0460cf73f82e587d84b969500b9 HEAD` returned 0. |
+| Selector/source mismatch fixed | focused test and code summary show mismatch rejected before Claude inventory/snapshot/sync/coverage/count/prune | pass: `src/indexer.ts` guard and `src/sources/claude-code-inventory.ts` guard are covered by focused mismatch test. |
+| Parser skipped-record metadata fixed | focused test shows skipped/meta/sidechain-first records cannot set session identity, `cwd`, timestamps, or read projections | pass: parser test uses meta/sidechain sentinel IDs, cwd, timestamps, and text and verifies they are absent. |
+| Inventory skipped-record metadata fixed | focused test shows skipped/meta/sidechain records cannot set inventory grouping, fingerprints, or coverage freshness | pass: inventory test verifies accepted-only cwd/date/snapshot metadata and skipped-only cwd gets zero files. |
+| Search/read privacy fixed | synthetic sentinel strings from skipped records absent from searchable/read projections | pass: private sync/read test and smoke verify skipped sentinel strings are absent from find/read projections. |
+| Public CLI rejection preserved | CLI smoke and tests show `--source claude-code` rejected | pass: `npm run cxs -- status --source claude-code --json` exited 1 with `unsupported_source`. |
+| Public selector rejection preserved | CLI smoke and tests show selector JSON requesting `claude-code` rejected | pass: `npm run cxs -- sync --selector '{"source":"claude-code",...}' --json` exited 1 with `unsupported_source`. |
+| Codex default behavior preserved | focused regression test or smoke for default Codex path | pass: focused `src/sources/codex.test.ts` / `src/cli.test.ts` and full `npm run check` passed; public adapters remain exactly `["codex"]`. |
+| Current-main drift avoided | C1 identifies preservation of parser truncation and snippet/format fixes | pass: handoff states `src/sources/codex-parser.ts`, `src/format.ts`, and `src/query/snippet.ts` were untouched; controller diff review confirmed. |
+| Synthetic fixture only | C1 describes fixture source and confirms no real transcript content | pass: tests and smoke create temp synthetic JSONL under `/tmp`; no real transcript fixture/content appears in touched files. |
+| Timeout changes justified | C1 explains no timeout changes or gives evidence for scoped changes | pass: no timeout changes were replayed from `1a080b1`. |
+| `npm run check` passed | command and decisive result in handoff | pass: handoff records exit 0, 28 test files and 178 tests passed. |
+| `git diff --check` passed | command and decisive result in handoff | pass: handoff records exit 0 with no output. |
+| Final dirty scope known | final `git status --short` in handoff | pass: worker committed local implementation as `55c0638`; controller readback shows clean C1 worktree after commit. |
 
 ## Controller Decision
 
@@ -66,3 +66,12 @@ After filling the table:
   before deciding.
 
 Do not treat C1 as full-goal completion. Even a passing C1 only unlocks R2.
+
+## Controller Reconciliation
+
+- decision: C1 accepted for the private-adapter rework gate.
+- accepted_commit: `55c0638`
+- accepted_handoff: `handoffs/C1-private-adapter-rework.md`
+- next_gate: R2 post-rework review.
+- full_goal_status: incomplete; docs, skill source, lifecycle, release, install,
+  and global skill state are not proven.

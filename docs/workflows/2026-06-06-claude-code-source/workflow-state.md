@@ -3,7 +3,7 @@
 ## Snapshot
 
 - Updated: 2026-06-06
-- Status: C1 launching
+- Status: C1 reconciled; R2 review next
 - Controller thread: `019e9b54-7344-7a51-86a8-db3d2e3db02b`
 - Controller worktree: `/Users/envvar/.codex/worktrees/4b9e/cxs`
 - Controller branch: `codex/claude-code-source-controller`
@@ -65,6 +65,19 @@ Active C1 launch:
 - Boundary: C1 may implement and verify private adapter rework; no push, PR,
   release, install, or global skill update.
 
+Controller reconciliation after C1:
+
+- C1 committed local implementation `55c0638` on branch
+  `codex/claude-code-source-C1`.
+- C1 handoff was copied into the canonical controller control plane at
+  `handoffs/C1-private-adapter-rework.md`.
+- `C1-acceptance-checklist.md` is all pass based on the worker handoff, local
+  commit readback, and controller diff review.
+- No public docs, public skill source, package metadata, release, install, push,
+  or PR action occurred.
+- Next gate is R2 post-rework review. V1 verification may run only after R2
+  does not find unresolved P1 blockers.
+
 Current correction after user clarification:
 
 - Do not launch new replacement workers.
@@ -120,3 +133,6 @@ Current correction after user clarification:
 - 2026-06-06: Resolved C1 as thread
   `019e9c11-bf21-7921-8128-9123ef439c61` in worktree
   `/Users/envvar/.codex/worktrees/35c5/cxs`.
+- 2026-06-06: C1 committed local implementation `55c0638` and produced
+  `handoffs/C1-private-adapter-rework.md`; controller copied the handoff,
+  reviewed the C1 diff/readback, and marked C1 reconciled in the checklist.
