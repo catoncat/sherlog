@@ -170,7 +170,7 @@ Required exit evidence:
 
 ### L1: Lifecycle Commit And Mainline Seal
 
-Status: `committed-pending-seal`
+Status: `sealed`
 
 Mode: `commit-seal-prep`
 
@@ -180,7 +180,8 @@ Required exit evidence:
 - Focused verification rerun after final source/skill/doc changes.
 - Scoped L1 commit integrating C1 implementation, D1 docs, S1 skill source,
   and controller handoffs.
-- Mainline seal prepared/submitted with conflicts surfaced if any.
+- Mainline seal prepared/submitted with no conflicts returned.
+- `mainline lint int_c0ac32dc --json` passed.
 
 Gate:
 
@@ -188,12 +189,15 @@ Gate:
 
 ### P1: Push, Release, And Registry Verification
 
-Status: `blocked-on-L1`
+Status: `release-prep-committed`
 
 Mode: `release-session`
 
 Required exit evidence:
 
+- Package version bumped from `0.3.4` to `0.3.5`.
+- Release-prep verification: `npm run check`, `npm run build`, and
+  `npm pack --dry-run`.
 - Push main or release branch according to repo process.
 - Tag or release workflow evidence.
 - GitHub Actions readback.
@@ -203,6 +207,8 @@ Gate:
 
 - Do not call source checkout behavior "released" until registry readback proves
   it.
+- Do not tag, merge, or publish from this branch until review/PR state is
+  explicit and green.
 
 ### I1: Local Install And Installed Smoke
 
@@ -228,5 +234,6 @@ Gate:
 
 ## Next Launch
 
-Finish L1 seal/lint next. Do not pre-launch P1/I1; each depends on the prior
-milestone's handoff and evidence.
+Seal release-prep next, then push the branch and open a draft PR. Do not merge,
+tag, publish to npm, update PATH `cxs`, or update the global skill until the
+review and release gates provide evidence.

@@ -3,7 +3,7 @@
 ## Snapshot
 
 - Updated: 2026-06-06
-- Status: L1 committed; Mainline seal/lint next
+- Status: release-prep committed; seal and draft PR next
 - Controller thread: `019e9b54-7344-7a51-86a8-db3d2e3db02b`
 - Controller worktree: `/Users/envvar/.codex/worktrees/4b9e/cxs`
 - Controller branch: `codex/claude-code-source-controller`
@@ -183,7 +183,26 @@ L1 lifecycle integration:
   per-test timeout; the exact timed-out test passed when run alone in 2.62s,
   and the full `npm run check` passed.
 - Local L1 commit `feat(sources): 集成 Claude 私有适配器` was created.
-- Next step is Mainline seal/lint for L1. No push, PR, release, npm publish,
+- Mainline seal submit for `int_c0ac32dc` succeeded with code commit
+  `169d3434e179e30ddc2c8c2de25a7c39e9febf75`; no conflicts were returned.
+- `mainline lint int_c0ac32dc --json` passed.
+- No push, PR, release, npm publish, installed CLI update, or global skill
+  update occurred during L1.
+
+P1 release-prep:
+
+- Started Mainline intent `int_c9461f18` for `准备 cxs 0.3.5 release PR`.
+- Registry readback before release: `npm view @act0r/cxs version --json`
+  returned `0.3.4`.
+- `package.json` and `package-lock.json` were bumped to `0.3.5` with
+  `npm version 0.3.5 --no-git-tag-version`; no tag was created.
+- Release-prep verification passed: `npm run check` (28 test files / 178
+  tests), `npm run build`, and `npm pack --dry-run`.
+- `npm pack --dry-run` reported package `@act0r/cxs@0.3.5`, tarball
+  `act0r-cxs-0.3.5.tgz`, and contents `LICENSE`, `README.md`, `dist/cli.js`,
+  and `package.json`.
+- Local commit `chore(release): bump 0.3.5` was created. Seal, push, and draft
+  PR are next. No merge, tag, GitHub Actions publish, npm registry update,
   installed CLI update, or global skill update has occurred.
 
 Current correction after user clarification:
@@ -276,3 +295,8 @@ Current correction after user clarification:
 - 2026-06-06: Integrated C1 implementation, D1 docs, S1 skill source, and
   controller handoffs; verified the combined checkout and created local commit
   `feat(sources): 集成 Claude 私有适配器`. Mainline seal/lint remains next.
+- 2026-06-06: Submitted Mainline seal for `int_c0ac32dc`; lint passed. Started
+  release-prep intent `int_c9461f18`, bumped package metadata to `0.3.5`, ran
+  `npm run check`, `npm run build`, and `npm pack --dry-run`, then created local
+  release-prep commit `chore(release): bump 0.3.5`. Push/PR/release/install are
+  still pending.

@@ -13,8 +13,10 @@ The goal is not complete. Current evidence proves the source-aware foundation,
 Wave 1 control-plane reconciliation, C1 private Claude Code adapter rework, R2
 independent post-rework review, V1 current-checkout verification, D1 public
 docs/contract alignment, and S1 distributable skill-source alignment.
-L1 lifecycle has a scoped local commit and is pending Mainline seal/lint.
-Release and installed smoke are still pending.
+L1 lifecycle has a scoped local commit and Mainline seal/lint proof. P1
+release-prep has bumped the package version to `0.3.5` and passed local
+release checks, but no push/PR merge/tag/GitHub Actions publish/registry
+update has completed. Installed smoke is still pending.
 
 ## Evidence Classes
 
@@ -41,15 +43,15 @@ Release and installed smoke are still pending.
 | Verification gate covers actual requirements | proved | V1 handoff `handoffs/V1-verification.md` covers `npm run check`, CLI help/status/rejection, Codex synthetic smoke, private Claude synthetic smoke, timeout grep, and final status | None for V1 |
 | Update public docs only after behavior is proven | proved | D1 handoff `handoffs/D1-docs-contract-update.md` records docs-only updates after V1, CLI help/readbacks, unsupported-source smoke, and `git diff --check` | None for D1; skill source remains separate |
 | Update `skill-packages/cxs` source to match verified CLI behavior | proved | S1 handoff `handoffs/S1-skill-source-update.md` records skill source diff, `npx skills ls -g --json`, CLI help/readback, unsupported-source smoke, and `git diff --check`; wording keeps public source Codex-only and `claude-code` private/non-public | None for source-layer skill text; global installed skill remains separate |
-| Commit and Mainline seal scoped verified work | partial | Local L1 commit integrates C1 implementation, D1 docs, S1 skill source, and controller handoffs after `npm run check`, CLI help/readback, unsupported-source smokes, `npx skills ls -g --json`, and diff checks passed | Finish Mainline seal submit and lint; surface conflicts if any |
-| Push/release through real registry workflow | blocked | P1 milestone records registry evidence requirement | Blocked on lifecycle gate and current user pause |
+| Commit and Mainline seal scoped verified work | proved | Local L1 commit `169d343` integrates C1 implementation, D1 docs, S1 skill source, and controller handoffs after `npm run check`, CLI help/readback, unsupported-source smokes, `npx skills ls -g --json`, and diff checks passed; `mainline seal --submit` published `int_c0ac32dc`; `mainline lint int_c0ac32dc --json` passed | None for L1 |
+| Push/release through real registry workflow | partial | `package.json` and `package-lock.json` are bumped to `0.3.5`; registry readback before release is `0.3.4`; `npm run check`, `npm run build`, and `npm pack --dry-run` passed for `@act0r/cxs@0.3.5` | Seal release-prep, push branch, open PR, merge only after review/checks, push `v0.3.5` tag or release workflow, verify GitHub Actions and `npm view @act0r/cxs version` |
 | Verify local installed CLI from PATH | blocked | I1 milestone records `command -v`, `which -a`, `cxs --version`, and `cxs status --json` requirements | Blocked on registry release |
 | Update global skill from published source path if needed | blocked | I1 milestone forbids dirty checkout/symlink updates | Blocked on release and skill source verification |
 
 ## Current Authoritative State
 
 - Current controller branch: `codex/claude-code-source-controller`.
-- Current workflow status: L1 committed; Mainline seal/lint next.
+- Current workflow status: release-prep committed; seal and draft PR next.
 - C1 worker thread: `019e9c11-bf21-7921-8128-9123ef439c61`.
 - C1 worktree: `/Users/envvar/.codex/worktrees/35c5/cxs`.
 - C1 commit: `55c0638`.
@@ -73,5 +75,5 @@ own proof when they are in scope.
 
 ## Next Evidence To Collect
 
-Finish L1 Mainline seal submit and lint for the current L1 HEAD. Release and
-installed state remain gated.
+Seal the `0.3.5` release-prep intent, push the branch, and open a draft PR.
+Release publication and installed state remain gated.
