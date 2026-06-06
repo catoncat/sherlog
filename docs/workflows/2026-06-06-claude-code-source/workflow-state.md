@@ -3,12 +3,12 @@
 ## Snapshot
 
 - Updated: 2026-06-06
-- Status: draft PR #51 open with CI green; release/install pending
+- Status: PR #51 merged; `v0.3.5` released to npm; PATH CLI and global skill updated
 - Controller thread: `019e9b54-7344-7a51-86a8-db3d2e3db02b`
 - Controller worktree: `/Users/envvar/.codex/worktrees/4b9e/cxs`
 - Controller branch: `codex/claude-code-source-controller`
 - Mainline intent: `int_c0ac32dc`
-- Current main HEAD: `b82d052e8af9d0460cf73f82e587d84b969500b9`
+- Current main HEAD: `bcc43dd9f1e6caf0774dbb45867294db56ad38ad`
 - Private adapter candidate: `1a080b1abf8e75dd9ecba607af4dca7c7141b3fb`
 - Private adapter intent: `int_b6b9939a`
 
@@ -189,7 +189,7 @@ L1 lifecycle integration:
 - No push, PR, release, npm publish, installed CLI update, or global skill
   update occurred during L1.
 
-P1 release-prep:
+P1 release closeout:
 
 - Started Mainline intent `int_c9461f18` for `准备 cxs 0.3.5 release PR`.
 - Registry readback before release: `npm view @act0r/cxs version --json`
@@ -224,13 +224,29 @@ P1 release-prep:
   run `27061046513`, workflow `ci`, event `pull_request`, head SHA
   `209b2e85c2be8139888af9d509150b28b199ab27`, status `completed`,
   conclusion `success`, URL `https://github.com/catoncat/cxs/actions/runs/27061046513`.
-- Registry and install readback after PR creation still show old published
-  state: `npm view @act0r/cxs version --json` returned `"0.3.4"`;
-  `command -v cxs` returned `/Users/envvar/Library/pnpm/bin/cxs`;
-  `which -a cxs` returned `/Users/envvar/Library/pnpm/bin/cxs` and
-  `/Users/envvar/Library/pnpm/cxs`; PATH `cxs --version` returned `0.3.4`.
-- No PR merge, tag, GitHub Actions release/publish, npm registry update,
-  installed CLI update, or global skill update has occurred.
+- PR #51 was marked ready, latest review-fix head `f64ffc3` passed workflow
+  `ci` run `27062651358` and Cubic re-review.
+- PR #51 merged into `main` at `2026-06-06T13:18:30Z` with squash commit
+  `bcc43dd9f1e6caf0774dbb45867294db56ad38ad`.
+- Release tag `v0.3.5` was pushed on top of `bcc43dd`; GitHub Actions release
+  workflow run `27063398021` completed successfully and job
+  `publish npm package` published to npm.
+- Registry readback after publish: `npm view @act0r/cxs version --json`
+  returned `"0.3.5"`.
+- PATH install was updated from the published registry package with
+  `pnpm add -g @act0r/cxs@0.3.5`.
+- Installed smoke after a local native rebuild fix:
+  `command -v cxs` -> `/Users/envvar/Library/pnpm/bin/cxs`;
+  `which -a cxs` -> `/Users/envvar/Library/pnpm/bin/cxs`,
+  `/Users/envvar/Library/pnpm/cxs`;
+  `cxs --version` -> `0.3.5`;
+  `cxs status --json` passed;
+  `cxs list --cwd /Users/envvar/.codex/worktrees/4b9e/cxs --limit 3 --json`
+  passed.
+- Global skill was updated from published GitHub source with
+  `npx skills add catoncat/cxs --full-depth --skill cxs -g -a codex -y`;
+  `npx skills ls -g --json` readback shows `cxs` at
+  `/Users/envvar/.agents/skills/cxs`.
 
 Current correction after user clarification:
 
@@ -243,9 +259,15 @@ Current correction after user clarification:
 
 ## Stop Lines
 
+- This workflow no longer has an internal stop line for pending milestones; all
+  planned gates through release/install closeout have passed.
+- Do not treat this file as authorization for a new public-promotion or
+  adapter-expansion slice. Start a new workflow for subsequent work.
+
 - Stop for missing credentials/auth, unavailable external systems, destructive data loss risk, secret exposure risk, or unresolvable semantic conflict.
 - Stop before indexing real Claude transcript content into committed fixtures or durable artifacts.
-- Do not merge/release/install unless the relevant worker proof and release gates pass.
+- Merge/release/install gate has passed for `0.3.5`; future changes must gather
+  fresh release/install proof again.
 
 ## State Log
 
