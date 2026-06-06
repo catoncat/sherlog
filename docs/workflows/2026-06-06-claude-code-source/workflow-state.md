@@ -54,3 +54,5 @@ Required controller synthesis after Wave 1:
 - 2026-06-06: Requested W1A and W1B worker sessions; launcher returned pending worktree ids.
 - 2026-06-06: Resolved W1B thread `019e9b58-31fd-7b00-9c7d-c6085e9cf25c` in `/Users/envvar/.codex/worktrees/eaa1/cxs`; it launched from `783e17a`, which has task files but not the later pending-registry update.
 - 2026-06-06: Original W1A pending thread did not appear in thread search; launched replacement W1A with pending id `local:486ec5a5-236c-4984-9749-1df16d8aaccf`.
+- 2026-06-06: Resolved replacement W1A thread `019e9b59-30ed-7862-b092-90c487543e73` in `/Users/envvar/.codex/worktrees/2034/cxs`.
+- 2026-06-06: Original W1A thread `019e9b57-e526-77c3-9499-540c926668e0` appeared after replacement launch; controller sent a stop/superseded message to avoid duplicate handoff writes.
