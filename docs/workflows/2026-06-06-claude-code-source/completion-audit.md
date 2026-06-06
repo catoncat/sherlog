@@ -1,6 +1,6 @@
 # Completion Audit
 
-status: `incomplete`
+status: `complete`
 
 This audit tracks the full objective:
 
@@ -9,15 +9,12 @@ This audit tracks the full objective:
 > Promote Claude Code support only after adapter strategy, privacy filtering,
 > tests, docs, skill source, release, and installed smoke all pass.
 
-The goal is not complete. Current evidence proves the source-aware foundation,
-Wave 1 control-plane reconciliation, C1 private Claude Code adapter rework, R2
+The goal is complete. Current evidence proves the source-aware foundation, Wave
+1 control-plane reconciliation, C1 private Claude Code adapter rework, R2
 independent post-rework review, V1 current-checkout verification, D1 public
-docs/contract alignment, and S1 distributable skill-source alignment.
-L1 lifecycle has a scoped local commit and Mainline seal/lint proof. P1
-release-prep has bumped the package version to `0.3.5`, passed local release
-checks, pushed the branch, opened draft PR #51, and PR CI is green. No PR merge,
-tag, GitHub Actions publish, npm registry update, installed CLI update, or
-global skill update has completed. Installed smoke is still pending.
+docs/contract alignment, S1 distributable skill-source alignment, L1 lifecycle
+seal, PR merge, GitHub Actions release publication, npm registry publication,
+PATH CLI update, installed smoke, and global skill update.
 
 ## Evidence Classes
 
@@ -45,14 +42,14 @@ global skill update has completed. Installed smoke is still pending.
 | Update public docs only after behavior is proven | proved | D1 handoff `handoffs/D1-docs-contract-update.md` records docs-only updates after V1, CLI help/readbacks, unsupported-source smoke, and `git diff --check` | None for D1; skill source remains separate |
 | Update `skill-packages/cxs` source to match verified CLI behavior | proved | S1 handoff `handoffs/S1-skill-source-update.md` records skill source diff, `npx skills ls -g --json`, CLI help/readback, unsupported-source smoke, and `git diff --check`; wording keeps public source Codex-only and `claude-code` private/non-public | None for source-layer skill text; global installed skill remains separate |
 | Commit and Mainline seal scoped verified work | proved | Local L1 commit `169d343` integrates C1 implementation, D1 docs, S1 skill source, and controller handoffs after `npm run check`, CLI help/readback, unsupported-source smokes, `npx skills ls -g --json`, and diff checks passed; `mainline seal --submit` published `int_c0ac32dc`; `mainline lint int_c0ac32dc --json` passed | None for L1 |
-| Push/release through real registry workflow | partial | `package.json` and `package-lock.json` are bumped to `0.3.5`; registry readback before release is `0.3.4`; `npm run check`, `npm run build`, and `npm pack --dry-run` passed for `@act0r/cxs@0.3.5`; `int_c9461f18` seal/lint passed; branch pushed; PR #51 is `OPEN`, `isDraft=true`, `mergeStateStatus=CLEAN`, has no reviews, and CI run `27061046513` workflow `ci` job `test` succeeded | PR #51 still needs review/merge; then push `v0.3.5` tag or trigger release workflow, verify GitHub Actions and `npm view @act0r/cxs version` |
-| Verify local installed CLI from PATH | blocked | `command -v cxs` currently resolves `/Users/envvar/Library/pnpm/bin/cxs`; `which -a cxs` also shows `/Users/envvar/Library/pnpm/cxs`; `cxs --version` is still `0.3.4` | Blocked on registry release |
-| Update global skill from published source path if needed | blocked | I1 milestone forbids dirty checkout/symlink updates | Blocked on release and skill source verification |
+| Push/release through real registry workflow | proved | PR #51 merged at `2026-06-06T13:18:30Z` with squash commit `bcc43dd9f1e6caf0774dbb45867294db56ad38ad`; tag `v0.3.5` pushed; GitHub Actions release workflow run `27063398021` and job `publish npm package` succeeded; `npm view @act0r/cxs version` returned `0.3.5` | None |
+| Verify local installed CLI from PATH | proved | `command -v cxs` -> `/Users/envvar/Library/pnpm/bin/cxs`; `which -a cxs` -> `/Users/envvar/Library/pnpm/bin/cxs`, `/Users/envvar/Library/pnpm/cxs`; `cxs --version` -> `0.3.5`; after rebuilding the linked `better-sqlite3` native addon, `cxs status --json` and `cxs list --cwd /Users/envvar/.codex/worktrees/4b9e/cxs --limit 3 --json` both passed | None |
+| Update global skill from published source path if needed | proved | `npx skills add catoncat/cxs --full-depth --skill cxs -g -a codex -y` completed; `npx skills ls -g --json` shows `cxs` installed at `/Users/envvar/.agents/skills/cxs` | None |
 
 ## Current Authoritative State
 
-- Current controller branch: `codex/claude-code-source-controller`.
-- Current workflow status: draft PR #51 open with CI green; release/install pending.
+- Current release head on `main`: `bcc43dd9f1e6caf0774dbb45867294db56ad38ad`.
+- Current workflow status: PR merged, npm `0.3.5` published, PATH CLI and global skill updated.
 - C1 worker thread: `019e9c11-bf21-7921-8128-9123ef439c61`.
 - C1 worktree: `/Users/envvar/.codex/worktrees/35c5/cxs`.
 - C1 commit: `55c0638`.
@@ -62,23 +59,17 @@ global skill update has completed. Installed smoke is still pending.
 - V1 verification handoff: `handoffs/V1-verification.md`.
 - D1 docs handoff: `handoffs/D1-docs-contract-update.md`.
 - S1 skill handoff: `handoffs/S1-skill-source-update.md`.
-- Product implementation, docs, skill source, workflow artifacts, and version
-  bump are integrated on branch `codex/claude-code-source-controller`.
-- Draft PR #51 is open: `https://github.com/catoncat/cxs/pull/51`.
-- PR #51 is still a draft/open PR; CI run `27061046513` `test` succeeded and
-  merge state is `CLEAN`.
-- No PR merge, tag, GitHub Actions release/publish, npm registry update,
-  installed CLI update, or global skill update has occurred.
+- Product implementation, docs, skill source, workflow artifacts, merge,
+  release, PATH install, and global skill update are complete.
+- PR #51 merged: `https://github.com/catoncat/cxs/pull/51`.
+- Release workflow run `27063398021` published npm `0.3.5`.
+- PATH `cxs` resolves to the published `0.3.5` CLI and installed smoke passes.
+- Global skill source is updated at `/Users/envvar/.agents/skills/cxs`.
 
 ## Completion Rule
 
-Do not mark the Goal complete until every row in the requirements matrix is
-`proved` with current evidence. Passing `npm run check` alone is insufficient:
-release, registry, local PATH install, and global skill state each need their
-own proof when they are in scope.
+Every row in the requirements matrix is now `proved` with current evidence.
 
 ## Next Evidence To Collect
 
-Review/merge PR #51 if accepted, then trigger the real release path with
-`v0.3.5` and verify GitHub Actions plus `npm view @act0r/cxs version`.
-Release publication and installed state remain gated.
+No remaining completion evidence is missing for this workflow.

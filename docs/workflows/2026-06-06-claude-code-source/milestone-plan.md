@@ -1,21 +1,21 @@
 # Milestone Plan
 
-status: `planned`
+status: `completed`
 
 This plan is the controller gate map for moving from source-aware foundation to
-public-ready Claude Code support. It records required sequence and evidence; it
-does not mark any future milestone launched or complete.
+public-ready Claude Code support. It records the required sequence and the
+completion evidence now collected for this workflow.
 
 ## Boundary
 
-- Current user boundary pauses orchestration expansion: no new workers, commit,
-  seal, push, release, install, or global skill update.
-- Until that boundary is lifted, only controller-owned workflow artifacts may
-  change.
-- `claude-code` remains private/non-public until the public-promotion gate
-  explicitly passes.
+- This workflow has already crossed the commit, seal, push, merge, release,
+  install, and global skill update gates recorded below.
+- `claude-code` still remains private/non-public in the released CLI; public
+  CLI support continues to expose only `codex`.
 - Real Claude transcript content must not be committed or copied into durable
   workflow artifacts.
+- Future adapter expansion or public promotion requires a new workflow, not an
+  implicit continuation of this closeout record.
 
 ## Layers
 
@@ -189,7 +189,7 @@ Gate:
 
 ### P1: Push, Release, And Registry Verification
 
-Status: `draft-pr-open-ci-green`
+Status: `completed`
 
 Mode: `release-session`
 
@@ -199,14 +199,13 @@ Required exit evidence:
 - Release-prep verification: `npm run check`, `npm run build`, and
   `npm pack --dry-run`.
 - Branch pushed: `origin/codex/claude-code-source-controller`.
-- Draft PR #51 opened against `main`: `https://github.com/catoncat/cxs/pull/51`.
-- PR CI readback: workflow `ci`, run `27061046513`, job `test`, conclusion
-  `SUCCESS`.
-- Current PR readback: `state=OPEN`, `isDraft=true`,
-  `mergeStateStatus=CLEAN`, `reviewDecision=""`, and `latestReviews=[]`.
-- Still required before registry publication: merge PR, push `v0.3.5` tag or
-  otherwise trigger release workflow, then read back GitHub Actions publish.
-- `npm view @act0r/cxs version` proves registry publication.
+- PR #51 merged into `main` with squash commit
+  `bcc43dd9f1e6caf0774dbb45867294db56ad38ad`.
+- Latest PR branch CI readback before merge: workflow `ci`, run `27062651358`,
+  job `test`, conclusion `SUCCESS`; Cubic re-review run also `SUCCESS`.
+- Release tag `v0.3.5` pushed and GitHub Actions release workflow run
+  `27063398021` completed successfully.
+- `npm view @act0r/cxs version` returned `0.3.5`.
 
 Gate:
 
@@ -217,7 +216,7 @@ Gate:
 
 ### I1: Local Install And Installed Smoke
 
-Status: `blocked-on-P1`
+Status: `completed`
 
 Mode: `evidence-session`
 
@@ -237,9 +236,21 @@ Gate:
 - Do not report local install complete until PATH and installed binary behavior
   are proven.
 
+Installed exit evidence:
+
+- `command -v cxs` -> `/Users/envvar/Library/pnpm/bin/cxs`
+- `which -a cxs` -> `/Users/envvar/Library/pnpm/bin/cxs`,
+  `/Users/envvar/Library/pnpm/cxs`
+- `cxs --version` -> `0.3.5`
+- `cxs status --json` passed
+- `cxs list --cwd /Users/envvar/.codex/worktrees/4b9e/cxs --limit 3 --json`
+  passed
+- `npx skills add catoncat/cxs --full-depth --skill cxs -g -a codex -y`
+  updated the global skill and `npx skills ls -g --json` shows path
+  `/Users/envvar/.agents/skills/cxs`
+
 ## Next Launch
 
-Next gate is a human release decision: review/merge PR #51, then create or push
-`v0.3.5` according to the repository release workflow. Do not call the release
-complete until GitHub Actions and `npm view @act0r/cxs version` prove registry
-publication; do not update PATH `cxs` or the global skill until after that.
+This workflow is complete. Future work should start a new workflow only if
+there is a new public-promotion, post-release bugfix, or further adapter-scope
+change to pursue.
