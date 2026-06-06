@@ -22,8 +22,9 @@ Current gate:
 
 - Do not relaunch W1, C1, R2, V1, D1, or S1. Those slices are already
   reconciled into the controller branch.
-- PR #51 is open and ready for review. `test` and Cubic checks are green, but
-  review comments still need technical evaluation before merge/release.
+- PR #51 is open and ready for review. The GitHub `test` check is green and
+  Cubic's automated review run completed successfully, but review comments still
+  need technical evaluation before merge/release.
 - Do not merge, tag, publish, install, or update global skills until the PR is
   accepted and the later release/install gates collect fresh evidence.
 - Focus follow-up work on review feedback, proof drift, and control-plane

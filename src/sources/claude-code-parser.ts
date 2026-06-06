@@ -128,7 +128,7 @@ function buildSessionSummary(messages: ParsedMessage[]): string {
 
 function fallbackSessionId(file: SourceFileMeta): string {
   const fileName = basename(file.filePath).replace(/\.jsonl$/i, "");
-  const pathDigest = createHash("sha256").update(file.filePath).digest("hex").slice(0, 12);
+  const pathDigest = createHash("sha256").update(file.filePath).digest("hex");
   if (fileName) return `${fileName}-${pathDigest}`;
   return pathDigest;
 }

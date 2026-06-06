@@ -322,6 +322,8 @@ describe("claude-code source adapter", () => {
     expect(foundAlpha.results).toHaveLength(1);
     expect(foundBeta.results).toHaveLength(1);
     expect(foundAlpha.results[0]?.sessionUuid).not.toBe(foundBeta.results[0]?.sessionUuid);
+    expect(foundAlpha.results[0]?.sessionUuid).toMatch(/^claude-code:conversation-[0-9a-f]{64}$/);
+    expect(foundBeta.results[0]?.sessionUuid).toMatch(/^claude-code:conversation-[0-9a-f]{64}$/);
   });
 
   test("keeps current-main Codex adapter as the only public adapter", () => {
