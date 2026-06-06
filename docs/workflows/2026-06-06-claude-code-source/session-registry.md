@@ -4,8 +4,8 @@
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | W1A | `019e9b59-30ed-7862-b092-90c487543e73` | `/Users/envvar/.codex/worktrees/2034/cxs` | detached | none | reconciled | handoff read | `handoffs/W1A-truth-reconciliation.md` | use synthesis |
 | W1B | `019e9b58-31fd-7b00-9c7d-c6085e9cf25c` | `/Users/envvar/.codex/worktrees/eaa1/cxs` | detached at `783e17a` | none | reconciled | handoff read | `handoffs/W1B-private-adapter-review.md` | use synthesis |
-| Wave 1 synthesis | controller | `/Users/envvar/.codex/worktrees/4b9e/cxs` | `codex/claude-code-source-controller` | none | drafted | W1A/W1B reconciled | `handoffs/controller-wave1-synthesis.md` | paused before next worker |
-| C1 | not launched | pending | pending | none | planned-not-launched | task + starter prompt prepared | `handoffs/C1-private-adapter-rework.md` | wait for user boundary lift |
+| Wave 1 synthesis | controller | `/Users/envvar/.codex/worktrees/4b9e/cxs` | `codex/claude-code-source-controller` | none | reconciled | W1A/W1B reconciled | `handoffs/controller-wave1-synthesis.md` | C1 launched |
+| C1 | `019e9c11-bf21-7921-8128-9123ef439c61` | `/Users/envvar/.codex/worktrees/35c5/cxs` | `codex/claude-code-source-C1` | pending | active | thread resolved from pending `local:65ba3b0c-539f-4085-9581-4cc10522cbba` | `handoffs/C1-private-adapter-rework.md` | wait for handoff |
 | Milestone plan | controller | `/Users/envvar/.codex/worktrees/4b9e/cxs` | `codex/claude-code-source-controller` | none | planned | gate map written | `milestone-plan.md` | launch C1 first when boundary lifts |
 | Operating rules | controller | `/Users/envvar/.codex/worktrees/4b9e/cxs` | `codex/claude-code-source-controller` | none | active | pause and evidence rules written | `operating-rules.md` | keep in force until boundary changes |
 | Controller checkpoint | controller | `/Users/envvar/.codex/worktrees/4b9e/cxs` | `codex/claude-code-source-controller` | none | active-paused | rollover handoff written | `handoffs/controller-checkpoint.md` | use for controller recovery |

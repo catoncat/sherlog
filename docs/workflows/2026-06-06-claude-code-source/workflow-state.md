@@ -3,7 +3,7 @@
 ## Snapshot
 
 - Updated: 2026-06-06
-- Status: Wave 1 reconciled; paused before next worker
+- Status: C1 launching
 - Controller thread: `019e9b54-7344-7a51-86a8-db3d2e3db02b`
 - Controller worktree: `/Users/envvar/.codex/worktrees/4b9e/cxs`
 - Controller branch: `codex/claude-code-source-controller`
@@ -55,10 +55,22 @@ Controller synthesis after Wave 1:
   for the future C1 handoff.
 - `templates/C1-handoff-template.md` defines the expected C1 handoff shape.
 
-Current correction:
+Active C1 launch:
+
+- Branch: `codex/claude-code-source-C1`
+- Thread: `019e9c11-bf21-7921-8128-9123ef439c61`
+- Worktree: `/Users/envvar/.codex/worktrees/35c5/cxs`
+- Pending worktree id resolved from: `local:65ba3b0c-539f-4085-9581-4cc10522cbba`
+- Worker role: normal implementation worker, not replacement.
+- Boundary: C1 may implement and verify private adapter rework; no push, PR,
+  release, install, or global skill update.
+
+Current correction after user clarification:
 
 - Do not launch new replacement workers.
-- Do not commit, seal, push, release, or install.
+- Normal C1 implementation worker is allowed and has been launched.
+- C1 may commit locally after its required verification passes; push, PR,
+  release, install, and global skill update remain gated.
 - Original W1B thread `019e9b58-31fd-7b00-9c7d-c6085e9cf25c` is the primary review worker and has produced the canonical W1B handoff.
 - Ignore W1B replacement thread `019e9b5e-765c-7ab1-91c2-cdb5341f8f76`; it was cancelled and its evidence is not used.
 
@@ -102,3 +114,9 @@ Current correction:
   C1 task/prompt; no worker or lifecycle action was started.
 - 2026-06-06: Reconciled `handoffs/controller-checkpoint.md` after later
   control-plane files were added; no worker or lifecycle action was started.
+- 2026-06-06: Corrected earlier pause misread and resumed normal orchestration;
+  created branch `codex/claude-code-source-C1` at `bfdefa8` and launched C1
+  pending worktree `local:65ba3b0c-539f-4085-9581-4cc10522cbba`.
+- 2026-06-06: Resolved C1 as thread
+  `019e9c11-bf21-7921-8128-9123ef439c61` in worktree
+  `/Users/envvar/.codex/worktrees/35c5/cxs`.
