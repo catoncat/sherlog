@@ -3,7 +3,7 @@
 ## Snapshot
 
 - Updated: 2026-06-06
-- Status: Wave 1 launching
+- Status: Wave 1 reconciled; paused before next worker
 - Controller thread: `019e9b54-7344-7a51-86a8-db3d2e3db02b`
 - Controller worktree: `/Users/envvar/.codex/worktrees/4b9e/cxs`
 - Controller branch: `codex/claude-code-source-controller`
@@ -25,18 +25,42 @@
 - Use a new workflow control plane for Claude Code public-readiness work instead of reopening the completed `2026-06-05-session-sources` workflow.
 - Treat `1a080b1` as a proposed private adapter candidate and evidence source, not as public or released behavior.
 - Do not launch implementation until Wave 1 reconciliation and review handoffs are available.
-- Continue autonomously between waves; do not pause for user approval unless a true blocker appears.
+- Pause orchestration expansion after W1A/W1B reconciliation under the current user boundary.
 
 ## Active Wave
 
 Wave 1: read-only reconciliation and review.
 
-Required controller synthesis after Wave 1:
+Controller synthesis after Wave 1:
 
-- Whether `1a080b1` can be rebased/cherry-picked onto latest main.
-- Whether the candidate should remain private, be split, be reworked, or be abandoned.
-- Whether public Claude support should use raw JSONL, SDK/session API, or a staged hybrid.
-- Which implementation, docs, verification, release, and install workers to launch next.
+- `1a080b1` can be replayed onto latest main from a Git-conflict standpoint.
+- The candidate must remain private and must be reworked before any merge or
+  public promotion.
+- Raw Claude JSONL remains a private experimental route; public ingestion still
+  needs a future SDK/session API or raw-format decision packet.
+- Next worker, when orchestration resumes, should be a narrow
+  `C1-private-adapter-rework` implementation slice from latest main.
+- The C1 task contract and starter prompt are prepared but not launched.
+- `milestone-plan.md` now tracks the full remaining lifecycle from C1 through
+  review, verification, docs, skill source, commit/Mainline, release, and
+  installed smoke.
+- `operating-rules.md` records active pause semantics, evidence rules, and
+  launch rules.
+- `handoffs/controller-checkpoint.md` is the current rollover/recovery handoff.
+- `completion-audit.md` tracks full-goal requirements and currently shows the
+  goal is incomplete.
+- `verification-runbook.md` defines proof contracts for C1, R2, V1, D1, S1,
+  L1, P1, I1, and final completion.
+- `C1-acceptance-checklist.md` defines the controller reconciliation checklist
+  for the future C1 handoff.
+- `templates/C1-handoff-template.md` defines the expected C1 handoff shape.
+
+Current correction:
+
+- Do not launch new replacement workers.
+- Do not commit, seal, push, release, or install.
+- Original W1B thread `019e9b58-31fd-7b00-9c7d-c6085e9cf25c` is the primary review worker and has produced the canonical W1B handoff.
+- Ignore W1B replacement thread `019e9b5e-765c-7ab1-91c2-cdb5341f8f76`; it was cancelled and its evidence is not used.
 
 ## Stop Lines
 
@@ -57,4 +81,24 @@ Required controller synthesis after Wave 1:
 - 2026-06-06: Resolved replacement W1A thread `019e9b59-30ed-7862-b092-90c487543e73` in `/Users/envvar/.codex/worktrees/2034/cxs`.
 - 2026-06-06: Original W1A thread `019e9b57-e526-77c3-9499-540c926668e0` appeared after replacement launch; controller sent a stop/superseded message to avoid duplicate handoff writes.
 - 2026-06-06: W1A handoff landed in worker worktree with recommendation to replay private adapter onto latest main and rework parser truncation consistency.
-- 2026-06-06: Original W1B thread `019e9b58-31fd-7b00-9c7d-c6085e9cf25c` did not produce handoff after checkpoint; launched narrow replacement W1B pending `local:b9b0df9b-a5fd-4439-9248-2b31de51b6ba`.
+- 2026-06-06: Process correction: original W1B thread `019e9b58-31fd-7b00-9c7d-c6085e9cf25c` was still active and had surfaced valid risk findings, so it remains the main review worker.
+- 2026-06-06: W1B replacement thread `019e9b5e-765c-7ab1-91c2-cdb5341f8f76` was a premature replacement launch; mark as noise and ignore unless original W1B fails or cannot write handoff.
+- 2026-06-06: Confirmed replacement W1B cancellation final; it reported `cancelled_by_controller=true` and no evidence should be used unless primary W1B fails.
+- 2026-06-06: Original W1B wrote `handoffs/W1B-private-adapter-review.md`; controller copied that handoff into canonical control plane for reconciliation.
+- 2026-06-06: Controller reconciled W1A/W1B into `handoffs/controller-wave1-synthesis.md`; next worker is identified but not launched due current user boundary.
+- 2026-06-06: Prepared `tasks/C1-private-adapter-rework.md` and `prompts/C1-private-adapter-rework.md` as launch-ready control-plane artifacts only; C1 remains not launched under the current pause.
+- 2026-06-06: Added `milestone-plan.md` to preserve release/install layer
+  gates while orchestration expansion remains paused.
+- 2026-06-06: Added `operating-rules.md` and
+  `handoffs/controller-checkpoint.md`; controller remains paused before C1 and
+  no workers or lifecycle actions were started.
+- 2026-06-06: Added `completion-audit.md` to prevent premature full-goal
+  completion claims; no product or lifecycle actions were started.
+- 2026-06-06: Added `verification-runbook.md` with gate-specific proof
+  contracts; no worker or lifecycle action was started.
+- 2026-06-06: Added `C1-acceptance-checklist.md` and linked it from the C1
+  task/prompt; no worker or lifecycle action was started.
+- 2026-06-06: Added `templates/C1-handoff-template.md` and linked it from the
+  C1 task/prompt; no worker or lifecycle action was started.
+- 2026-06-06: Reconciled `handoffs/controller-checkpoint.md` after later
+  control-plane files were added; no worker or lifecycle action was started.

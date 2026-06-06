@@ -2,8 +2,17 @@
 
 | Task | Thread | Worktree | Branch | Commit | Status | Proof | Handoff | Next |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| W1A | `019e9b59-30ed-7862-b092-90c487543e73` | `/Users/envvar/.codex/worktrees/2034/cxs` | detached | none | needs-check | handoff written | `handoffs/W1A-truth-reconciliation.md` | reconcile |
-| W1B | pending `local:b9b0df9b-a5fd-4439-9248-2b31de51b6ba` | pending | pending | none | launching | pending | `handoffs/W1B-private-adapter-review.md` | resolve replacement |
+| W1A | `019e9b59-30ed-7862-b092-90c487543e73` | `/Users/envvar/.codex/worktrees/2034/cxs` | detached | none | reconciled | handoff read | `handoffs/W1A-truth-reconciliation.md` | use synthesis |
+| W1B | `019e9b58-31fd-7b00-9c7d-c6085e9cf25c` | `/Users/envvar/.codex/worktrees/eaa1/cxs` | detached at `783e17a` | none | reconciled | handoff read | `handoffs/W1B-private-adapter-review.md` | use synthesis |
+| Wave 1 synthesis | controller | `/Users/envvar/.codex/worktrees/4b9e/cxs` | `codex/claude-code-source-controller` | none | drafted | W1A/W1B reconciled | `handoffs/controller-wave1-synthesis.md` | paused before next worker |
+| C1 | not launched | pending | pending | none | planned-not-launched | task + starter prompt prepared | `handoffs/C1-private-adapter-rework.md` | wait for user boundary lift |
+| Milestone plan | controller | `/Users/envvar/.codex/worktrees/4b9e/cxs` | `codex/claude-code-source-controller` | none | planned | gate map written | `milestone-plan.md` | launch C1 first when boundary lifts |
+| Operating rules | controller | `/Users/envvar/.codex/worktrees/4b9e/cxs` | `codex/claude-code-source-controller` | none | active | pause and evidence rules written | `operating-rules.md` | keep in force until boundary changes |
+| Controller checkpoint | controller | `/Users/envvar/.codex/worktrees/4b9e/cxs` | `codex/claude-code-source-controller` | none | active-paused | rollover handoff written | `handoffs/controller-checkpoint.md` | use for controller recovery |
+| Completion audit | controller | `/Users/envvar/.codex/worktrees/4b9e/cxs` | `codex/claude-code-source-controller` | none | incomplete | requirements matrix written | `completion-audit.md` | update after each gate |
+| Verification runbook | controller | `/Users/envvar/.codex/worktrees/4b9e/cxs` | `codex/claude-code-source-controller` | none | planned | proof contracts written | `verification-runbook.md` | use for every gate |
+| C1 acceptance checklist | controller | `/Users/envvar/.codex/worktrees/4b9e/cxs` | `codex/claude-code-source-controller` | none | planned | reconciliation checklist written | `C1-acceptance-checklist.md` | use after C1 handoff |
+| C1 handoff template | controller | `/Users/envvar/.codex/worktrees/4b9e/cxs` | `codex/claude-code-source-controller` | none | planned | handoff template written | `templates/C1-handoff-template.md` | C1 worker should use |
 
 ## Registry Rules
 
@@ -15,4 +24,5 @@
 ## Noise
 
 - Original W1A thread `019e9b57-e526-77c3-9499-540c926668e0` appeared after a replacement launch; controller instructed it to stop and keep no handoff writes.
-- Original W1B thread `019e9b58-31fd-7b00-9c7d-c6085e9cf25c` exceeded normal review-packet time and did not write a handoff after a controller checkpoint; replacement launched with narrower scope.
+- W1B replacement thread `019e9b5e-765c-7ab1-91c2-cdb5341f8f76` was launched prematurely while original W1B was still active and had already produced useful risk findings in thread updates. Ignore replacement output unless original W1B fails, goes abnormal, stops updating, crosses scope, or explicitly cannot write a handoff.
+- Original W1B produced the canonical handoff after correction. Replacement W1B remains cancelled/ignored and is not part of the evidence set.
