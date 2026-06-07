@@ -17,7 +17,10 @@ describe("codex source adapter", () => {
     expect(getSessionSourceAdapter()).toBe(codexSourceAdapter);
     expect(getSessionSourceAdapter("codex")).toBe(codexSourceAdapter);
     expect(listSessionSourceAdapters().map((adapter) => adapter.id)).toContain("codex");
-    expect(listSessionSourceAdapters().filter((adapter) => adapter.public).map((adapter) => adapter.id)).toEqual(["codex"]);
+    expect(listSessionSourceAdapters().filter((adapter) => adapter.public).map((adapter) => adapter.id)).toEqual([
+      "codex",
+      "claude-code",
+    ]);
     expect(codexSourceAdapter.public).toBe(true);
   });
 

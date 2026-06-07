@@ -6,11 +6,11 @@
 progressive retrieval: find the right session first, then read only the relevant
 range or page.
 
-The only public session source in this checkout is `codex`. The CLI accepts
-`--source codex` on the fixed command set, and omitting `--source` means Codex.
-Claude Code has a private, non-public adapter path for synthetic verification
-and future promotion work; it is not a public CLI source and
-`--source claude-code` is rejected.
+The public session sources in this checkout are `codex` and experimental
+`claude-code`. The fixed command set accepts `--source <id>`, and omitting
+`--source` still means Codex. Claude Code support is public in this checkout,
+but it is still an experimental transcript-reader contract rather than a stable
+raw-format promise.
 
 When reading this from a source checkout, the installed `cxs` on your `PATH`
 may still be an older npm release. Check `cxs status --help` before using
@@ -104,7 +104,7 @@ npx @act0r/cxs@latest find "health check" --root /Users/you/.codex/sessions
 | Command | Purpose |
 | --- | --- |
 | `cxs status` | Show execution context, source inventory, index state, and coverage. `--selector` checks whether a target range is fresh. Does not write the index. |
-| `cxs sync --root <dir>\|--cwd <path>\|--selector <json>` | Scan selected Codex sessions and update the SQLite index. This is the only write command. |
+| `cxs sync --root <dir>\|--cwd <path>\|--selector <json>` | Scan selected sessions for the chosen source and update the SQLite index. This is the only write command. |
 | `cxs find <query>` | Search indexed sessions and return ranked session candidates with minimal snippets. Use `--root`, `--cwd`, and `--sort ended` for scoped "latest + keyword" queries. |
 | `cxs read-range <sessionUuid>` | Read a small message window around a matched sequence or in-session query. |
 | `cxs read-page <sessionUuid>` | Read a session page by offset and limit. |
@@ -114,20 +114,29 @@ npx @act0r/cxs@latest find "health check" --root /Users/you/.codex/sessions
 All commands that read indexed content support `--json`. Read commands fail
 cleanly if the index has not been created yet.
 
-In source-aware builds, all fixed commands accept `--source <id>`. The only
-public value is `codex`, so these are equivalent:
+In source-aware builds, all fixed commands accept `--source <id>`. Public
+values are `codex` and experimental `claude-code`; omitting `--source`
+defaults to Codex, so these are equivalent:
 
 ```bash
 cxs find "health check"
 cxs find "health check" --source codex
 ```
 
-Unknown sources and non-public sources such as `claude-code` return
-`unsupported_source` before doing command work. The private Claude Code adapter
-is available only to internal programmatic paths in this checkout and has been
-verified with synthetic fixtures, not real transcripts. If an installed CLI
-rejects the `--source` option itself, that installation predates this behavior;
-update the CLI or run the checkout with `npm run cxs -- ...`.
+Claude Code uses the same fixed command surface:
+
+```bash
+cxs status --source claude-code --json
+cxs sync --source claude-code --root ~/.claude/projects --json
+cxs find "health check" --source claude-code
+```
+
+Unknown sources still return `unsupported_source` before doing command work.
+Claude Code remains experimental public support: the current adapter is built
+around the existing local transcript reader, validated with synthetic fixtures,
+and may still evolve toward a more stable SDK/session API contract. If an
+installed CLI rejects the `--source` option itself, that installation predates
+this behavior; update the CLI or run the checkout with `npm run cxs -- ...`.
 
 ## Selectors
 
@@ -143,8 +152,8 @@ cxs list --root /Users/you/.codex/sessions --sort ended -n 10
 
 Use full selector JSON for date ranges or advanced scopes. If you pass
 `--root`, the selector JSON may omit `root`; without `--root`, cxs uses the
-default Codex sessions root. Selector JSON may also omit `source`; canonical
-selectors include `source: "codex"` in this checkout.
+default source root. Selector JSON may also omit `source`; canonical selectors
+include the resolved source id in this checkout.
 
 ```text
 {"source":"codex","kind":"all","root":"/Users/you/.codex/sessions"}
@@ -171,8 +180,9 @@ order.
 
 ## Sync And Storage
 
-By default, `cxs` reads Codex sessions from `~/.codex/sessions` and stores its
-index at:
+By default, `cxs` reads Codex sessions from `~/.codex/sessions`. With
+`--source claude-code`, the default root is `~/.claude/projects`. Index data is
+stored at:
 
 ```text
 ~/.local/state/cxs/index.sqlite

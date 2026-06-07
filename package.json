@@ -1,8 +1,8 @@
 {
   "name": "@act0r/cxs",
-  "version": "0.3.5",
+  "version": "0.3.6",
   "type": "module",
-  "description": "Progressive search CLI for local Codex session logs",
+  "description": "Progressive search CLI for local Codex and Claude Code session logs",
   "license": "MIT",
   "homepage": "https://github.com/catoncat/cxs",
   "repository": {
@@ -25,6 +25,7 @@
   },
   "keywords": [
     "codex",
+    "claude-code",
     "cli",
     "fts",
     "search",

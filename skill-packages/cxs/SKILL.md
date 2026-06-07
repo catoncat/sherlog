@@ -5,7 +5,7 @@ description: "Use proactively for local Codex history and personal setup archaeo
 
 # cxs
 
-用 `cxs` 在自己的 SQLite index 里检索旧 Codex 对话。当前公开 CLI source 只有 `codex`；`--source codex` 可省略。`claude-code` 在源码 checkout 里已有 private/non-public adapter path,仅用于 synthetic verification 和后续 promotion 候选；不要把它说成已发布、已安装、public CLI 可同步或正常可查询。Codex 的 raw sessions 只是 ingest source；正常历史检索只读 cxs index,不要让用户切换 source root 去追 raw 文件位置。心法:**先选 retrieval primitive,再定位候选 session,最后用 cxs read 命令拿内容证据**。
+用 `cxs` 在自己的 SQLite index 里检索旧 agent 对话。当前公开 CLI source 有 `codex` 和 experimental `claude-code`；省略 `--source` 仍等价于 `--source codex`。`claude-code` 现在是 public fixed-command support，但仍是 experimental transcript-reader contract；不要把它说成稳定 raw JSONL 承诺，遇到非 text record 语义缺口也不要跳回 raw source root 取证。各 source 的 raw sessions 都只是 ingest source；正常历史检索只读 cxs index。心法:**先选 retrieval primitive,再定位候选 session,最后用 cxs read 命令拿内容证据**。
 
 ## 安装(两步)
 
@@ -16,7 +16,7 @@ description: "Use proactively for local Codex history and personal setup archaeo
 ```bash
 "${CXS_BIN:-cxs}" --version       # 应输出 cxs 版本号
 "${CXS_BIN:-cxs}" --help          # 应列出 status/sync/find/read-range/read-page/list/stats
-"${CXS_BIN:-cxs}" status --help   # 若显示 --source <id>, public source 只有 codex
+"${CXS_BIN:-cxs}" status --help   # 若显示 --source <id>,应列出 codex|claude-code
 ```
 
 如果 `cxs` 不在 PATH 里,设 `export CXS_BIN=/absolute/path/to/bin/cxs`。如果安装版
@@ -46,7 +46,7 @@ npx skills add catoncat/cxs --full-depth --skill cxs -g -a codex -y
 | coverage/freshness/index availability: 索引缺失、coverage stale、要决定是否同步 | `cxs status --json` / `status --cwd` / `status --selector` | `status` 不回答内容问题,只决定 coverage 和 sync 需求 |
 | mutation: 建索引或更新 coverage | `cxs sync --cwd/--root/--selector` | 普通检索不要 `--prune`;只有用户明确要求清理已消失 source 的旧索引记录才用 |
 
-在支持 source-aware CLI 的版本里,所有固定命令都可带 `--source <id>`；当前 public CLI 只用 `codex`，省略等价于 `--source codex`。遇到 `unsupported_source`，不要改用 raw source root，也不要声称 Claude Code 支持已发布。源码 checkout 里的 private `claude-code` path 不是 public CLI 承诺,只说明内部 synthetic verification 已有候选实现。如果安装版直接报 unknown option `--source`,它是旧 CLI；省略 source flags 或更新 CLI。
+在支持 source-aware CLI 的版本里,所有固定命令都可带 `--source <id>`；当前 public CLI 支持 `codex` 和 experimental `claude-code`，省略等价于 `--source codex`。遇到 `unsupported_source`，说明 source id 未知，不要改用 raw source root。Claude Code 支持已公开，但仍是 experimental transcript-reader support；如果安装版直接报 unknown option `--source`,它是旧 CLI；省略 source flags 或更新 CLI。
 
 `find` / `list` 返回零结果不是结束条件。遇到零结果、用户说“应该有”、问题涉及最近/当前 repo、或 JSON 里有 `nextAction` 时,必须先按同一范围做 coverage check:
 

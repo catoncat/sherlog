@@ -16,7 +16,7 @@ export CXS_BIN=/absolute/path/to/bin/cxs
 
 metadata-only 问题可以直接对 cxs SQLite index 做只读 projection,例如时间排序、数量、cwd 分布；内容判断仍必须回到 `read-page` / `read-range`。
 
-支持 source-aware CLI 的版本里,所有固定命令都接受 `--source <id>`。当前公开 source 只有 `codex`，省略等价于 `--source codex`。未知 source 或非公开 `claude-code` 会返回 `unsupported_source`，不要把它当成 public CLI 可用 adapter。当前源码 checkout 有 private/non-public Claude Code adapter path,只用于 synthetic programmatic verification 和未来 promotion 候选；它不代表已发布、已安装、可同步真实 Claude transcript,也不是稳定 public raw JSONL 格式决定。如果安装版直接报 unknown option `--source`,它是旧 CLI；省略 source flags 或更新 CLI。
+支持 source-aware CLI 的版本里,所有固定命令都接受 `--source <id>`。当前公开 source 是 `codex` 和 experimental `claude-code`，省略等价于 `--source codex`。未知 source 会返回 `unsupported_source`。Claude Code 已是 public CLI 可用 adapter，但仍是 experimental transcript-reader support；不要把它理解成稳定 raw transcript 格式承诺。如果安装版直接报 unknown option `--source`,它是旧 CLI；省略 source flags 或更新 CLI。
 
 缺少 cxs 索引时,`find` / `read-range` / `read-page` / `list` / `stats --json` 返回:
 
@@ -40,7 +40,7 @@ Example:
 "${CXS_BIN:-cxs}" status --root /Users/me/.codex/sessions --selector '{"kind":"all"}' --json
 ```
 
-常用 options: `--source <id>`(public: `codex`)、`--root`、`--selector`、`--cwd`、`--db`、`--json`。
+常用 options: `--source <id>`(public: `codex|claude-code`)、`--root`、`--selector`、`--cwd`、`--db`、`--json`。
 
 `status --selector` 是只读 coverage check。看 `requestedCoverage`:
 
@@ -67,7 +67,7 @@ Options:
 
 | option | 说明 |
 | --- | --- |
-| `--source <id>` | 当前唯一公开值是 `codex`;省略等价于 `codex` |
+| `--source <id>` | 公开值是 `codex` 和 experimental `claude-code`;省略等价于 `codex` |
 | `--root <dir>` | 同步整个 sessions 根目录；也作为 selector 默认 root |
 | `--cwd <path>` | 同步指定 cwd selector；不必手写 selector JSON |
 | `--selector <json>` | 结构化同步范围；日期范围等高级范围用这个 |
@@ -111,7 +111,7 @@ Options:
 
 | option | 说明 |
 | --- | --- |
-| `--source <id>` | 当前唯一公开值是 `codex`;省略等价于 `codex` |
+| `--source <id>` | 公开值是 `codex` 和 experimental `claude-code`;省略等价于 `codex` |
 | `--root <dir>` | 限定到整个 sessions 根目录；也作为 selector 默认 root |
 | `--cwd <path>` | 限定到指定 cwd selector |
 | `--selector <json>` | 结构化查询范围；可省略 `root` |
@@ -127,7 +127,7 @@ Notes:
 
 - 必须显式传 `<sessionUuid>`
 - 必须二选一提供 `--seq` 或 `--query`
-- 可选 `--source codex`;省略等价于 Codex。`codex:<uuid>` qualifier 只在 source 匹配时有效。
+- 可选 `--source codex|claude-code`;省略等价于 Codex。`<source>:<uuid>` qualifier 只在 source 匹配时有效。
 
 Example:
 
@@ -140,7 +140,7 @@ Example:
 
 Purpose: 顺序分页读取某个 session 的消息。metadata projection 只能给候选;要确认"当时说了什么/是否有意义",用 `read-page` 或 `read-range`。
 
-可选 `--source codex`;省略等价于 Codex。
+可选 `--source codex|claude-code`;省略等价于 Codex。
 
 Example:
 
@@ -152,7 +152,7 @@ Example:
 
 Purpose: 列出已索引 session，不做全文检索。适合简单 session listing；更复杂的 metadata projection 可以用只读 SQLite 查询 cxs index。
 
-常用 options: `--source <id>`(public: `codex`)、`--cwd`、`--since`、`--root`、`--selector`、`--sort ended|started|messages`、`-n/--limit`、`--db`、`--json`。
+常用 options: `--source <id>`(public: `codex|claude-code`)、`--cwd`、`--since`、`--root`、`--selector`、`--sort ended|started|messages`、`-n/--limit`、`--db`、`--json`。
 
 Example:
 
@@ -166,7 +166,7 @@ Example:
 
 Purpose: 展示索引状态统计。
 
-可选 `--source codex`;省略等价于 Codex。
+可选 `--source codex|claude-code`;省略等价于 Codex。
 
 Example:
 

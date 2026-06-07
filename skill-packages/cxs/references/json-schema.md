@@ -89,7 +89,7 @@ Treat it as a retry gate: choose/check the same selector, run `sync` only if `st
 ```ts
 {
   query: {
-    sourceId?: "codex";
+    sourceId?: "codex" | "claude-code";
     cwd?: string;
     since?: string;
     selector?: Selector;
@@ -191,7 +191,7 @@ errors in `--json` mode for expected index setup failures:
 ```ts
 {
   id: number;
-  sourceId: "codex";
+  sourceId: "codex" | "claude-code";
   nativeSessionId: string;
   sessionKey: string;
   sessionUuid: string;
@@ -225,13 +225,13 @@ errors in `--json` mode for expected index setup failures:
 
 ```ts
 type Selector =
-  | { source?: "codex"; kind: "all"; root: string }
-  | { source?: "codex"; kind: "date_range"; root: string; fromDate: string; toDate: string }
-  | { source?: "codex"; kind: "cwd"; root: string; cwd: string }
-  | { source?: "codex"; kind: "cwd_date_range"; root: string; cwd: string; fromDate: string; toDate: string };
+  | { source?: "codex" | "claude-code"; kind: "all"; root: string }
+  | { source?: "codex" | "claude-code"; kind: "date_range"; root: string; fromDate: string; toDate: string }
+  | { source?: "codex" | "claude-code"; kind: "cwd"; root: string; cwd: string }
+  | { source?: "codex" | "claude-code"; kind: "cwd_date_range"; root: string; cwd: string; fromDate: string; toDate: string };
 ```
 
-Input selector JSON may omit `source`; canonical selectors returned by public CLI commands include `source: "codex"`. `claude-code` is private/non-public and rejected at the CLI boundary with `unsupported_source`. A source checkout may have an internal synthetic-verification adapter path for `claude-code`, but these public CLI schemas should not be read as a release, install, or stable raw-format promise.
+Input selector JSON may omit `source`; canonical selectors returned by public CLI commands include the resolved source id. `claude-code` is now a public but experimental CLI source. These public CLI schemas still should not be read as a stable raw-format promise; Claude support may move toward a different SDK/session contract in later releases.
 
 `CoverageStatus`:
 

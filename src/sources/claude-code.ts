@@ -5,7 +5,7 @@ import type { SessionSourceAdapter, SourceSnapshotOptions } from "./types";
 
 export const claudeCodeSourceAdapter: SessionSourceAdapter = {
   id: "claude-code",
-  public: false,
+  public: true,
   displayName: "Claude Code",
   defaultRoot() {
     return resolve(homedir(), ".claude", "projects");

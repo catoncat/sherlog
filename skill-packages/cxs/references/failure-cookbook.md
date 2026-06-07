@@ -18,7 +18,7 @@
 | 用户问“最近本项目讨论了什么” | `list --cwd <abs_cwd> --sort ended --json` | 这是 metadata/listing 问题；索引不可用或 coverage 不明时再 `status --cwd` |
 | 用户说“在 X 项目里” | `status --json` | 从 `sourceInventory.cwdGroups` 选择 cwd selector |
 | 从其他 cwd 调用找不到 db | `stats --json` | 看 `dbPath`；必要时显式传 `--db` |
-| `unsupported_source` | 改回省略 `--source` 或 `--source codex` | 当前只有 Codex 是 public source；即使源码 checkout 有 private Claude Code adapter path,也不要改查 Claude Code raw files 或说 public CLI 已支持 |
+| `unsupported_source` | 检查 source id 拼写，必要时改回省略 `--source`、`--source codex` 或 `--source claude-code` | 当前公开 source 是 `codex` 和 experimental `claude-code`；不要因为 source id 写错就跳回 raw source root |
 
 ## Find zero results but user insists it exists
 
@@ -176,7 +176,7 @@ sqlite3 -readonly "$DB_PATH" \
 | `status` invalid selector | stdout | `{ "error": { "code": "invalid_selector", "message": "..." } }` |
 | `find / read-range / read-page / list / stats` 索引不存在 | stdout | `{ "error": { "code": "index_unavailable", "message": "...", "dbPath": "...", "hint": "..." } }` |
 | `find / read-range / read-page / list / stats` 旧 index schema | stdout | `{ "error": { "code": "index_schema_upgrade_required", "message": "...", "dbPath": "...", "missingColumns": ["..."], "hint": "..." } }` |
-| 任意命令传非公开 source | stdout | `{ "error": { "code": "unsupported_source", "source": "...", "message": "Only \"codex\" is public in this release." } }` |
+| 任意命令传未知 source | stdout | `{ "error": { "code": "unsupported_source", "source": "...", "message": "Public sources in this release: codex|claude-code." } }` |
 | `find / read-range / read-page / list / stats` 其他异常 | 进程异常退出 | 直接非零退出 |
 
 ## Schema drift

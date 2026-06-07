@@ -7,7 +7,7 @@ import {
   statsReadoutEnabled,
 } from "./env";
 import { IndexSchemaUpgradeRequiredError, IndexUnavailableError } from "./db";
-import { getSessionSourceAdapter } from "./sources";
+import { getSessionSourceAdapter, listSessionSourceAdapters } from "./sources";
 
 // One-shot migration from legacy ~/.cache/cxs/ to ~/.local/state/cxs/. Runs
 // before any subcommand so `cxs stats` etc. see the migrated db, not just
@@ -45,7 +45,7 @@ program
 program
   .command("status")
   .description("返回执行上下文、source inventory、index 与 coverage 状态")
-  .option("--source <id>", "session source (public: codex)")
+  .option("--source <id>", `session source (public: ${publicSourceLabel()})`)
   .option("--root <dir>", "覆盖默认 sessions 根目录，也作为 selector 默认 root")
   .option("--selector <json>", "检查指定 selector 的 coverage/freshness（只读，不同步）")
   .option("--cwd <path>", "检查指定 cwd selector 的 coverage/freshness")
@@ -77,7 +77,7 @@ program
 program
   .command("sync")
   .description("扫描并同步本地 Codex sessions 到 SQLite 索引")
-  .option("--source <id>", "session source (public: codex)")
+  .option("--source <id>", `session source (public: ${publicSourceLabel()})`)
   .option("--root <dir>", "同步指定 sessions 根目录；也作为 selector 默认 root")
   .option("--selector <json>", "结构化同步范围 JSON")
   .option("--cwd <path>", "同步指定 cwd selector")
@@ -135,7 +135,7 @@ program
 program
   .command("find <query>")
   .description("搜索相关 session，返回最小必要命中")
-  .option("--source <id>", "session source (public: codex)")
+  .option("--source <id>", `session source (public: ${publicSourceLabel()})`)
   .option("-n, --limit <n>", "返回条数", "10")
   .option("--root <dir>", "限定到指定 sessions 根目录；也作为 selector 默认 root")
   .option("--selector <json>", "结构化查询范围 JSON")
@@ -169,7 +169,7 @@ program
 program
   .command("read-range <sessionUuid>")
   .description("围绕命中点读取局部上下文；必须显式传 session_uuid")
-  .option("--source <id>", "session source (public: codex)")
+  .option("--source <id>", `session source (public: ${publicSourceLabel()})`)
   .option("--seq <n>", "显式指定锚点 seq")
   .option("--query <query>", "用 query 在该 session 内重新定位命中点")
   .option("--before <n>", "前文条数", "2")
@@ -205,7 +205,7 @@ program
 program
   .command("read-page <sessionUuid>")
   .description("顺序分页读取某个 session 的消息")
-  .option("--source <id>", "session source (public: codex)")
+  .option("--source <id>", `session source (public: ${publicSourceLabel()})`)
   .option("--offset <n>", "起始 offset", "0")
   .option("--limit <n>", "页大小", "20")
   .option("--db <path>", "覆盖默认数据库路径", DEFAULT_DB_PATH)
@@ -240,7 +240,7 @@ program
 program
   .command("list")
   .description("列出已索引的 session（不做全文检索）")
-  .option("--source <id>", "session source (public: codex)")
+  .option("--source <id>", `session source (public: ${publicSourceLabel()})`)
   .option("--cwd <needle>", "cwd 子串过滤（大小写不敏感）")
   .option("--since <iso>", "只看 ended_at >= 指定时间的 session")
   .option("--root <dir>", "限定到指定 sessions 根目录；也作为 selector 默认 root")
@@ -273,7 +273,7 @@ program
 program
   .command("stats")
   .description("展示索引状态统计")
-  .option("--source <id>", "session source (public: codex)")
+  .option("--source <id>", `session source (public: ${publicSourceLabel()})`)
   .option("--db <path>", "覆盖默认数据库路径", DEFAULT_DB_PATH)
   .option("--json", "输出 JSON")
   .action((options) => {
@@ -346,7 +346,7 @@ class SourceOptionError extends Error {
   sourceId: string;
 
   constructor(sourceId: string) {
-    super(`unsupported source "${sourceId}". Only "codex" is public in this release.`);
+    super(`unsupported source "${sourceId}". Public sources in this release: ${publicSourceLabel()}.`);
     this.name = "SourceOptionError";
     this.sourceId = sourceId;
   }
@@ -354,8 +354,28 @@ class SourceOptionError extends Error {
 
 function publicSource(value: string | undefined): SessionSourceId {
   const sourceId = (value ?? "codex").trim();
-  if (sourceId === "codex") return "codex";
+  const adapter = resolvePublicSourceAdapter(sourceId);
+  if (adapter) return adapter.id;
   throw new SourceOptionError(sourceId || "(empty)");
+}
+
+function publicSourceLabel(): string {
+  return getPublicSourceAdapters()
+    .map((adapter) => adapter.id)
+    .join("|");
+}
+
+function resolvePublicSourceAdapter(sourceId: string) {
+  try {
+    const adapter = getSessionSourceAdapter(sourceId as SessionSourceId);
+    return adapter.public ? adapter : null;
+  } catch {
+    return null;
+  }
+}
+
+function getPublicSourceAdapters() {
+  return listSessionSourceAdapters().filter((adapter) => adapter.public);
 }
 
 function emitSourceError(error: SourceOptionError, jsonMode: boolean): void {
