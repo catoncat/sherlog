@@ -5,7 +5,7 @@ description: "Use proactively for local Codex history and personal setup archaeo
 
 # cxs
 
-用 `cxs` 在自己的 SQLite index 里检索旧 agent 对话。当前公开 CLI source 有 `codex` 和 experimental `claude-code`；省略 `--source` 仍等价于 `--source codex`。`claude-code` 现在是 public fixed-command support，但仍是 experimental transcript-reader contract；不要把它说成稳定 raw JSONL 承诺，遇到非 text record 语义缺口也不要跳回 raw source root 取证。各 source 的 raw sessions 都只是 ingest source；正常历史检索只读 cxs index。心法:**先选 retrieval primitive,再定位候选 session,最后用 cxs read 命令拿内容证据**。
+用 `cxs` 在自己的 SQLite index 里检索旧 agent 对话。当前公开 CLI source 有 `codex` 和 experimental `claude-code`；`find` 省略 `--source` 时默认跨 public sources 搜索，agent 正常使用时不要先问用户选来源。`--source codex` / `--source claude-code` 只用于用户指定、缩小范围或诊断。`claude-code` 现在是 public fixed-command support，但仍是 experimental transcript-reader contract；不要把它说成稳定 raw JSONL 承诺，遇到非 text record 语义缺口也不要跳回 raw source root 取证。各 source 的 raw sessions 都只是 ingest source；正常历史检索只读 cxs index。心法:**先选 retrieval primitive,再定位候选 session,最后用 cxs read 命令拿内容证据**。
 
 ## 安装(两步)
 
@@ -41,12 +41,12 @@ npx skills add catoncat/cxs --full-depth --skill cxs -g -a codex -y
 | 用户需要 | 起手 primitive | 证据规则 |
 | --- | --- | --- |
 | metadata projection: 最早/最新、数量、分布、cwd/session 清单、大 session、时间排序 | 只读 SQLite/bash/jq 查询 cxs index 的 `sessions` 表;必要时用 `list` 辅助 | 只能投影稳定 metadata;任何内容判断都要再 `read-page` / `read-range` |
-| semantic recall: 主题、关键词、"之前讨论过 X 吗"、本机配置考古 | `cxs find <query> --json`,按需要带 `--cwd` / `--root` / `--selector` / `--sort ended` | 用 `find` 召回候选,再用 `read-range` 或 `read-page` 验证 |
-| context reading: 已知 `sessionUuid`、命中 seq、或需要扩大上下文 | `cxs read-range <uuid> --seq/--query [--before N --after M]` 或 `cxs read-page <uuid>` | 内容证据只来自 `read-*` 输出 |
+| semantic recall: 主题、关键词、"之前讨论过 X 吗"、本机配置考古 | `cxs find <query> --json`,默认跨 public sources；按需要带 `--cwd` / `--root` / `--selector` / `--sort ended` | 用 `find` 召回候选,再用结果里的 `sessionRef` 做 `read-range` 或 `read-page` 验证 |
+| context reading: 已知 `sessionUuid` / `sessionRef`、命中 seq、或需要扩大上下文 | `cxs read-range <sessionRef> --seq/--query [--before N --after M]` 或 `cxs read-page <sessionRef>` | 内容证据只来自 `read-*` 输出 |
 | coverage/freshness/index availability: 索引缺失、coverage stale、要决定是否同步 | `cxs status --json` / `status --cwd` / `status --selector` | `status` 不回答内容问题,只决定 coverage 和 sync 需求 |
 | mutation: 建索引或更新 coverage | `cxs sync --cwd/--root/--selector` | 普通检索不要 `--prune`;只有用户明确要求清理已消失 source 的旧索引记录才用 |
 
-在支持 source-aware CLI 的版本里,所有固定命令都可带 `--source <id>`；当前 public CLI 支持 `codex` 和 experimental `claude-code`，省略等价于 `--source codex`。遇到 `unsupported_source`，说明 source id 未知，不要改用 raw source root。Claude Code 支持已公开，但仍是 experimental transcript-reader support；如果安装版直接报 unknown option `--source`,它是旧 CLI；省略 source flags 或更新 CLI。
+在支持 source-aware CLI 的版本里,所有固定命令都可带 `--source <id>`；当前 public CLI 支持 `codex` 和 experimental `claude-code`。`find` 省略 `--source` 等价于跨 public sources 搜索，显式 `--source all` 也可以；其他命令省略 source 仍按 Codex 兼容默认处理。遇到 `unsupported_source`，说明 source id 未知，不要改用 raw source root。Claude Code 支持已公开，但仍是 experimental transcript-reader support；如果安装版直接报 unknown option `--source`,它是旧 CLI；省略 source flags 或更新 CLI。
 
 `find` / `list` 返回零结果不是结束条件。遇到零结果、用户说“应该有”、问题涉及最近/当前 repo、或 JSON 里有 `nextAction` 时,必须先按同一范围做 coverage check:
 
@@ -75,8 +75,9 @@ npx skills add catoncat/cxs --full-depth --skill cxs -g -a codex -y
 - `sync` 默认保留已索引历史；raw JSONL 从 source snapshot 中消失后，不要引导用户改查另一个 root。只有用户明确要让 cxs 丢弃 source 中已经消失的旧记录时才用 `sync --prune`
 - 用 `status --cwd <path> --json` 或 `status --selector '<json>' --json` 检查目标范围；`requestedCoverage.recommendedAction === "query"` 时直接查，`"sync"` 时才同步
 - `stats.sessionCount` 很多不等于目标范围有 source-aware complete coverage；fresh `{"source":"codex","kind":"all",...}` coverage 可以覆盖同 source/root 下的 cwd/date 子 selector
-- "最新/最近 + 关键词"不要直接把默认 `find` 结果当最新；用 `find <query> --cwd <path> --sort ended` 或 `find <query> --root <dir> --sort ended`，必要时 `--exclude-session <current_uuid>` 排除当前会话/self-hit
+- "最新/最近 + 关键词"不要直接把默认 `find` 结果当最新；用 `find <query> --cwd <path> --sort ended` 或 `find <query> --root <dir> --sort ended`，必要时 `--exclude-session <current_uuid>` 排除当前会话/self-hit。若用户明确限定 Codex 或 Claude Code，再加 `--source <id>`。
 - 混合自然语言 + 英文技术词的问题可以先直接 `find` 原句；新版 CLI 在严格召回为 0 时会保守提取 ASCII 技术词做一次 relaxed recall。仍要用 `read-range` / `read-page` 验证内容，不要只凭命中标题下结论。
+- `find --json` 结果包含 `sourceId` 和 `sessionRef`;后续 read 优先直接用 `sessionRef`。不要自己从 uuid 猜 source。
 - `matchSource = "session"` 时 `matchSeq = null`;这种命中先 `read-page` 抽样,**不要伪造 `read-range --seq`**
 - 用户给 cwd 但不确定 sync 状态 → `status --json`;确认绝对 cwd 后跑 `status --cwd <path>`;缺失/stale 才 `sync --cwd <path>`
 - `find --json` / `list --json` 零结果时看 `nextAction`:它是防止 agent 放弃的机器可读提示。按提示选择/检查 selector、必要时同步、再重试。

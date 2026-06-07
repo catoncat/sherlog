@@ -7,11 +7,13 @@ Top-level shape:
 ```ts
 {
   query: string;
+  sourceIds: Array<"codex" | "claude-code">;
   sort: "relevance" | "ended" | "started";
   excludedSessions: string[];
   results: FindResult[];
   scannedMessageCount: number; // 检索覆盖范围(selector 限定后)内的消息总数,做诚实分母
   coverage: CoverageStatus;
+  coverageBySource?: Array<{ sourceId: "codex" | "claude-code"; coverage: CoverageStatus }>;
   nextAction?: QueryNextAction;
   elapsedMs: number; // 端到端耗时(进程启动到输出),仅 CLI 输出注入,非 query 层字段
 }
@@ -24,7 +26,9 @@ Top-level shape:
 ```ts
 {
   rank: number;
+  sourceId: "codex" | "claude-code";
   sessionUuid: string;
+  sessionRef: string;
   title: string;
   summaryText: string;
   cwd: string;
@@ -39,6 +43,11 @@ Top-level shape:
   snippet: string;
 }
 ```
+
+`find` defaults to cross-source recall across public indexed sources. Use
+`sourceIds` to see which sources participated. Use each result's `sessionRef`
+as the read command input; for Codex it is usually the bare UUID, and for
+Claude Code it is source-qualified such as `claude-code:<id>`.
 
 `matchSource = "session"` means the hit came from session-level fields such as title, derived summary, compact handoff, or reasoning summary rather than a concrete message. In that case `matchSeq` is `null`; use `read-page` first instead of fabricating a `read-range --seq` anchor.
 

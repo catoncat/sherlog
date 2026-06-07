@@ -214,7 +214,7 @@ describe("cxs cli", () => {
     expect(payload.coverage).toEqual([]);
   });
 
-  test("fixed commands accept explicit --source codex while omitted source remains Codex", async () => {
+  test("fixed commands accept explicit --source codex and omitted find still sees Codex rows", async () => {
     const base = mkdtempSync(join(tmpdir(), "cxs-cli-source-codex-"));
     tempDirs.push(base);
     const root = join(base, "sessions");
@@ -460,6 +460,94 @@ describe("cxs cli", () => {
     expect(pagePayload.totalCount).toBe(2);
   });
 
+  test("find defaults to public cross-source search and returned session refs are directly readable", async () => {
+    const base = mkdtempSync(join(tmpdir(), "cxs-cli-cross-source-find-"));
+    tempDirs.push(base);
+
+    const codexRoot = join(base, "codex-sessions");
+    const codexDay = join(codexRoot, "2026", "04", "20");
+    mkdirSync(codexDay, { recursive: true });
+    writeFileSync(
+      join(codexDay, "rollout-2026-04-20T10-00-00-15151515-1515-4515-8515-151515151515.jsonl"),
+      [
+        line("session_meta", { id: "15151515-1515-4515-8515-151515151515", cwd: "/tmp/cross-codex" }),
+        line("event_msg", { type: "user_message", message: "cross shared codex unique" }),
+      ].join("\n"),
+    );
+
+    const claudeRoot = join(base, "claude-projects");
+    const claudeProject = join(claudeRoot, "synthetic-project");
+    mkdirSync(claudeProject, { recursive: true });
+    writeFileSync(
+      join(claudeProject, "conversation.jsonl"),
+      [
+        claudeLine({
+          type: "user",
+          sessionId: "cli-cross-claude",
+          cwd: "/tmp/cross-claude",
+          timestamp: "2026-06-06T00:00:00.000Z",
+          message: { content: "cross shared claude unique" },
+        }),
+        claudeLine({
+          type: "assistant",
+          sessionId: "cli-cross-claude",
+          cwd: "/tmp/cross-claude",
+          timestamp: "2026-06-06T00:00:01.000Z",
+          message: { content: "cross shared claude reply" },
+        }),
+      ].join("\n"),
+    );
+
+    const dbPath = join(base, "index.sqlite");
+    const codexSync = await runCli(["sync", "--source", "codex", "--root", codexRoot, "--db", dbPath, "--json"]);
+    const claudeSync = await runCli(["sync", "--source", "claude-code", "--root", claudeRoot, "--db", dbPath, "--json"]);
+    expect(codexSync.exitCode).toBe(0);
+    expect(claudeSync.exitCode).toBe(0);
+
+    const found = await runCli(["find", "cross shared", "--db", dbPath, "--json"]);
+    expect(found.exitCode).toBe(0);
+    const findPayload = JSON.parse(found.stdout) as {
+      sourceIds: string[];
+      results: Array<{ sourceId: string; sessionUuid: string; sessionRef: string; matchSeq: number | null }>;
+    };
+    expect(findPayload.sourceIds).toEqual(["codex", "claude-code"]);
+    expect(findPayload.results.map((result) => result.sourceId).sort()).toEqual(["claude-code", "codex"]);
+    const claudeHit = findPayload.results.find((result) => result.sourceId === "claude-code");
+    expect(claudeHit?.sessionRef).toBe("claude-code:cli-cross-claude");
+    expect(claudeHit?.matchSeq).toBe(0);
+
+    const explicitCodex = await runCli(["find", "cross shared", "--source", "codex", "--db", dbPath, "--json"]);
+    expect(explicitCodex.exitCode).toBe(0);
+    const explicitCodexPayload = JSON.parse(explicitCodex.stdout) as {
+      sourceIds: string[];
+      results: Array<{ sourceId: string }>;
+    };
+    expect(explicitCodexPayload.sourceIds).toEqual(["codex"]);
+    expect(explicitCodexPayload.results.map((result) => result.sourceId)).toEqual(["codex"]);
+
+    const range = await runCli([
+      "read-range",
+      claudeHit?.sessionRef ?? "",
+      "--seq",
+      String(claudeHit?.matchSeq ?? 0),
+      "--before",
+      "0",
+      "--after",
+      "0",
+      "--db",
+      dbPath,
+      "--json",
+    ]);
+    expect(range.exitCode).toBe(0);
+    const rangePayload = JSON.parse(range.stdout) as {
+      session: { sourceId: string; sessionUuid: string };
+      messages: Array<{ contentText: string }>;
+    };
+    expect(rangePayload.session.sourceId).toBe("claude-code");
+    expect(rangePayload.session.sessionUuid).toBe("claude-code:cli-cross-claude");
+    expect(rangePayload.messages[0]?.contentText).toBe("cross shared claude unique");
+  });
+
   test("sync with cwd selector writes coverage and find stays scoped", async () => {
     const base = mkdtempSync(join(tmpdir(), "cxs-cli-selector-"));
     tempDirs.push(base);
@@ -489,7 +577,7 @@ describe("cxs cli", () => {
     expect(syncPayload.coverage.written).toBe(true);
     expect(syncPayload.coverage.selector).toMatchObject({ kind: "cwd", cwd: "/tmp/alpha" });
 
-    const found = await runCli(["find", "shared needle", "--selector", selector, "--db", dbPath, "--json"]);
+    const found = await runCli(["find", "shared needle", "--source", "codex", "--selector", selector, "--db", dbPath, "--json"]);
     expect(found.exitCode).toBe(0);
     const findPayload = JSON.parse(found.stdout) as {
       results: Array<{ sessionUuid: string; cwd: string }>;
@@ -645,7 +733,19 @@ describe("cxs cli", () => {
     const synced = await runCli(["sync", "--root", root, "--selector", selectorWithoutRoot, "--db", dbPath, "--json"]);
     expect(synced.exitCode).toBe(0);
 
-    const found = await runCli(["find", "default root needle", "--root", root, "--selector", selectorWithoutRoot, "--db", dbPath, "--json"]);
+    const found = await runCli([
+      "find",
+      "default root needle",
+      "--source",
+      "codex",
+      "--root",
+      root,
+      "--selector",
+      selectorWithoutRoot,
+      "--db",
+      dbPath,
+      "--json",
+    ]);
     expect(found.exitCode).toBe(0);
     const payload = JSON.parse(found.stdout) as {
       results: Array<{ sessionUuid: string }>;

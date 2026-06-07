@@ -4,7 +4,7 @@
 
 | 症状 | 先跑 | 处理 |
 | --- | --- | --- |
-| `find` 零结果但用户坚持存在 | `status --cwd <path> --json` 或 `status --selector '<json>' --json` | 看目标范围的 `requestedCoverage`；必要时 `sync --cwd` / `sync --root` / `sync --selector`；再带同范围查询 |
+| `find` 零结果但用户坚持存在 | 对相关 public source 跑 `status --source <id> --cwd <path> --json` 或 `status --source <id> --selector '<json>' --json` | 看每个目标范围的 `requestedCoverage`；必要时按 source 同步；再带同范围查询 |
 | `sync` 非零退出带 per-file errors | `sync --root <dir> --json 2>&1` 或 `sync --selector '<json>' --json 2>&1` | 看 `errorDetails[]`；默认严格模式；只在允许部分成功时加 `--best-effort` |
 | `sync` 返回 `selector_required` | 原命令补 `--root`、`--cwd` 或 `--selector` | sync 必须显式给范围；不需要把 root 写进 JSON |
 | `find/list/stats/read-*` 输出 `index_unavailable` | `status --json` | 索引还没建立；选择范围后 `sync --root` / `sync --cwd` / `sync --selector` |
@@ -18,21 +18,22 @@
 | 用户问“最近本项目讨论了什么” | `list --cwd <abs_cwd> --sort ended --json` | 这是 metadata/listing 问题；索引不可用或 coverage 不明时再 `status --cwd` |
 | 用户说“在 X 项目里” | `status --json` | 从 `sourceInventory.cwdGroups` 选择 cwd selector |
 | 从其他 cwd 调用找不到 db | `stats --json` | 看 `dbPath`；必要时显式传 `--db` |
-| `unsupported_source` | 检查 source id 拼写，必要时改回省略 `--source`、`--source codex` 或 `--source claude-code` | 当前公开 source 是 `codex` 和 experimental `claude-code`；不要因为 source id 写错就跳回 raw source root |
+| `unsupported_source` | 检查 source id 拼写；`find` 可省略 `--source` 或用 `--source all`，窄化时用 `--source codex` / `--source claude-code` | 当前公开 source 是 `codex` 和 experimental `claude-code`；不要因为 source id 写错就跳回 raw source root |
 
 ## Find zero results but user insists it exists
 
 先看 `find --json` / `list --json` 有没有 `nextAction`。有就按它执行；没有也不要直接放弃,先确认目标范围 coverage。
 
 ```bash
-"${CXS_BIN:-cxs}" status --json
+"${CXS_BIN:-cxs}" status --source codex --json
+"${CXS_BIN:-cxs}" status --source claude-code --json
 ```
 
 如果目标范围没有 fresh coverage，先同步明确范围。cwd/root 用快捷方式，日期窗再用 selector：
 
 ```bash
-"${CXS_BIN:-cxs}" status --cwd /Users/me/work/foo --json
-"${CXS_BIN:-cxs}" sync --cwd /Users/me/work/foo
+"${CXS_BIN:-cxs}" status --source codex --cwd /Users/me/work/foo --json
+"${CXS_BIN:-cxs}" sync --source codex --cwd /Users/me/work/foo
 ```
 
 如果 `status --selector` 返回 `recommendedAction: "query"`，跳过 `sync`。

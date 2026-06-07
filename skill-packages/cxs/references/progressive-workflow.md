@@ -19,7 +19,7 @@ Hard rules:
 - Do not use `sync --prune` for normal retrieval.
 - `find` default sort is relevance; use `--sort ended` only when the user's question is time-oriented.
 - `matchSource = "session"` means `matchSeq = null`; use `read-page` instead of inventing a seq.
-- Current public sources are `codex` and experimental `claude-code`; omit `--source` or pass `--source codex` for the default. Claude Code is part of the normal CLI surface now, but it is still not a stable raw-format promise.
+- Current public sources are `codex` and experimental `claude-code`; `find` omits `--source` to search all public indexed sources by default. Pass `--source codex` or `--source claude-code` only to narrow or diagnose. Other source-scoped commands still omit `--source` as Codex-compatible default. Claude Code is part of the normal CLI surface now, but it is still not a stable raw-format promise.
 
 ## Scenario 1: Metadata Projection
 
@@ -52,7 +52,7 @@ sqlite3 -readonly "$DB_PATH" \
 这类需要主题召回,用 `find`:
 
 ```bash
-"${CXS_BIN:-cxs}" find "cf tunnel" --root /Users/me/.codex/sessions --json -n 5
+"${CXS_BIN:-cxs}" find "cf tunnel" --json -n 5
 ```
 
 如果命令返回 `index_unavailable`,或者你需要确认目标范围 coverage,再用 `status` / `sync`:
@@ -65,13 +65,13 @@ sqlite3 -readonly "$DB_PATH" \
 候选出来后读内容:
 
 ```bash
-"${CXS_BIN:-cxs}" read-range <sessionUuid> --seq <matchSeq> --before 4 --after 8 --json
+"${CXS_BIN:-cxs}" read-range <sessionRef> --seq <matchSeq> --before 4 --after 8 --json
 ```
 
 如果 `matchSeq` 是 `null`,改用:
 
 ```bash
-"${CXS_BIN:-cxs}" read-page <sessionUuid> --offset 0 --limit 40 --json
+"${CXS_BIN:-cxs}" read-page <sessionRef> --offset 0 --limit 40 --json
 ```
 
 ## Scenario 3: Coverage Diagnosis

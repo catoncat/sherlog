@@ -44,11 +44,13 @@ export function findSessions(
     const coverage = buildCoverageStatus(db, selector);
     return {
       query,
+      sourceIds: [sourceId],
       sort,
       excludedSessions,
       results,
       scannedMessageCount: countScannedMessages(db, selector, sourceId),
       coverage,
+      coverageBySource: [{ sourceId, coverage }],
       nextAction: results.length === 0 ? buildZeroResultsNextAction(selector, "this find") : undefined,
     };
   });

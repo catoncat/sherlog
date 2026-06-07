@@ -59,15 +59,15 @@ export function printFindResults(
     console.log(chalk.bold(`[${result.rank}] ${result.title || "(no title)"}`));
     console.log(chalk.gray(`${result.startedAt} · ${result.cwd || "-"}`));
     const matchPoint = result.matchSeq === null ? "session-level" : `seq=${result.matchSeq}`;
-    console.log(chalk.gray(`uuid=${result.sessionUuid} · ${matchPoint} · matches=${result.matchCount}`));
+    console.log(chalk.gray(`source=${result.sourceId} · uuid=${result.sessionUuid} · ${matchPoint} · matches=${result.matchCount}`));
     if (result.summaryText) {
       console.log(chalk.gray(trimSummary(result.summaryText)));
     }
     console.log(stripMarks(result.snippet));
     if (result.matchSeq === null) {
-      console.log(chalk.gray(`next: cxs read-page ${result.sessionUuid} --offset 0 --limit 40`));
+      console.log(chalk.gray(`next: cxs read-page ${result.sessionRef} --offset 0 --limit 40`));
     } else {
-      console.log(chalk.gray(`next: cxs read-range ${result.sessionUuid} --seq ${result.matchSeq}`));
+      console.log(chalk.gray(`next: cxs read-range ${result.sessionRef} --seq ${result.matchSeq}`));
     }
   }
 }

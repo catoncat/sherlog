@@ -33,7 +33,7 @@ import {
 import { canonicalizeSelector, parseSelectorJson, SelectorParseError, selectorSource } from "./selector";
 import { collectStatus } from "./status";
 import { SyncLockTimeoutError } from "./sync-lock";
-import type { FindSort, Selector, SessionListSort, SessionSourceId } from "./types";
+import type { FindResult, FindSort, FindSummary, QueryNextAction, Selector, SessionListSort, SessionSourceId } from "./types";
 
 const program = new Command();
 
@@ -135,7 +135,7 @@ program
 program
   .command("find <query>")
   .description("搜索相关 session，返回最小必要命中")
-  .option("--source <id>", `session source (public: ${publicSourceLabel()})`)
+  .option("--source <id>", `session source filter (public: all|${publicSourceLabel()}; default: all)`)
   .option("-n, --limit <n>", "返回条数", "10")
   .option("--root <dir>", "限定到指定 sessions 根目录；也作为 selector 默认 root")
   .option("--selector <json>", "结构化查询范围 JSON")
@@ -146,15 +146,18 @@ program
   .option("--json", "输出 JSON")
   .action((query, options) => {
     runReadCommand(Boolean(options.json), () => {
-      const sourceId = publicSource(options.source);
       const limit = parsePositiveInt(options.limit, 10);
-      const selector = optionalSelector({ ...options, source: sourceId, rootOnlySelector: true });
       const sort = normalizeFindSort(options.sort);
-      const result = findSessions(options.db, query, limit, selector, {
-        sourceId,
-        sort,
-        excludeSessions: options.excludeSession ?? [],
+      const sourceIds = publicFindSources(options.source, options.selector);
+      const summaries = sourceIds.map((sourceId) => {
+        const selector = optionalSelector({ ...options, source: sourceId, rootOnlySelector: true });
+        return findSessions(options.db, query, limit, selector, {
+          sourceId,
+          sort,
+          excludeSessions: options.excludeSession ?? [],
+        });
       });
+      const result = mergeFindSummaries(query, sort, options.excludeSession ?? [], summaries, limit);
       // performance.now() 自 timeOrigin(进程启动)起算 ≈ 本次端到端耗时,
       // 含 better-sqlite3 模块加载;cxs 是一次性进程,所以这就是诚实的端到端。
       const elapsedMs = Math.round(performance.now());
@@ -178,7 +181,7 @@ program
   .option("--json", "输出 JSON")
   .action((sessionUuid, options) => {
     runReadCommand(Boolean(options.json), () => {
-      const sourceId = publicSource(options.source);
+      const sourceId = publicReadSource(options.source, sessionUuid);
       const result = getMessageRange(options.db, sessionRefForSource(sessionUuid, sourceId), {
         seq: optionalInt(options.seq),
         query: options.query,
@@ -212,7 +215,7 @@ program
   .option("--json", "输出 JSON")
   .action((sessionUuid, options) => {
     runReadCommand(Boolean(options.json), () => {
-      const sourceId = publicSource(options.source);
+      const sourceId = publicReadSource(options.source, sessionUuid);
       const result = getMessagePage(
         options.db,
         sessionRefForSource(sessionUuid, sourceId),
@@ -359,6 +362,21 @@ function publicSource(value: string | undefined): SessionSourceId {
   throw new SourceOptionError(sourceId || "(empty)");
 }
 
+function publicFindSources(value: string | undefined, selectorJson?: string): SessionSourceId[] {
+  const source = value?.trim();
+  if (source && source !== "all") return [publicSource(source)];
+
+  const selectorSource = sourceFromSelectorJson(selectorJson);
+  if (selectorSource) return [selectorSource];
+
+  return getPublicSourceAdapters().map((adapter) => adapter.id);
+}
+
+function publicReadSource(value: string | undefined, sessionRef: string): SessionSourceId {
+  if (typeof value === "string") return publicSource(value);
+  return sourceFromSessionRef(sessionRef) ?? publicSource(undefined);
+}
+
 function publicSourceLabel(): string {
   return getPublicSourceAdapters()
     .map((adapter) => adapter.id)
@@ -376,6 +394,129 @@ function resolvePublicSourceAdapter(sourceId: string) {
 
 function getPublicSourceAdapters() {
   return listSessionSourceAdapters().filter((adapter) => adapter.public);
+}
+
+function sourceFromSelectorJson(selectorJson: string | undefined): SessionSourceId | null {
+  if (!selectorJson) return null;
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(selectorJson) as unknown;
+  } catch {
+    return null;
+  }
+  if (!isRecord(parsed) || typeof parsed.source !== "string") return null;
+  return publicSource(parsed.source);
+}
+
+function sourceFromSessionRef(sessionRef: string): SessionSourceId | null {
+  const separator = sessionRef.indexOf(":");
+  if (separator <= 0) return null;
+  return publicSource(sessionRef.slice(0, separator));
+}
+
+function mergeFindSummaries(
+  query: string,
+  sort: FindSort,
+  excludedSessions: string[],
+  summaries: FindSummary[],
+  limit: number,
+): FindSummary {
+  if (summaries.length === 1) return summaries[0]!;
+
+  const results = mergeFindResults(summaries.flatMap((summary) => summary.results), sort, limit);
+  const coverageBySource = summaries.flatMap((summary) => summary.coverageBySource ?? summary.sourceIds.map((sourceId) => ({
+    sourceId,
+    coverage: summary.coverage,
+  })));
+  const coverage = {
+    requested: null,
+    complete: coverageBySource.every((entry) => entry.coverage.complete),
+    freshness: "not_checked" as const,
+    coveringSelectors: coverageBySource.flatMap((entry) => entry.coverage.coveringSelectors),
+  };
+  return {
+    query,
+    sourceIds: summaries.flatMap((summary) => summary.sourceIds),
+    sort,
+    excludedSessions: uniqueNonEmpty(excludedSessions),
+    results,
+    scannedMessageCount: summaries.reduce((total, summary) => total + summary.scannedMessageCount, 0),
+    coverage,
+    coverageBySource,
+    nextAction: results.length === 0 ? buildCrossSourceZeroResultsNextAction() : undefined,
+  };
+}
+
+function mergeFindResults(results: FindResult[], sort: FindSort, limit: number): FindResult[] {
+  const deduped = new Map<string, FindResult>();
+  for (const result of results) {
+    const key = `${result.sourceId}\0${result.sessionRef}`;
+    const existing = deduped.get(key);
+    if (!existing || result.rank < existing.rank || (result.rank === existing.rank && result.score > existing.score)) {
+      deduped.set(key, result);
+    }
+  }
+
+  const rows = [...deduped.values()];
+  if (sort === "relevance") {
+    return rows
+      .map((result) => ({ ...result, score: reciprocalRankScore(result.rank) }))
+      .sort(compareMergedRelevance)
+      .slice(0, limit)
+      .map((result, index) => ({ ...result, rank: index + 1 }));
+  }
+
+  return rows
+    .sort((left, right) => compareMergedTime(left, right, sort))
+    .slice(0, limit)
+    .map((result, index) => ({ ...result, rank: index + 1 }));
+}
+
+function reciprocalRankScore(rank: number): number {
+  return 1 / (60 + rank);
+}
+
+function compareMergedRelevance(left: FindResult, right: FindResult): number {
+  if (right.score !== left.score) return right.score - left.score;
+  if (right.endedAt > left.endedAt) return 1;
+  if (right.endedAt < left.endedAt) return -1;
+  return compareStableFindResult(left, right);
+}
+
+function compareMergedTime(left: FindResult, right: FindResult, sort: FindSort): number {
+  const leftTime = sort === "started" ? left.startedAt : left.endedAt;
+  const rightTime = sort === "started" ? right.startedAt : right.endedAt;
+  if (rightTime > leftTime) return 1;
+  if (rightTime < leftTime) return -1;
+  if (right.score !== left.score) return right.score - left.score;
+  return compareStableFindResult(left, right);
+}
+
+function compareStableFindResult(left: FindResult, right: FindResult): number {
+  const sourceOrder = left.sourceId.localeCompare(right.sourceId);
+  if (sourceOrder !== 0) return sourceOrder;
+  return left.sessionRef.localeCompare(right.sessionRef);
+}
+
+function uniqueNonEmpty(values: string[]): string[] {
+  const seen = new Set<string>();
+  for (const value of values) {
+    const trimmed = value.trim();
+    if (trimmed) seen.add(trimmed);
+  }
+  return [...seen];
+}
+
+function buildCrossSourceZeroResultsNextAction(): QueryNextAction {
+  return {
+    kind: "choose_selector_then_check_coverage",
+    reason: "zero_results_without_selector",
+    steps: [
+      "Run cxs status --source <id> for each relevant public source and selector.",
+      "If any source reports requestedCoverage.recommendedAction as sync, run cxs sync --source <id> for that source and selector.",
+      "Retry this find before concluding nothing exists.",
+    ],
+  };
 }
 
 function emitSourceError(error: SourceOptionError, jsonMode: boolean): void {

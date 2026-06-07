@@ -2,14 +2,16 @@
 
 [https://cxs.chen.rs](https://cxs.chen.rs)
 
-`cxs` is a local-first CLI for searching Codex session logs. It is designed for
-progressive retrieval: find the right session first, then read only the relevant
-range or page.
+`cxs` is a local-first CLI for searching local Codex and Claude Code session
+logs. It is designed for progressive retrieval: find the right session first,
+then read only the relevant range or page.
 
 The public session sources in this checkout are `codex` and experimental
-`claude-code`. The fixed command set accepts `--source <id>`, and omitting
-`--source` still means Codex. Claude Code support is public in this checkout,
-but it is still an experimental transcript-reader contract rather than a stable
+`claude-code`. `find` searches all public indexed sources by default so agents
+do not have to guess where a memory came from. Other fixed commands still treat
+omitted `--source` as Codex unless they receive a source-qualified session ref
+such as `claude-code:<id>`. Claude Code support is public in this checkout, but
+it is still an experimental transcript-reader contract rather than a stable
 raw-format promise.
 
 When reading this from a source checkout, the installed `cxs` on your `PATH`
@@ -88,8 +90,8 @@ Search and read progressively:
 
 ```bash
 cxs find "health check"
-cxs read-range <sessionUuid> --seq <matchSeq>
-cxs read-page <sessionUuid> --offset 0 --limit 20
+cxs read-range <sessionRef> --seq <matchSeq>
+cxs read-page <sessionRef> --offset 0 --limit 20
 ```
 
 You can run the same flow without global installation:
@@ -105,7 +107,7 @@ npx @act0r/cxs@latest find "health check" --root /Users/you/.codex/sessions
 | --- | --- |
 | `cxs status` | Show execution context, source inventory, index state, and coverage. `--selector` checks whether a target range is fresh. Does not write the index. |
 | `cxs sync --root <dir>\|--cwd <path>\|--selector <json>` | Scan selected sessions for the chosen source and update the SQLite index. This is the only write command. |
-| `cxs find <query>` | Search indexed sessions and return ranked session candidates with minimal snippets. Use `--root`, `--cwd`, and `--sort ended` for scoped "latest + keyword" queries. |
+| `cxs find <query>` | Search indexed sessions across all public sources by default and return ranked session candidates with minimal snippets. Use `--source <id>` to narrow, or `--root`, `--cwd`, and `--sort ended` for scoped "latest + keyword" queries. |
 | `cxs read-range <sessionUuid>` | Read a small message window around a matched sequence or in-session query. |
 | `cxs read-page <sessionUuid>` | Read a session page by offset and limit. |
 | `cxs list` | List indexed sessions without full-text search. |
@@ -115,20 +117,30 @@ All commands that read indexed content support `--json`. Read commands fail
 cleanly if the index has not been created yet.
 
 In source-aware builds, all fixed commands accept `--source <id>`. Public
-values are `codex` and experimental `claude-code`; omitting `--source`
-defaults to Codex, so these are equivalent:
+values are `codex` and experimental `claude-code`.
+
+`find` is the recall primitive and defaults to all public indexed sources:
 
 ```bash
 cxs find "health check"
-cxs find "health check" --source codex
+cxs find "health check" --source all
 ```
 
-Claude Code uses the same fixed command surface:
+Use a source only to narrow or diagnose:
+
+```bash
+cxs find "health check" --source codex
+cxs find "health check" --source claude-code
+```
+
+For `status`, `sync`, `list`, `stats`, and bare read commands, omitting
+`--source` still means Codex. Read commands can also consume the `sessionRef`
+returned by `find` directly:
 
 ```bash
 cxs status --source claude-code --json
 cxs sync --source claude-code --root ~/.claude/projects --json
-cxs find "health check" --source claude-code
+cxs read-range claude-code:<sessionId> --seq <matchSeq>
 ```
 
 Unknown sources still return `unsupported_source` before doing command work.
@@ -180,9 +192,10 @@ order.
 
 ## Sync And Storage
 
-By default, `cxs` reads Codex sessions from `~/.codex/sessions`. With
-`--source claude-code`, the default root is `~/.claude/projects`. Index data is
-stored at:
+By default, source-scoped commands read Codex sessions from
+`~/.codex/sessions`. With `--source claude-code`, the default root is
+`~/.claude/projects`. `find` defaults to searching all public indexed sources
+already present in the SQLite index. Index data is stored at:
 
 ```text
 ~/.local/state/cxs/index.sqlite

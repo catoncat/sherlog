@@ -118,7 +118,9 @@ function findResult(
 ): FindResult {
   return {
     rank: 1,
+    sourceId: "codex",
     sessionUuid: overrides.sessionUuid ?? "session-a",
+    sessionRef: overrides.sessionUuid ?? "session-a",
     title: "title",
     summaryText: "",
     cwd: overrides.cwd ?? "/tmp/project",

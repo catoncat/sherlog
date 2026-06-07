@@ -1,4 +1,4 @@
-import type { FindMatchRole, FindResult, MatchSource, SessionSourceId } from "./types";
+import { DEFAULT_SESSION_SOURCE_ID, type FindMatchRole, type FindResult, type MatchSource, type SessionSourceId } from "./types";
 import { queryTerms, tokenize } from "./tokenize";
 
 export interface RawHitRow {
@@ -162,22 +162,32 @@ function rankAggregates(grouped: Map<string, SessionAggregate>, profile: QueryPr
       return 0;
     });
 
-  return ranked.slice(0, limit).map(({ aggregate, sessionScore }, index) => ({
-    rank: index + 1,
-    sessionUuid: aggregate.row.sessionUuid,
-    title: aggregate.row.title,
-    summaryText: aggregate.row.summaryText,
-    cwd: aggregate.row.cwd,
-    startedAt: aggregate.row.startedAt,
-    endedAt: aggregate.row.endedAt,
-    matchCount: aggregate.hitCount,
-    matchSource: aggregate.bestDisplayRow.matchSource,
-    matchSeq: aggregate.bestDisplayRow.matchSeq,
-    matchRole: aggregate.bestDisplayRow.matchRole,
-    matchTimestamp: aggregate.bestDisplayRow.matchTimestamp,
-    score: sessionScore,
-    snippet: aggregate.bestDisplayRow.snippet,
-  }));
+  return ranked.slice(0, limit).map(({ aggregate, sessionScore }, index) => {
+    const sourceId = aggregate.row.sourceId ?? DEFAULT_SESSION_SOURCE_ID;
+    return {
+      rank: index + 1,
+      sourceId,
+      sessionUuid: aggregate.row.sessionUuid,
+      sessionRef: sessionRefForResult(sourceId, aggregate.row.sessionUuid, aggregate.row.sessionKey),
+      title: aggregate.row.title,
+      summaryText: aggregate.row.summaryText,
+      cwd: aggregate.row.cwd,
+      startedAt: aggregate.row.startedAt,
+      endedAt: aggregate.row.endedAt,
+      matchCount: aggregate.hitCount,
+      matchSource: aggregate.bestDisplayRow.matchSource,
+      matchSeq: aggregate.bestDisplayRow.matchSeq,
+      matchRole: aggregate.bestDisplayRow.matchRole,
+      matchTimestamp: aggregate.bestDisplayRow.matchTimestamp,
+      score: sessionScore,
+      snippet: aggregate.bestDisplayRow.snippet,
+    };
+  });
+}
+
+function sessionRefForResult(sourceId: SessionSourceId, sessionUuid: string, sessionKey?: string): string {
+  if (sourceId === DEFAULT_SESSION_SOURCE_ID) return sessionUuid;
+  return sessionKey ?? `${sourceId}:${sessionUuid}`;
 }
 
 function shouldUseDisplayRow(

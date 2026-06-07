@@ -2,9 +2,9 @@
 
 ## 目标
 
-cxs 是面向 agent 的本地 session retrieval backend。当前公开 source 只有
-Codex。非公开 source 可以先作为 private adapter 做 synthetic verification，
-但必须经过明确 promotion / docs / release / install 边界后才能进入公开命令行为。
+cxs 是面向 agent 的本地 session retrieval backend。当前公开 source 有
+`codex` 和 experimental `claude-code`。`find` 默认跨 public sources 召回；
+其他 source-scoped 命令省略 source 时仍以 Codex 作为兼容默认。
 
 目标态：
 
@@ -128,8 +128,9 @@ cwd_date_range(source, root, cwd, fromDate, toDate)
 
 selector 是 agent 和 CLI 之间的同步契约。
 
-省略 source 的输入只能在 CLI 边界 canonicalize 为当前公开默认 source。进入
-coverage、index、query、read 流程后，selector 必须带 canonical source。
+省略 source 的 selector 输入只能在 CLI 边界 canonicalize。单源命令会补成
+当前命令的 source；默认跨源 `find` 会对每个 public source 建立对应 selector。
+进入 coverage、index、query、read 流程后，selector 必须带 canonical source。
 
 ### Coverage
 
