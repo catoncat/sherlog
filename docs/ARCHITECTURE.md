@@ -20,7 +20,7 @@
 
 这套命令面已经定型，不再保留 `window/session` 旧别名语义。
 
-这些命令都接受可省略的 `--source <id>`。当前公开值是 `codex` 和 experimental `claude-code`，省略时等价于 `--source codex`。传入未知 source 会返回 `unsupported_source`，不会开始扫描、查询或读取。
+这些命令都接受可省略的 `--source <id>`。当前公开值是 `codex` 和 experimental `claude-code`。`find` 是召回入口，省略 `--source` 时默认跨所有 public source 搜索；`--source codex` / `--source claude-code` 用于窄化或诊断。`status`、`sync`、`list`、`stats` 和裸 `read-*` 仍以 Codex 作为省略 source 的兼容默认。传入未知 source 会返回 `unsupported_source`，不会开始扫描、查询或读取。
 
 ## 数据流
 
@@ -31,7 +31,7 @@
 - `codex` adapter 负责默认 root、Codex JSONL inventory/snapshot、Codex parser。
 - `claude-code` adapter 负责默认 root、Claude Code transcript inventory/snapshot、Claude parser，并通过 public fixed-command surface 接入 source-aware indexing / read isolation。
 - 核心层负责 selector、coverage、DB、query/read/list/stats。
-- 公开命令面默认仍是 `codex` source；切换 `--source claude-code` 时走同一组命令，但当前语义仍限于 allowlisted transcript text。
+- `find` 默认跨 public source fanout 并合并结果；切换 `--source claude-code` 时走同一组命令但只查 Claude Code。当前 Claude 语义仍限于 allowlisted transcript text。
 
 Codex adapter 会把原有 `sessionUuid` 映射为 source-aware identity：
 
@@ -98,6 +98,8 @@ SQLite 访问层当前已经按 reader / writer 分流：
 3. 极少数零 token CJK query 在 message 侧回退到 LIKE
 4. 把 raw hits 合并后交给 [ranking.ts](/Users/envvar/work/repos/cxs/src/ranking.ts) 做 session 级排序
 
+CLI 默认 `find` 会对 public sources 执行单源 `findSessions()` fanout，再用 reciprocal-rank fusion 合并候选，避免直接比较不同 source 子集里的 raw FTS 分数。JSON 结果带 `sourceId` 和 `sessionRef`；`sessionRef` 可直接传给 `read-range` / `read-page`，所以 agent 不需要再推断来源。
+
 `messages` 仍然只代表可回读的真实 transcript。session-level 命中会以 `matchSource = "session"` 返回；如果没有真实 message anchor，`matchSeq` 为 `null`，CLI 会建议先 `read-page`。
 
 ### 4. 排序
@@ -125,15 +127,16 @@ SQLite 访问层当前已经按 reader / writer 分流：
 - `compact_text` 解析 JSONL `type=compacted` handoff
 - `reasoning_summary_text` 解析 `response_item.reasoning.summary`
 - `sessions_fts(title + summary_text + compact_text + reasoning_summary_text)` session-level recall
-- source adapter boundary and public `--source codex`
+- source adapter boundary and public `--source codex|claude-code`
 - source-aware selector / coverage / DB identity / query-read isolation
+- default cross-source `find` over public sources
 - strict / best-effort 两种 sync 语义
 - explicit sync scope (`--root` / `--cwd` / `--selector`, canonicalized to selector)
 - source inventory
 - complete coverage 记录
 - manual eval 导出
 - eval batch compare
-- private / non-public Claude Code adapter synthetic path（不是 public CLI source）
+- experimental public Claude Code fixed-command support
 
 ## 当前未落地能力
 
@@ -144,8 +147,7 @@ SQLite 访问层当前已经按 reader / writer 分流：
 - duplicate collapse / diversity control
 - 强约束 gold set / rubric / error taxonomy
 - watcher / daemon / realtime sync
-- 公开 Claude Code adapter / `cxs sync --source claude-code`
-- Claude Code raw JSONL public format decision；private adapter 目前不等同于稳定公开格式承诺
+- Claude Code raw JSONL stable public format decision；当前 experimental transcript reader 不等同于稳定格式承诺
 
 ## 为什么当前文档改成这版
 

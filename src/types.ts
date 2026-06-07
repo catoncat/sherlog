@@ -159,7 +159,9 @@ export interface MessageRecord {
 
 export interface FindResult {
   rank: number;
+  sourceId: SessionSourceId;
   sessionUuid: string;
+  sessionRef: string;
   title: string;
   summaryText: string;
   cwd: string;
@@ -176,6 +178,7 @@ export interface FindResult {
 
 export interface FindSummary {
   query: string;
+  sourceIds: SessionSourceId[];
   sort: FindSort;
   excludedSessions: string[];
   results: FindResult[];
@@ -183,6 +186,7 @@ export interface FindSummary {
   // "从 ~N 条历史里定位",分母随搜索范围走,不灌水。
   scannedMessageCount: number;
   coverage: CoverageStatus;
+  coverageBySource?: Array<{ sourceId: SessionSourceId; coverage: CoverageStatus }>;
   nextAction?: QueryNextAction;
 }
 

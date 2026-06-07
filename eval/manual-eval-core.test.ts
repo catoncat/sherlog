@@ -64,7 +64,9 @@ function findResult(
 ): FindResult {
   return {
     rank: overrides.rank ?? 1,
+    sourceId: "codex",
     sessionUuid: overrides.sessionUuid ?? "session-a",
+    sessionRef: overrides.sessionUuid ?? "session-a",
     title: overrides.title ?? "title",
     summaryText: overrides.summaryText ?? "",
     cwd: overrides.cwd ?? "/tmp/project",

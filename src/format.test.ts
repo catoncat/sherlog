@@ -12,7 +12,9 @@ function captured(spy: ReturnType<typeof vi.spyOn>): string {
 function makeFindResult(overrides: Partial<FindResult> = {}): FindResult {
   return {
     rank: 1,
+    sourceId: "codex",
     sessionUuid: "11111111-1111-4111-8111-111111111111",
+    sessionRef: "11111111-1111-4111-8111-111111111111",
     title: "排查 deploy",
     summaryText: "",
     cwd: "/tmp/project-a",
