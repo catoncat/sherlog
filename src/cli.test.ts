@@ -320,12 +320,11 @@ describe("cxs cli", () => {
     expect(payload.error.message).toContain("--selector");
   });
 
-  test("fixed commands reject unsupported and non-public --source values before other work", async () => {
+  test("fixed commands reject unsupported --source values before other work", async () => {
     const base = mkdtempSync(join(tmpdir(), "cxs-cli-source-unsupported-"));
     tempDirs.push(base);
     const dbPath = join(base, "missing.sqlite");
     const commands = [
-      ["status", "--source", "claude-code", "--db", dbPath, "--json"],
       ["sync", "--source", "other", "--root", join(base, "sessions"), "--db", dbPath, "--json"],
       ["find", "needle", "--source", "other", "--db", dbPath, "--json"],
       ["read-range", "14141414-1414-4414-8414-141414141414", "--source", "other", "--db", dbPath, "--json"],
@@ -339,23 +338,126 @@ describe("cxs cli", () => {
       expect(result.exitCode).toBe(1);
       const payload = JSON.parse(result.stdout) as { error: { code: string; source: string; message: string } };
       expect(payload.error.code).toBe("unsupported_source");
-      expect(payload.error.message).toContain("Only \"codex\" is public");
+      expect(payload.error.message).toContain("unsupported source");
       expect(result.stderr).toBe("");
     }
   });
 
-  test("selector JSON source is rejected when it is not public Codex", async () => {
+  test("selector JSON source is rejected when it is unsupported", async () => {
     const base = mkdtempSync(join(tmpdir(), "cxs-cli-selector-source-unsupported-"));
     tempDirs.push(base);
-    const selector = JSON.stringify({ source: "claude-code", kind: "all", root: join(base, "sessions") });
+    const selector = JSON.stringify({ source: "other", kind: "all", root: join(base, "sessions") });
 
     const result = await runCli(["sync", "--selector", selector, "--db", join(base, "index.sqlite"), "--json"]);
 
     expect(result.exitCode).toBe(1);
     const payload = JSON.parse(result.stdout) as { error: { code: string; source: string; message: string } };
     expect(payload.error.code).toBe("unsupported_source");
-    expect(payload.error.source).toBe("claude-code");
-    expect(payload.error.message).toContain("Only \"codex\" is public");
+    expect(payload.error.source).toBe("other");
+    expect(payload.error.message).toContain("unsupported source");
+  });
+
+  test("fixed commands accept explicit --source claude-code", async () => {
+    const base = mkdtempSync(join(tmpdir(), "cxs-cli-source-claude-code-"));
+    tempDirs.push(base);
+    const root = join(base, "projects");
+    mkdirSync(root, { recursive: true });
+    const projectDir = join(root, "synthetic-project");
+    mkdirSync(projectDir, { recursive: true });
+    writeFileSync(
+      join(projectDir, "conversation.jsonl"),
+      [
+        claudeLine({
+          type: "user",
+          sessionId: "cli-claude-session",
+          cwd: "/tmp/source-claude",
+          timestamp: "2026-06-06T00:00:00.000Z",
+          message: { content: "source claude needle" },
+        }),
+        claudeLine({
+          type: "assistant",
+          sessionId: "cli-claude-session",
+          cwd: "/tmp/source-claude",
+          timestamp: "2026-06-06T00:00:01.000Z",
+          message: { content: "source claude reply" },
+        }),
+      ].join("\n"),
+    );
+
+    const dbPath = join(base, "index.sqlite");
+    const synced = await runCli(["sync", "--source", "claude-code", "--root", root, "--db", dbPath, "--json"]);
+    expect(synced.exitCode).toBe(0);
+    const syncPayload = JSON.parse(synced.stdout) as { coverage: { selector: { source: string; kind: string; root: string } } };
+    expect(syncPayload.coverage.selector).toEqual({ source: "claude-code", kind: "all", root });
+
+    const status = await runCli(["status", "--source", "claude-code", "--root", root, "--db", dbPath, "--json"]);
+    expect(status.exitCode).toBe(0);
+    const statusPayload = JSON.parse(status.stdout) as {
+      context: { root: string };
+      sourceInventory: { totalFiles: number };
+      coverage: Array<{ selector: { source: string } }>;
+    };
+    expect(statusPayload.context.root).toBe(root);
+    expect(statusPayload.sourceInventory.totalFiles).toBe(1);
+    expect(statusPayload.coverage[0]?.selector.source).toBe("claude-code");
+
+    const found = await runCli(["find", "source claude needle", "--source", "claude-code", "--db", dbPath, "--json"]);
+    expect(found.exitCode).toBe(0);
+    const findPayload = JSON.parse(found.stdout) as { results: Array<{ sessionUuid: string; cwd: string }> };
+    expect(findPayload.results[0]?.sessionUuid).toBe("claude-code:cli-claude-session");
+    expect(findPayload.results[0]?.cwd).toBe("/tmp/source-claude");
+
+    const listed = await runCli(["list", "--source", "claude-code", "--db", dbPath, "--json"]);
+    expect(listed.exitCode).toBe(0);
+    const listPayload = JSON.parse(listed.stdout) as { query: { sourceId?: string }; results: Array<{ sessionUuid: string }> };
+    expect(listPayload.query.sourceId).toBe("claude-code");
+    expect(listPayload.results[0]?.sessionUuid).toBe("claude-code:cli-claude-session");
+
+    const stats = await runCli(["stats", "--source", "claude-code", "--db", dbPath, "--json"]);
+    expect(stats.exitCode).toBe(0);
+    const statsPayload = JSON.parse(stats.stdout) as { sessionCount: number; messageCount: number };
+    expect(statsPayload.sessionCount).toBe(1);
+    expect(statsPayload.messageCount).toBe(2);
+
+    const range = await runCli([
+      "read-range",
+      "cli-claude-session",
+      "--source",
+      "claude-code",
+      "--seq",
+      "0",
+      "--before",
+      "0",
+      "--after",
+      "0",
+      "--db",
+      dbPath,
+      "--json",
+    ]);
+    expect(range.exitCode).toBe(0);
+    const rangePayload = JSON.parse(range.stdout) as {
+      session: { sourceId: string; sessionUuid: string };
+      messages: Array<{ contentText: string }>;
+    };
+    expect(rangePayload.session.sourceId).toBe("claude-code");
+    expect(rangePayload.session.sessionUuid).toBe("claude-code:cli-claude-session");
+    expect(rangePayload.messages[0]?.contentText).toBe("source claude needle");
+
+    const page = await runCli([
+      "read-page",
+      "cli-claude-session",
+      "--source",
+      "claude-code",
+      "--limit",
+      "1",
+      "--db",
+      dbPath,
+      "--json",
+    ]);
+    expect(page.exitCode).toBe(0);
+    const pagePayload = JSON.parse(page.stdout) as { session: { sourceId: string }; totalCount: number };
+    expect(pagePayload.session.sourceId).toBe("claude-code");
+    expect(pagePayload.totalCount).toBe(2);
   });
 
   test("sync with cwd selector writes coverage and find stays scoped", async () => {
@@ -1071,4 +1173,8 @@ async function runExecutable(
       resolve({ exitCode: code ?? 0, stdout, stderr });
     });
   });
+}
+
+function claudeLine(record: Record<string, unknown>): string {
+  return JSON.stringify(record);
 }

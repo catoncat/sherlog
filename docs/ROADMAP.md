@@ -4,7 +4,7 @@
 
 `cxs` 现在已经有一条可用的 retrieval 主链。`title + summary_text + compact_text + reasoning_summary_text` 已作为 session-level recall 面接入，并通过 FTS5 column weights 显式分权；下一步仍不该盲目继续堆排序逻辑，当前最缺的是更可信的 acceptance gate。
 
-当前 source foundation 已落地到 checkout：公开 CLI source 只有 `codex`，`--source codex` 可省略，selector / coverage / DB / query-read 已有 source 维度。`claude-code` 已有 private/non-public adapter 路径，并通过 synthetic programmatic sync/read smoke 验证；但它仍不能写成已发布、已安装或 public CLI 可同步能力。
+当前 source foundation 已落地到 checkout：公开 CLI source 现在有 `codex` 和 experimental `claude-code`，省略 `--source` 仍等价于 `codex`，selector / coverage / DB / query-read 已有 source 维度。`claude-code` 现在已经走通 public fixed-command surface，但仍应描述为 experimental transcript-reader support，而不是稳定 raw-format 承诺。
 
 ## 优先级
 
@@ -30,7 +30,7 @@
 建议动作：
 
 - 扩充真实 query 集
-- 给 source-aware 默认行为补 acceptance：省略 source 等价于 `codex`、selector canonical JSON 带 `source: "codex"`、coverage 不跨 source、非公开 `claude-code` 返回 `unsupported_source`
+- 给 source-aware 默认行为补 acceptance：省略 source 等价于 `codex`、selector canonical JSON 带显式 `source`、coverage 不跨 source、`claude-code` 的 fixed-command public smoke 持续通过、未知 source 仍返回 `unsupported_source`
 - 继续用 dev-only `~/.agents/skills/cxs-dogfood` 手动策展本机 dogfood golden；不要把私有样本放进发行 skill package
 - 增加更强断言：
   - session 是否对
@@ -89,12 +89,12 @@
 
 这些都应该建立在更强 eval 之后，而不是先上。
 
-### Deferred: Claude Code public adapter
+### Deferred: Claude Code public support hardening
 
-未来如果要公开 Claude Code source，需要单独设计和验收：
+Claude Code 现在已经有 experimental public support，后续重点从“能不能公开”转成“怎么把公开契约做稳”：
 
-- 从当前 private/non-public adapter 出发，重新确认 public surface 和 release wording。
-- 优先重新评估官方 SDK/session API，而不是直接承诺 raw JSONL。
+- 重新评估官方 SDK/session API，判断是否要继续长期承诺当前 transcript reader。
 - 明确 tool results、attachments、diagnostics、snapshots、hook payloads、thinking、sidechain/subagent 语义。
-- 增加 source-specific privacy tests 和 public docs review。
-- 只有实现、测试、release docs 和 skill 都完成后，才能把 `claude-code` 从 reserved/non-public 提升为 public source。
+- 增加更强的 source-specific privacy tests 和 recall/eval 覆盖。
+- 补 release docs、installed CLI smoke、global skill update readback。
+- 如果后续发现 raw transcript contract 漂移，优先收敛 parser/SDK strategy，不要直接扩大 public 承诺。

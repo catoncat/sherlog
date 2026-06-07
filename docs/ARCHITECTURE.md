@@ -6,7 +6,7 @@
 
 `status -> sync --root/--cwd/--selector -> message/session recall -> session heuristic rerank -> read-range/read-page`
 
-它已经可用，但仍是轻量 retrieval 后端，不是完整的 resource-level retrieval 系统。当前公开 session source 只有 `codex`；`claude-code` 已有 private / non-public adapter 路径用于 synthetic verification 和后续 promotion 工作，但没有公开 CLI 同步能力或发布承诺。
+它已经可用，但仍是轻量 retrieval 后端，不是完整的 resource-level retrieval 系统。当前公开 session source 有 `codex` 和 experimental `claude-code`；其中 `claude-code` 已接到固定 CLI 命令面，但仍应视作 experimental transcript-reader support，而不是稳定 raw-format 承诺。
 
 ## 当前命令面
 
@@ -20,18 +20,18 @@
 
 这套命令面已经定型，不再保留 `window/session` 旧别名语义。
 
-这些命令都接受可省略的 `--source <id>`。当前唯一公开值是 `codex`，省略时等价于 `--source codex`。传入未知 source 或非公开 `claude-code` 会返回 `unsupported_source`，不会开始扫描、查询或读取。
+这些命令都接受可省略的 `--source <id>`。当前公开值是 `codex` 和 experimental `claude-code`，省略时等价于 `--source codex`。传入未知 source 会返回 `unsupported_source`，不会开始扫描、查询或读取。
 
 ## 数据流
 
 ### 0. Source adapter
 
-`src/sources/` 定义 source adapter 边界和 registry。当前 registry 公开 Codex adapter，并保留一个非公开 Claude Code adapter：
+`src/sources/` 定义 source adapter 边界和 registry。当前 registry 公开 Codex adapter 和 experimental Claude Code adapter：
 
 - `codex` adapter 负责默认 root、Codex JSONL inventory/snapshot、Codex parser。
-- `claude-code` adapter 是 private / non-public：它只允许内部 programmatic verification，通过 synthetic JSONL 证明 source-aware indexing / read isolation，不接受 public CLI `--source claude-code`。
+- `claude-code` adapter 负责默认 root、Claude Code transcript inventory/snapshot、Claude parser，并通过 public fixed-command surface 接入 source-aware indexing / read isolation。
 - 核心层负责 selector、coverage、DB、query/read/list/stats。
-- 公开命令面仍只有 `codex` source；未知 source 或非公开 `claude-code` 会在 CLI 边界返回 `unsupported_source`。
+- 公开命令面默认仍是 `codex` source；切换 `--source claude-code` 时走同一组命令，但当前语义仍限于 allowlisted transcript text。
 
 Codex adapter 会把原有 `sessionUuid` 映射为 source-aware identity：
 
@@ -45,7 +45,7 @@ Codex adapter 会把原有 `sessionUuid` 映射为 source-aware identity：
 
 [status.ts](/Users/envvar/work/repos/cxs/src/status.ts) 返回执行上下文、source inventory、index 状态与 coverage 状态。它可以扫描 raw sessions 的 metadata，但不回答内容问题。
 
-[indexer.ts](/Users/envvar/work/repos/cxs/src/indexer.ts) 按显式 selector 扫描选定 source 的 session snapshot。当前公开 source 只有 Codex，因此实际扫描的是 Codex JSONL sessions；增量判断仍基于文件 `mtime`、`size` 和 `indexVersion`。
+[indexer.ts](/Users/envvar/work/repos/cxs/src/indexer.ts) 按显式 selector 扫描选定 source 的 session snapshot。当前公开 source 可以是 Codex 或 Claude Code；增量判断仍基于文件 `mtime`、`size` 和 `indexVersion`。
 
 strict sync 默认只更新当前 source snapshot 中仍可见的文件，并保留已经进入 SQLite 的旧 session。这样 raw JSONL 的维护、移动或删除不会让 cxs 的历史查询丢失。只有显式传 `--prune` 时，sync 才会把 selector 范围收敛成当前 source snapshot，并删除同一 source 中已不存在的旧 index row。一个 source 的 sync/prune 不会删除另一个 source 的数据。当前 source 中仍存在但被过滤或不能解析成 session 的文件仍按当前状态处理。
 

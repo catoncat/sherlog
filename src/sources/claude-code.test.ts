@@ -16,13 +16,16 @@ afterEach(() => {
 });
 
 describe("claude-code source adapter", () => {
-  test("is registered as a private non-public adapter", () => {
+  test("is registered as a public adapter", () => {
     const adapter = getSessionSourceAdapter("claude-code");
 
     expect(adapter.id).toBe("claude-code");
-    expect(adapter.public).toBe(false);
+    expect(adapter.public).toBe(true);
     expect(listSessionSourceAdapters().map((source) => source.id)).toEqual(["codex", "claude-code"]);
-    expect(listSessionSourceAdapters().filter((source) => source.public).map((source) => source.id)).toEqual(["codex"]);
+    expect(listSessionSourceAdapters().filter((source) => source.public).map((source) => source.id)).toEqual([
+      "codex",
+      "claude-code",
+    ]);
   });
 
   test("rejects an explicit selector source mismatch before syncing or writing coverage", async () => {
@@ -326,9 +329,12 @@ describe("claude-code source adapter", () => {
     expect(foundBeta.results[0]?.sessionUuid).toMatch(/^claude-code:conversation-[0-9a-f]{64}$/);
   });
 
-  test("keeps current-main Codex adapter as the only public adapter", () => {
+  test("keeps Codex as the default adapter while Claude Code is also public", () => {
     expect(getSessionSourceAdapter().id).toBe("codex");
-    expect(listSessionSourceAdapters().filter((adapter) => adapter.public).map((adapter) => adapter.id)).toEqual(["codex"]);
+    expect(listSessionSourceAdapters().filter((adapter) => adapter.public).map((adapter) => adapter.id)).toEqual([
+      "codex",
+      "claude-code",
+    ]);
   });
 });
 
