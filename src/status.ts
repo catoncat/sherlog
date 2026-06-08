@@ -1,5 +1,5 @@
 import { existsSync, statSync } from "node:fs";
-import { INDEX_VERSION, DEFAULT_DB_PATH } from "./env";
+import { INDEX_VERSION, DEFAULT_DB_PATH, isCurrentIndexVersion } from "./env";
 import { getStatsCounts, listCoverageRecords, withReadDb, type Db } from "./db";
 import { selectorImplies, selectorSource } from "./selector";
 import { getSessionSourceAdapter } from "./sources";
@@ -121,7 +121,7 @@ async function toCoverageInventoryStatus(record: CoverageRecord): Promise<Covera
   const snapshot = await source.collectSnapshot(record.selector);
   const fresh = snapshot.fingerprint === record.sourceFingerprint
     && snapshot.fileCount === record.sourceFileCount
-    && record.indexVersion === INDEX_VERSION;
+    && isCurrentIndexVersion(record.indexVersion);
   return {
     ...record,
     freshness: fresh ? "fresh" : "stale",
@@ -137,7 +137,7 @@ async function requestedCoverageStatus(
   const source = getSessionSourceAdapter(selectorSource(selector));
   const snapshot = await source.collectSnapshot(selector);
   const coveringSelectors = coverage.filter((entry) =>
-    entry.indexVersion === INDEX_VERSION && selectorImplies(entry.selector, selector)
+    isCurrentIndexVersion(entry.indexVersion) && selectorImplies(entry.selector, selector)
   );
   const hasFreshCovering = coveringSelectors.some((entry) => entry.freshness === "fresh");
   const freshness: RequestedCoverageStatus["freshness"] = hasFreshCovering

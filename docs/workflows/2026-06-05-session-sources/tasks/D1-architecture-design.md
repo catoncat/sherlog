@@ -4,7 +4,7 @@ Mode: `decision-packet`
 
 ## Objective
 
-Synthesize A1, A2, and A3 into a current-state-aligned design for the cxs multi-source foundation.
+Synthesize A1, A2, and A3 into a current-state-aligned design for the Sherlog multi-source foundation.
 
 ## Read Paths
 

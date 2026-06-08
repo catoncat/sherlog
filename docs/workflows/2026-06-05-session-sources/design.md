@@ -1,14 +1,14 @@
-# cxs Multi-Source Foundation Design
+# Sherlog Multi-Source Foundation Design
 
 ## Problem Statement
 
-`cxs` is currently a Codex session retrieval CLI. The command surface is fixed, but the implementation still assumes one transcript source in root resolution, JSONL inventory, parsing, selector identity, coverage keys, DB uniqueness, query/read paths, and public wording.
+`Sherlog` is currently a Codex session retrieval CLI. The command surface is fixed, but the implementation still assumes one transcript source in root resolution, JSONL inventory, parsing, selector identity, coverage keys, DB uniqueness, query/read paths, and public wording.
 
 The multi-source foundation should make session source explicit while preserving today's Codex behavior. The first implementation publishes only `codex`. Claude Code is reserved as a future adapter boundary, not a public feature in this workflow.
 
 The hard decisions represented here come from:
 
-- A1: Codex-only assumptions are concentrated in `src/env.ts`, `src/source-inventory.ts`, `src/parser.ts`, `src/selector.ts`, `src/db/**`, `src/query/**`, `src/status.ts`, `src/indexer.ts`, `src/cli.ts`, docs, and `skill-packages/cxs`.
+- A1: Codex-only assumptions are concentrated in `src/env.ts`, `src/source-inventory.ts`, `src/parser.ts`, `src/selector.ts`, `src/db/**`, `src/query/**`, `src/status.ts`, `src/indexer.ts`, `src/cli.ts`, docs, and `skill-packages/sherlog`.
 - A2: `source_id` must be a DB, selector, coverage, query, and read dimension. Missing public source input defaults to `codex`. Bare `session_uuid` remains Codex-compatible input/output but must not remain global internal identity.
 - A3: Reserve `claude-code`, but keep raw Claude JSONL shape private/deferred. Future Claude decoding belongs in an adapter, preferably SDK-reader first for public behavior.
 
@@ -171,7 +171,7 @@ Allowed now:
 
 Not public in this workflow:
 
-- No `cxs sync --source claude-code`.
+- No `shlog sync --source claude-code`.
 - No help text claiming Claude support.
 - No docs or skill guidance telling users to rely on Claude transcripts.
 - No indexing of Claude tool results, attachments, diagnostics, snapshots, hook payloads, signatures, thinking, or sidechain data.
@@ -202,7 +202,7 @@ Implementation waves should add focused tests before broad dogfood gates:
 - `find` dedupe and `--exclude-session` do not collapse colliding native ids.
 - `status`, `sync`, `find`, `list`, `read-range`, `read-page`, and `stats` accept omitted source as Codex.
 - `--source claude-code` returns unsupported/non-public until a future workflow promotes it.
-- Existing Codex CLI smoke still works through `npm run cxs -- ...`.
+- Existing Codex CLI smoke still works through `npm run shlog -- ...`.
 
 Docs-only D1 proof is `git diff --check`.
 
@@ -222,11 +222,11 @@ Wire `--source` through all fixed commands. Preserve omitted-source behavior. Re
 
 ### I4: Docs And Release Skill Alignment
 
-Update current checkout docs and `skill-packages/cxs` only after implementation behavior exists. State that Codex is the only public source and Claude Code is reserved/non-public.
+Update current checkout docs and `skill-packages/sherlog` only after implementation behavior exists. State that Codex is the only public source and Claude Code is reserved/non-public.
 
 ### E1: Evidence
 
-Run `npm run check`, targeted source-aware tests, and Codex smoke commands using `npm run cxs -- ...`. Record source checkout state separately from npm release, global skill, and installed CLI state.
+Run `npm run check`, targeted source-aware tests, and Codex smoke commands using `npm run shlog -- ...`. Record source checkout state separately from npm release, global skill, and installed CLI state.
 
 ### R1: Review
 

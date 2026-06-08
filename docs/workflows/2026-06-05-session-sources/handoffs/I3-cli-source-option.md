@@ -7,7 +7,7 @@ Mainline intent: `int_0a6d76cd`
 
 ## Conclusion
 
-Added public CLI `--source codex` behavior across the fixed command set while preserving omitted-source Codex behavior. Unsupported and non-public source values, including `claude-code`, are rejected before command work with a user-facing `unsupported_source` error. No commands were added, and no Claude Code support, release docs, `skill-packages/cxs`, push, PR, npm release, global skill update, or installed CLI update was performed.
+Added public CLI `--source codex` behavior across the fixed command set while preserving omitted-source Codex behavior. Unsupported and non-public source values, including `claude-code`, are rejected before command work with a user-facing `unsupported_source` error. No commands were added, and no Claude Code support, release docs, `skill-packages/sherlog`, push, PR, npm release, global skill update, or installed CLI update was performed.
 
 ## Actual Workspace
 
@@ -97,7 +97,7 @@ Added public CLI `--source codex` behavior across the fixed command set while pr
   - exit 0; `tsc --noEmit` passed; 27 test files passed; 152 tests passed.
 - `git diff --check`
   - exit 0.
-- `npm run cxs -- status --source codex --json`
+- `npm run shlog -- status --source codex --json`
   - exit 0 against this Mac's default checkout/runtime state; reported root `/Users/envvar/.codex/sessions`, 783 source files, existing old local index counts, and no source-aware coverage.
 - Temp checkout smoke with `sync/find/read-page/read-range/list/stats --source codex`
   - exit 0; summary: `syncAdded=1`, `syncSource=codex`, `findResults=1`, `pageTotal=2`, `rangeMessages=2`, `listResults=1`, `statsSessions=1`.
@@ -125,7 +125,7 @@ None for I3.
 
 ## I4 Contract
 
-- I4 can update checkout docs and `skill-packages/cxs` to describe `--source codex` as the only public source.
+- I4 can update checkout docs and `skill-packages/sherlog` to describe `--source codex` as the only public source.
 - I4 should state clearly that Claude Code remains reserved/non-public.
 - I4 should not claim npm/global installed CLI behavior unless a separate release/install workflow runs and verifies those layers.
 

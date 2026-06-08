@@ -10,7 +10,7 @@ Assess the minimum safe boundary for future Claude Code support without publishi
 
 - Official Claude Code documentation for local session storage and transcript behavior.
 - Optional local sample inspection under `~/.claude/projects` only if available and only for non-secret structural evidence.
-- Existing cxs docs and parser boundaries:
+- Existing Sherlog docs and parser boundaries:
   - `docs/ARCHITECTURE.md`
   - `src/parser.ts`
   - `src/source-inventory.ts`

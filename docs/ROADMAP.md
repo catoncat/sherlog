@@ -1,8 +1,8 @@
-# cxs Roadmap
+# Sherlog Roadmap
 
 ## 当前判断
 
-`cxs` 现在已经有一条可用的 retrieval 主链。`title + summary_text + compact_text + reasoning_summary_text` 已作为 session-level recall 面接入，并通过 FTS5 column weights 显式分权；下一步仍不该盲目继续堆排序逻辑，当前最缺的是更可信的 acceptance gate。
+`Sherlog` 现在已经有一条可用的 retrieval 主链。`title + summary_text + compact_text + reasoning_summary_text` 已作为 session-level recall 面接入，并通过 FTS5 column weights 显式分权；下一步仍不该盲目继续堆排序逻辑，当前最缺的是更可信的 acceptance gate。
 
 当前 source foundation 已落地到 checkout：公开 CLI source 现在有 `codex` 和 experimental `claude-code`，selector / coverage / DB / query-read 已有 source 维度。`find` 省略 `--source` 时默认跨 public sources 搜索并返回可直接读取的 `sessionRef`；其他 source-scoped 命令省略 `--source` 仍以 Codex 作为兼容默认。`claude-code` 现在已经走通 public fixed-command surface，但仍应描述为 experimental transcript-reader support，而不是稳定 raw-format 承诺。
 
@@ -31,7 +31,7 @@
 
 - 扩充真实 query 集
 - 给 source-aware 默认行为补 acceptance：默认 `find` 跨 `codex` / `claude-code` 返回结果、结果包含 `sourceId` / `sessionRef`、`sessionRef` 可直接 `read-*`、显式 `--source codex` 可恢复窄化、selector canonical JSON 带显式 `source`、coverage 不跨 source、`claude-code` 的 fixed-command public smoke 持续通过、未知 source 仍返回 `unsupported_source`
-- 继续用 dev-only `~/.agents/skills/cxs-dogfood` 手动策展本机 dogfood golden；不要把私有样本放进发行 skill package
+- 继续用 dev-only `~/.agents/skills/sherlog-dogfood` 手动策展本机 dogfood golden；不要把私有样本放进发行 skill package
 - 增加更强断言：
   - session 是否对
   - `read-range` 是否给出有用上下文

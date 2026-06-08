@@ -3,7 +3,7 @@ You are executing `2026-06-05-session-sources/A2`.
 Use the `codex-session-orchestrator` skill.
 
 Goal:
-Decide the source, selector, coverage, and DB identity model for the `cxs` multi-source foundation.
+Decide the source, selector, coverage, and DB identity model for the `Sherlog` multi-source foundation.
 
 First action:
 Call `create_goal` with:

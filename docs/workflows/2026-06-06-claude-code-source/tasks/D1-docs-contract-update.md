@@ -37,7 +37,7 @@ prompt as task authority and record the drift in the handoff.
 
 ## Forbidden
 
-- `skill-packages/cxs/**`
+- `skill-packages/sherlog/**`
 - `package.json`, lockfiles, release config, CI, build config, installed CLI
   state, global skills
 - Product code and tests, unless a docs test file already exists and must be
@@ -63,7 +63,7 @@ prompt as task authority and record the drift in the handoff.
 ## Required Proof
 
 ```bash
-git diff -- docs README.md AGENTS.md skill-packages/cxs 2>/dev/null || true
+git diff -- docs README.md AGENTS.md skill-packages/sherlog 2>/dev/null || true
 git diff --check
 ```
 
@@ -71,10 +71,10 @@ Also run docs-relevant checkout help/readback if docs quote or paraphrase CLI
 help:
 
 ```bash
-npm run cxs -- --help
-npm run cxs -- sync --help
-npm run cxs -- find --help
-npm run cxs -- status --source claude-code --json
+npm run shlog -- --help
+npm run shlog -- sync --help
+npm run shlog -- find --help
+npm run shlog -- status --source claude-code --json
 ```
 
 Run `npm run check` only if docs changes affect code-linked tests or if the

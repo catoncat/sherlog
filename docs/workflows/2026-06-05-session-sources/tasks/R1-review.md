@@ -13,7 +13,7 @@ Review the final design and implementation for source leakage, ID ambiguity, cov
 - Final diff or commits.
 - `src/**`
 - `docs/**`
-- `skill-packages/cxs/**`
+- `skill-packages/sherlog/**`
 
 ## Allowed Writes
 

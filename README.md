@@ -1,22 +1,22 @@
-# cxs
+# Sherlog
 
-[https://cxs.chen.rs](https://cxs.chen.rs)
+[https://sherlog.net](https://sherlog.net)
 
-`cxs` is a local-first CLI for searching local Codex and Claude Code session logs. It is built for agents that know how to investigate: find the right session first, then read only the relevant range or page.
+`Sherlog` is a local-first CLI for searching local Codex and Claude Code session logs. It is built for agents that know how to investigate: find the right session first, then read only the relevant range or page.
 
 ## Quick Install
 
 Install the CLI globally:
 
 ```bash
-npm i -g @act0r/cxs
-cxs --help
+npm i -g @act0r/sherlog
+shlog --help
 ```
 
 Install the agent skill separately:
 
 ```bash
-npx skills add catoncat/cxs --full-depth --skill cxs -g -y
+npx skills add catoncat/sherlog --full-depth --skill sherlog -g -a codex -y
 ```
 
 ## Quick Start
@@ -24,21 +24,21 @@ npx skills add catoncat/cxs --full-depth --skill cxs -g -y
 Check coverage for a project:
 
 ```bash
-cxs status --cwd /Users/you/work/project --json
+shlog status --cwd /Users/you/work/project --json
 ```
 
 Build or refresh coverage:
 
 ```bash
-cxs sync --cwd /Users/you/work/project
+shlog sync --cwd /Users/you/work/project
 ```
 
 Search and read progressively:
 
 ```bash
-cxs find "health check"
-cxs read-range <sessionRef> --seq <matchSeq>
-cxs read-page <sessionRef> --offset 0 --limit 20
+shlog find "health check"
+shlog read-range <sessionRef> --seq <matchSeq>
+shlog read-page <sessionRef> --offset 0 --limit 20
 ```
 
 ## Documentation

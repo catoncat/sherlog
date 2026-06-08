@@ -1,4 +1,4 @@
-# cxs JSON Schema
+# Sherlog JSON Schema
 
 ## find
 

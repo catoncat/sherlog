@@ -1,24 +1,24 @@
-# cxs CLI Surface
+# Sherlog CLI Surface
 
 命令默认写法：
 
 ```bash
-"${CXS_BIN:-cxs}" <subcommand> ...
+"${SHLOG_BIN:-${CXS_BIN:-shlog}}" <subcommand> ...
 ```
 
-如果你没有把 `cxs` 放进 `PATH`，先：
+如果你没有把 `Sherlog` 放进 `PATH`，先：
 
 ```bash
-export CXS_BIN=/absolute/path/to/bin/cxs
+export SHLOG_BIN=/absolute/path/to/bin/shlog
 ```
 
 没有单独的 `init` 命令。`status` 不是每次历史查询的固定第一步；它用于 coverage/freshness/source inventory/index availability。首次安装、索引不可用、目标 selector coverage 不明时,跑 `status --json`，根据返回的 `context.root`、`sourceInventory.cwdGroups` 和问题范围选择 `--cwd` / `--root` / selector；再用 `status --cwd <path> --json` 或 `status --selector '<json>' --json` 检查 coverage。只有 `requestedCoverage.recommendedAction === "sync"` 时才跑对应的 `sync --cwd` / `sync --root` / `sync --selector`。
 
-metadata-only 问题可以直接对 cxs SQLite index 做只读 projection,例如时间排序、数量、cwd 分布；内容判断仍必须回到 `read-page` / `read-range`。
+metadata-only 问题可以直接对 Sherlog SQLite index 做只读 projection,例如时间排序、数量、cwd 分布；内容判断仍必须回到 `read-page` / `read-range`。
 
 支持 source-aware CLI 的版本里,所有固定命令都接受 `--source <id>`。当前公开 source 是 `codex` 和 experimental `claude-code`。`find` 省略 `--source` 时默认跨 public sources 搜索，`--source all` 是显式同义写法；`--source codex` / `--source claude-code` 用于缩小范围或诊断。`status`、`sync`、`list`、`stats` 和裸 `read-*` 省略 source 时仍按 Codex 兼容默认处理；read 命令也可以直接消费 `find` 返回的 `sessionRef`。未知 source 会返回 `unsupported_source`。Claude Code 已是 public CLI 可用 adapter，但仍是 experimental transcript-reader support；不要把它理解成稳定 raw transcript 格式承诺。如果安装版直接报 unknown option `--source`,它是旧 CLI；省略 source flags 或更新 CLI。
 
-缺少 cxs 索引时,`find` / `read-range` / `read-page` / `list` / `stats --json` 返回:
+缺少 Sherlog 索引时,`find` / `read-range` / `read-page` / `list` / `stats --json` 返回:
 
 ```json
 { "error": { "code": "index_unavailable", "message": "...", "dbPath": "...", "hint": "..." } }
@@ -35,9 +35,9 @@ Purpose: 返回执行上下文、source inventory、index 状态和 coverage 状
 Example:
 
 ```bash
-"${CXS_BIN:-cxs}" status --json
-"${CXS_BIN:-cxs}" status --cwd /Users/me/work/foo --json
-"${CXS_BIN:-cxs}" status --root /Users/me/.codex/sessions --selector '{"kind":"all"}' --json
+"${SHLOG_BIN:-${CXS_BIN:-shlog}}" status --json
+"${SHLOG_BIN:-${CXS_BIN:-shlog}}" status --cwd /Users/me/work/foo --json
+"${SHLOG_BIN:-${CXS_BIN:-shlog}}" status --root /Users/me/.codex/sessions --selector '{"kind":"all"}' --json
 ```
 
 常用 options: `--source <id>`(public: `codex|claude-code`)、`--root`、`--selector`、`--cwd`、`--db`、`--json`。
@@ -83,9 +83,9 @@ Options:
 Example:
 
 ```bash
-"${CXS_BIN:-cxs}" sync --cwd /Users/me/work/foo --json
-"${CXS_BIN:-cxs}" sync --root /Users/me/.codex/sessions --json 2>&1
-"${CXS_BIN:-cxs}" sync --root /Users/me/.codex/sessions --selector '{"kind":"cwd_date_range","cwd":"/Users/me/work/foo","fromDate":"2026-04-15","toDate":"2026-04-30"}' --json
+"${SHLOG_BIN:-${CXS_BIN:-shlog}}" sync --cwd /Users/me/work/foo --json
+"${SHLOG_BIN:-${CXS_BIN:-shlog}}" sync --root /Users/me/.codex/sessions --json 2>&1
+"${SHLOG_BIN:-${CXS_BIN:-shlog}}" sync --root /Users/me/.codex/sessions --selector '{"kind":"cwd_date_range","cwd":"/Users/me/work/foo","fromDate":"2026-04-15","toDate":"2026-04-30"}' --json
 ```
 
 ## find
@@ -94,19 +94,19 @@ Purpose: 搜索相关 session，返回最小必要命中。用于 semantic recal
 
 `find` 默认搜索所有 public indexed sources。结果里的 `sourceId` 告诉你来源，`sessionRef` 是后续 `read-range` / `read-page` 的首选输入。只有用户指定来源、要缩小范围、或在诊断某个 source 的覆盖问题时才加 `--source codex` / `--source claude-code`。
 
-text header 带效率回述:`cxs find "q" · 检索 ~N 条 · 结果 R · Xms`(`检索 ~N` = 范围内语料规模诚实分母,`--json` 里是 `scannedMessageCount` / `elapsedMs`)。`read-range` / `read-page` 的 header 带「读取 K 条 / 本 session 共 T 条 · Xms」和 `total=… · hasMore=… · Xms`。这些数字用于「结果回述」那段克制地告诉用户省了多少,**不要据此编造「省 X%」**。
+text header 带效率回述:`shlog find "q" · 检索 ~N 条 · 结果 R · Xms`(`检索 ~N` = 范围内语料规模诚实分母,`--json` 里是 `scannedMessageCount` / `elapsedMs`)。`read-range` / `read-page` 的 header 带「读取 K 条 / 本 session 共 T 条 · Xms」和 `total=… · hasMore=… · Xms`。这些数字用于「结果回述」那段克制地告诉用户省了多少,**不要据此编造「省 X%」**。
 
-效率回述默认开,环境变量 `CXS_STATS=0`(或 `off`/`false`/`no`)可关闭文本 header 里的注解(`检索 ~N 条 / 读取 K 条 / Xms`);`--json` 的 `scannedMessageCount` / `elapsedMs` 与 `read-page` 的 `total/hasMore` 等功能字段始终保留。关闭时文本里没有可锚的数字,直接省掉效率尾注、别硬编。
+效率回述默认开,环境变量 `SHLOG_STATS=0`(或 `off`/`false`/`no`)可关闭文本 header 里的注解(`检索 ~N 条 / 读取 K 条 / Xms`);`--json` 的 `scannedMessageCount` / `elapsedMs` 与 `read-page` 的 `total/hasMore` 等功能字段始终保留。关闭时文本里没有可锚的数字,直接省掉效率尾注、别硬编。
 
 零结果不是结束条件。`--json` 下如果返回 `nextAction`,按它选择/检查同一 selector；text 输出也会打印 `next:` 步骤。只有 `status.requestedCoverage.recommendedAction === "sync"` 时才跑同范围 `sync`,然后重试同一个 `find`。fresh coverage 下仍无结果,才可以说没找到。
 
 Example:
 
 ```bash
-"${CXS_BIN:-cxs}" find "cf tunnel" --json -n 5
-"${CXS_BIN:-cxs}" find "cf tunnel" --cwd /Users/me/work/foo --json -n 5
-"${CXS_BIN:-cxs}" find "ping pong" --root /Users/me/.codex/sessions --json -n 5
-"${CXS_BIN:-cxs}" find "xsearch" --cwd /Users/me/work/foo --sort ended --exclude-session <current_uuid> --json -n 5
+"${SHLOG_BIN:-${CXS_BIN:-shlog}}" find "cf tunnel" --json -n 5
+"${SHLOG_BIN:-${CXS_BIN:-shlog}}" find "cf tunnel" --cwd /Users/me/work/foo --json -n 5
+"${SHLOG_BIN:-${CXS_BIN:-shlog}}" find "ping pong" --root /Users/me/.codex/sessions --json -n 5
+"${SHLOG_BIN:-${CXS_BIN:-shlog}}" find "xsearch" --cwd /Users/me/work/foo --sort ended --exclude-session <current_uuid> --json -n 5
 ```
 
 Options:
@@ -134,8 +134,8 @@ Notes:
 Example:
 
 ```bash
-"${CXS_BIN:-cxs}" read-range <sessionUuid> --seq 12 --before 4 --after 8 --json
-"${CXS_BIN:-cxs}" read-range <sessionUuid> --query "IME" --before 4 --after 8 --json
+"${SHLOG_BIN:-${CXS_BIN:-shlog}}" read-range <sessionUuid> --seq 12 --before 4 --after 8 --json
+"${SHLOG_BIN:-${CXS_BIN:-shlog}}" read-range <sessionUuid> --query "IME" --before 4 --after 8 --json
 ```
 
 ## read-page
@@ -148,21 +148,21 @@ Purpose: 顺序分页读取某个 session 的消息。metadata projection 只能
 Example:
 
 ```bash
-"${CXS_BIN:-cxs}" read-page <sessionUuid> --offset 0 --limit 40 --json
+"${SHLOG_BIN:-${CXS_BIN:-shlog}}" read-page <sessionUuid> --offset 0 --limit 40 --json
 ```
 
 ## list
 
-Purpose: 列出已索引 session，不做全文检索。适合简单 session listing；更复杂的 metadata projection 可以用只读 SQLite 查询 cxs index。
+Purpose: 列出已索引 session，不做全文检索。适合简单 session listing；更复杂的 metadata projection 可以用只读 SQLite 查询 Sherlog index。
 
 常用 options: `--source <id>`(public: `codex|claude-code`)、`--cwd`、`--since`、`--root`、`--selector`、`--sort ended|started|messages`、`-n/--limit`、`--db`、`--json`。
 
 Example:
 
 ```bash
-"${CXS_BIN:-cxs}" list --selector '{"kind":"cwd_date_range","root":"/Users/me/.codex/sessions","cwd":"/Users/me/work/foo","fromDate":"2026-04-15","toDate":"2026-04-30"}' --sort ended --json
-"${CXS_BIN:-cxs}" list --root /Users/me/.codex/sessions --sort ended --json
-"${CXS_BIN:-cxs}" list --selector '{"kind":"cwd","cwd":"/Users/me/work/foo"}' --sort ended --json
+"${SHLOG_BIN:-${CXS_BIN:-shlog}}" list --selector '{"kind":"cwd_date_range","root":"/Users/me/.codex/sessions","cwd":"/Users/me/work/foo","fromDate":"2026-04-15","toDate":"2026-04-30"}' --sort ended --json
+"${SHLOG_BIN:-${CXS_BIN:-shlog}}" list --root /Users/me/.codex/sessions --sort ended --json
+"${SHLOG_BIN:-${CXS_BIN:-shlog}}" list --selector '{"kind":"cwd","cwd":"/Users/me/work/foo"}' --sort ended --json
 ```
 
 ## stats
@@ -174,7 +174,7 @@ Purpose: 展示索引状态统计。
 Example:
 
 ```bash
-"${CXS_BIN:-cxs}" stats --json
+"${SHLOG_BIN:-${CXS_BIN:-shlog}}" stats --json
 ```
 
 ## 来源

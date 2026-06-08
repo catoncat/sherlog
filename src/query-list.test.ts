@@ -134,8 +134,8 @@ describe("listSessionSummaries", () => {
       reason: "zero_results_with_unconfirmed_selector_coverage",
       selector,
       steps: [
-        "Run cxs status for the same selector.",
-        "If status requestedCoverage.recommendedAction is sync, run cxs sync for the same selector.",
+        "Run shlog status for the same selector.",
+        "If status requestedCoverage.recommendedAction is sync, run shlog sync for the same selector.",
         "Retry this command with the same selector before concluding nothing exists.",
       ],
     });

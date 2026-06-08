@@ -28,7 +28,7 @@ npm run eval:manual
 对比两次评测批次：
 
 ```bash
-npm run eval:compare -- data/cxs-eval/<before-batch> data/cxs-eval/<after-batch>
+npm run eval:compare -- data/shlog-eval/<before-batch> data/shlog-eval/<after-batch>
 ```
 
 ## 贡献边界
@@ -49,7 +49,7 @@ npm run check
 如果改动涉及查询、排序、评测语义，建议补一次：
 
 ```bash
-cxs stats --json
+shlog stats --json
 ```
 
 以及相关 CLI 烟测。

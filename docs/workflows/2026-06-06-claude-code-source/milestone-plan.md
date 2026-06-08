@@ -21,11 +21,11 @@ completion evidence now collected for this workflow.
 
 Keep these layers separate in every handoff and closeout:
 
-- Source checkout: repository code and `skill-packages/cxs` source.
-- Skill source: release artifact under `skill-packages/cxs`.
-- npm registry CLI: `@act0r/cxs` published package.
-- Local PATH CLI: the actual binary resolved by `command -v cxs` /
-  `which -a cxs`.
+- Source checkout: repository code and `skill-packages/sherlog` source.
+- Skill source: release artifact under `skill-packages/sherlog`.
+- npm registry CLI: `@act0r/sherlog` published package.
+- Local PATH CLI: the actual binary resolved by `command -v shlog` /
+  `which -a shlog`.
 
 ## Milestones
 
@@ -156,7 +156,7 @@ Mode: `implementation-slice`
 
 Scope:
 
-- Update `skill-packages/cxs` to match verified CLI behavior.
+- Update `skill-packages/sherlog` to match verified CLI behavior.
 - Keep dogfood/dev-only workflow out of public skill.
 - Keep release-layer wording explicit: skill install does not install the CLI.
 
@@ -205,7 +205,7 @@ Required exit evidence:
   job `test`, conclusion `SUCCESS`; Cubic re-review run also `SUCCESS`.
 - Release tag `v0.3.5` pushed and GitHub Actions release workflow run
   `27063398021` completed successfully.
-- `npm view @act0r/cxs version` returned `0.3.5`.
+- `npm view @act0r/sherlog version` returned `0.3.5`.
 
 Gate:
 
@@ -222,9 +222,9 @@ Mode: `evidence-session`
 
 Required exit evidence:
 
-- `command -v cxs` and `which -a cxs`.
-- `cxs --version` equals published registry version.
-- Installed `cxs status --json` smoke proves SQLite/native addon loads.
+- `command -v shlog` and `which -a shlog`.
+- `shlog --version` equals published registry version.
+- Installed `shlog status --json` smoke proves SQLite/native addon loads.
 - Installed CLI smoke covers Codex default behavior.
 - If Claude Code is public by then, installed smoke must also cover its public
   command path with synthetic fixtures.
@@ -238,14 +238,14 @@ Gate:
 
 Installed exit evidence:
 
-- `command -v cxs` -> `/Users/envvar/Library/pnpm/bin/cxs`
-- `which -a cxs` -> `/Users/envvar/Library/pnpm/bin/cxs`,
+- `command -v shlog` -> `/Users/envvar/Library/pnpm/bin/cxs`
+- `which -a shlog` -> `/Users/envvar/Library/pnpm/bin/cxs`,
   `/Users/envvar/Library/pnpm/cxs`
-- `cxs --version` -> `0.3.5`
-- `cxs status --json` passed
-- `cxs list --cwd /Users/envvar/.codex/worktrees/4b9e/cxs --limit 3 --json`
+- `shlog --version` -> `0.3.5`
+- `shlog status --json` passed
+- `shlog list --cwd /Users/envvar/.codex/worktrees/4b9e/cxs --limit 3 --json`
   passed
-- `npx skills add catoncat/cxs --full-depth --skill cxs -g -a codex -y`
+- `npx skills add catoncat/sherlog --full-depth --skill sherlog -g -a codex -y`
   updated the global skill and `npx skills ls -g --json` shows path
   `/Users/envvar/.agents/skills/cxs`
 

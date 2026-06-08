@@ -6,7 +6,7 @@ import { pathToFileURL } from "node:url";
 import { syncSessions } from "./indexer";
 import { holdExclusiveLock, line, runReadChild, tempDirs } from "./query-test-helpers";
 
-describe("cxs query concurrency", () => {
+describe("shlog query concurrency", { timeout: 20_000 }, () => {
   test("parallel read commands wait through transient locks without surfacing SQLITE_BUSY", async () => {
     const base = mkdtempSync(join(tmpdir(), "cxs-parallel-"));
     tempDirs.push(base);
@@ -19,7 +19,7 @@ describe("cxs query concurrency", () => {
         line("session_meta", { id: "56565656-5656-4565-8565-565656565656", cwd: "/tmp/parallel" }),
         line("turn_context", { model: "gpt-5.4" }),
         line("event_msg", { type: "user_message", message: "reverse-i-search 历史怎么找" }),
-        line("event_msg", { type: "agent_message", message: "先用 cxs find reverse-i-search" }),
+        line("event_msg", { type: "agent_message", message: "先用 shlog find reverse-i-search" }),
         line("event_msg", { type: "user_message", message: "顺便查 ffmpeg 的那次会话" }),
         line("event_msg", { type: "agent_message", message: "可以并行 find ffmpeg 再看 stats" }),
       ].join("\n"),

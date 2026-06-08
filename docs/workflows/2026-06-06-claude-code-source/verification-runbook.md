@@ -81,8 +81,8 @@ Required current-checkout commands:
 
 ```bash
 npm run check
-npm run cxs -- --help
-npm run cxs -- status --json
+npm run shlog -- --help
+npm run shlog -- status --json
 git diff --check
 git status --short
 ```
@@ -105,7 +105,7 @@ the row's requirement.
 Required docs checks:
 
 ```bash
-git diff -- docs/ README.md AGENTS.md skill-packages/cxs 2>/dev/null || true
+git diff -- docs/ README.md AGENTS.md skill-packages/sherlog 2>/dev/null || true
 git diff --check
 ```
 
@@ -122,7 +122,7 @@ Docs review must prove:
 Required checks:
 
 ```bash
-git diff -- skill-packages/cxs
+git diff -- skill-packages/sherlog
 npx skills ls -g --json
 ```
 
@@ -164,7 +164,7 @@ Required only after L1 passes and release is authorized:
 ```bash
 git status --short
 git log -1 --oneline
-npm view @act0r/cxs version
+npm view @act0r/sherlog version
 ```
 
 Release-session proof must also include:
@@ -182,10 +182,10 @@ Do not call source checkout behavior released until registry readback proves it.
 Required only after registry publication:
 
 ```bash
-command -v cxs
-which -a cxs
-cxs --version
-cxs status --json
+command -v shlog
+which -a shlog
+shlog --version
+shlog status --json
 ```
 
 Installed smoke must prove:
@@ -200,7 +200,7 @@ Installed smoke must prove:
 Global skill update, if needed, must use:
 
 ```bash
-npx skills add catoncat/cxs --full-depth --skill cxs -g -a codex -y
+npx skills add catoncat/sherlog --full-depth --skill sherlog -g -a codex -y
 ```
 
 Then verify the installed skill and CLI behavior are aligned.

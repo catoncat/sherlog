@@ -1,15 +1,15 @@
-# cxs Claude Code Source Workflow
+# Sherlog Claude Code Source Workflow
 
 ## Purpose
 
-Continue the source-aware `cxs` roadmap after the Codex source foundation has
+Continue the source-aware `Sherlog` roadmap after the Codex source foundation has
 landed on main. This workflow decides whether and how the proposed private
 Claude Code adapter commit `1a080b1` should move forward, without treating it as
 released public behavior.
 
 ## Objective
 
-Evolve `cxs` from Codex-only local session search into a reliable source-aware
+Evolve `Sherlog` from Codex-only local session search into a reliable source-aware
 local session retrieval engine. Preserve existing Codex behavior. Promote
 Claude Code support only after adapter strategy, privacy filtering, tests, docs,
 skill source, release, and installed smoke all pass.
@@ -29,7 +29,7 @@ skill source, release, and installed smoke all pass.
 - Controller may edit only this workflow control plane unless explicitly switching roles.
 - Public CLI remains Codex-only until a later verified promotion slice changes that.
 - Do not use real Claude transcript content as committed fixtures.
-- Do not create or promote private dogfood goldens without explicit `$cxs-dogfood`.
+- Do not create or promote private dogfood goldens without explicit `$sherlog-dogfood`.
 - Keep the fixed command set: `status`, `sync`, `find`, `read-range`, `read-page`, `list`, `stats`.
 - Keep release/install layers separate: source checkout, skill source, npm registry CLI, local PATH CLI.
 

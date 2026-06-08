@@ -22,10 +22,10 @@ promote `claude-code` as a public CLI source.
 | --- | --- | --- |
 | C1 checkout is the verified target | pass | `pwd` and `git rev-parse --show-toplevel` returned `/Users/envvar/.codex/worktrees/35c5/cxs`; branch `codex/claude-code-source-C1`; HEAD `55c0638bcab28ee431b7ca70f145615e07d25f69`; initial status clean. |
 | Full check passes | pass | `npm run check` exit 0; `tsc --noEmit && vitest run`; 28 test files and 178 tests passed. |
-| CLI command surface remains fixed | pass | `npm run cxs -- --help` lists only `status`, `sync`, `find`, `read-range`, `read-page`, `list`, `stats`, and `help`; no new public command was added. |
-| Default status works with the checkout CLI | pass | `npm run cxs -- status --json` exit 0; opened `/Users/envvar/.local/state/cxs/index.sqlite` and reported `indexVersion: "cxs-v7-source-identity"`. |
-| Public `claude-code` source remains rejected | pass | `npm run cxs -- status --source claude-code --json` exit 1 by design with `error.code: "unsupported_source"` and message saying only `codex` is public. |
-| Public selector `source: "claude-code"` remains rejected | pass | `npm run cxs -- sync --selector '{"source":"claude-code",...}' --json` exit 1 by design with `error.code: "unsupported_source"`. |
+| CLI command surface remains fixed | pass | `npm run shlog -- --help` lists only `status`, `sync`, `find`, `read-range`, `read-page`, `list`, `stats`, and `help`; no new public command was added. |
+| Default status works with the checkout CLI | pass | `npm run shlog -- status --json` exit 0; opened `/Users/envvar/.local/state/cxs/index.sqlite` and reported `indexVersion: "cxs-v7-source-identity"`. |
+| Public `claude-code` source remains rejected | pass | `npm run shlog -- status --source claude-code --json` exit 1 by design with `error.code: "unsupported_source"` and message saying only `codex` is public. |
+| Public selector `source: "claude-code"` remains rejected | pass | `npm run shlog -- sync --selector '{"source":"claude-code",...}' --json` exit 1 by design with `error.code: "unsupported_source"`. |
 | Codex default smoke works on synthetic data | pass | Synthetic Codex JSONL under a temp root synced with `added=1`, `errors=0`, `coverageWritten=true`, `indexedSessionCount=1`; `find` returned the synthetic session; `read-page` returned `sourceId: "codex"` and both synthetic messages. |
 | Private Claude synthetic path works and stays isolated | pass | Programmatic private `syncSessions({ sourceId: "claude-code" })` on synthetic JSONL synced with `added=1`, `errors=0`; `findSessions(..., { sourceId: "claude-code" })` found `claude-code:accepted-v1-session`; default Codex find returned zero results; read page returned only accepted messages. |
 | Skipped Claude sentinels do not leak | pass | Private smoke checked meta/sidechain/tool/thinking/attachment/session/cwd/timestamp sentinels and returned `leaked=false`. |
@@ -53,19 +53,19 @@ $ git status --short --untracked-files=all
 $ npm run check
 exit 0; tsc --noEmit and Vitest passed; 28 test files passed, 178 tests passed.
 
-$ npm run cxs -- --help
+$ npm run shlog -- --help
 exit 0; command list is status, sync, find, read-range, read-page, list, stats, help.
 
-$ npm run cxs -- status --json
+$ npm run shlog -- status --json
 exit 0; context cwd /Users/envvar/.codex/worktrees/35c5/cxs; root /Users/envvar/.codex/sessions; dbPath /Users/envvar/.local/state/cxs/index.sqlite; indexVersion cxs-v7-source-identity.
 
-$ npm run cxs -- status --source claude-code --json
+$ npm run shlog -- status --source claude-code --json
 exit 1 by design; error.code unsupported_source; message says only codex is public.
 
-$ npm run cxs -- sync --selector '{"source":"claude-code","kind":"all","root":"<tmp>"}' --db <tmp>/index.sqlite --json
+$ npm run shlog -- sync --selector '{"source":"claude-code","kind":"all","root":"<tmp>"}' --db <tmp>/index.sqlite --json
 exit 1 by design; error.code unsupported_source; message says only codex is public.
 
-$ npm run cxs -- sync/find/read-page with a synthetic Codex temp root
+$ npm run shlog -- sync/find/read-page with a synthetic Codex temp root
 exit 0; sync added=1 errors=0 coverageWritten=true indexedSessionCount=1; find returned aaaaaaaa-1111-4111-8111-aaaaaaaaaaaa; read-page sourceId=codex with expected synthetic messages.
 
 $ node --import tsx <private synthetic Claude smoke>
@@ -87,9 +87,9 @@ $ git status --short --untracked-files=all
 
 - Generated one synthetic Codex JSONL under a temp `/tmp` sessions root.
 - Used public checkout CLI:
-  - `npm run --silent cxs -- sync --root <tmp>/sessions --db <tmp>/index.sqlite --json`
-  - `npm run --silent cxs -- find "v1 codex synthetic needle" --root <tmp>/sessions --db <tmp>/index.sqlite --json`
-  - `npm run --silent cxs -- read-page aaaaaaaa-1111-4111-8111-aaaaaaaaaaaa --db <tmp>/index.sqlite --json`
+  - `npm run --silent shlog -- sync --root <tmp>/sessions --db <tmp>/index.sqlite --json`
+  - `npm run --silent shlog -- find "v1 codex synthetic needle" --root <tmp>/sessions --db <tmp>/index.sqlite --json`
+  - `npm run --silent shlog -- read-page aaaaaaaa-1111-4111-8111-aaaaaaaaaaaa --db <tmp>/index.sqlite --json`
 - Decisive output: `added=1`, `errors=0`, first find session
   `aaaaaaaa-1111-4111-8111-aaaaaaaaaaaa`, read messages
   `["v1 codex synthetic needle", "v1 codex synthetic answer"]`.
@@ -130,7 +130,7 @@ their own gates produce direct evidence.
   active without visible handoff or C1 worktree writes after repeated
   controller polls. The controller sent a stop message and took over V1
   serially to avoid duplicate evidence writes.
-- `npm run cxs -- status --json` produced a very large source inventory for the
+- `npm run shlog -- status --json` produced a very large source inventory for the
   real local Codex sessions root; only the decisive context/index fields were
   needed for this handoff.
 - An initial timeout grep with a zsh glob produced `no matches found`; the

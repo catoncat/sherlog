@@ -3,16 +3,17 @@ import { Command } from "commander";
 import packageJson from "../package.json" with { type: "json" };
 import {
   DEFAULT_DB_PATH,
-  migrateLegacyCacheDirIfNeeded,
+  migrateLegacyDataDirIfNeeded,
+  PROGRAM_NAME,
   statsReadoutEnabled,
 } from "./env";
 import { IndexSchemaUpgradeRequiredError, IndexUnavailableError } from "./db";
 import { getSessionSourceAdapter, listSessionSourceAdapters } from "./sources";
 
-// One-shot migration from legacy ~/.cache/cxs/ to ~/.local/state/cxs/. Runs
-// before any subcommand so `cxs stats` etc. see the migrated db, not just
-// `cxs sync`. Idempotent + silent on failure (worst case is a re-sync).
-migrateLegacyCacheDirIfNeeded();
+// One-shot migration from legacy cxs data dirs to the current shlog state dir.
+// Runs before any subcommand so `shlog stats` etc. see the migrated db, not
+// just `shlog sync`. Idempotent + silent on failure (worst case is a re-sync).
+migrateLegacyDataDirIfNeeded();
 import {
   printFindResults,
   printReadPage,
@@ -38,8 +39,8 @@ import type { FindResult, FindSort, FindSummary, QueryNextAction, Selector, Sess
 const program = new Command();
 
 program
-  .name("cxs")
-  .description("Codex sessions 渐进式检索 CLI")
+  .name(PROGRAM_NAME)
+  .description("Sherlog 渐进式检索 CLI")
   .version(packageJson.version);
 
 program
@@ -159,7 +160,7 @@ program
       });
       const result = mergeFindSummaries(query, sort, options.excludeSession ?? [], summaries, limit);
       // performance.now() 自 timeOrigin(进程启动)起算 ≈ 本次端到端耗时,
-      // 含 better-sqlite3 模块加载;cxs 是一次性进程,所以这就是诚实的端到端。
+      // 含 better-sqlite3 模块加载;shlog 是一次性进程,所以这就是诚实的端到端。
       const elapsedMs = Math.round(performance.now());
       if (options.json) {
         console.log(JSON.stringify({ ...result, elapsedMs }, null, 2));
@@ -512,8 +513,8 @@ function buildCrossSourceZeroResultsNextAction(): QueryNextAction {
     kind: "choose_selector_then_check_coverage",
     reason: "zero_results_without_selector",
     steps: [
-      "Run cxs status --source <id> for each relevant public source and selector.",
-      "If any source reports requestedCoverage.recommendedAction as sync, run cxs sync --source <id> for that source and selector.",
+      `Run ${PROGRAM_NAME} status --source <id> for each relevant public source and selector.`,
+      `If any source reports requestedCoverage.recommendedAction as sync, run ${PROGRAM_NAME} sync --source <id> for that source and selector.`,
       "Retry this find before concluding nothing exists.",
     ],
   };
@@ -542,7 +543,7 @@ function emitSourceError(error: SourceOptionError, jsonMode: boolean): void {
 
 function emitIndexUnavailableError(error: IndexUnavailableError, jsonMode: boolean): void {
   const hint =
-    "Run `cxs sync` first to create the index. No separate init command is needed; sync initializes and updates it.";
+    `Run \`${PROGRAM_NAME} sync\` first to create the index. No separate init command is needed; sync initializes and updates it.`;
   if (jsonMode) {
     console.log(
       JSON.stringify(
@@ -566,7 +567,7 @@ function emitIndexUnavailableError(error: IndexUnavailableError, jsonMode: boole
 
 function emitIndexSchemaUpgradeRequiredError(error: IndexSchemaUpgradeRequiredError, jsonMode: boolean): void {
   const hint =
-    "Run `cxs sync --source codex --root <sessions-root>` or the equivalent scoped sync to migrate the index, then retry.";
+    `Run \`${PROGRAM_NAME} sync --source codex --root <sessions-root>\` or the equivalent scoped sync to migrate the index, then retry.`;
   if (jsonMode) {
     console.log(
       JSON.stringify(

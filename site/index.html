@@ -3,9 +3,33 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>cxs — agent session search</title>
+  <title>Sherlog — agent session search</title>
   <meta name="description" content="Search your local Codex and Claude Code session history.">
   <link rel="icon" type="image/svg+xml" href="favicon.svg">
+
+  <!-- Open Graph / Twitter Card -->
+  <meta property="og:type" content="website">
+  <meta property="og:title" content="Sherlog — agent session search">
+  <meta property="og:description" content="Search your local Codex and Claude Code session history. Fast, purely local, and built exclusively for Agents.">
+  <meta property="og:url" content="https://sherlog.net/">
+  <meta property="og:image" content="https://sherlog.net/og.png">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="Sherlog — agent session search">
+  <meta name="twitter:description" content="Search your local Codex and Claude Code session history. Fast, purely local, and built exclusively for Agents.">
+  <meta name="twitter:image" content="https://sherlog.net/og.png">
+
+  <!-- Apply theme + lang before paint to avoid FOUC -->
+  <script>
+    (function () {
+      var t = localStorage.getItem('sherlog-theme');
+      if (t === 'dark' || (!t && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
+        document.documentElement.classList.add('dark');
+      }
+      var l = localStorage.getItem('sherlog-lang');
+      if (l) document.documentElement.setAttribute('lang', l);
+    })();
+  </script>
+
   <style>
     :root {
       --bg: #ffffff;
@@ -72,16 +96,41 @@
       color: var(--fg);
     }
     
-    .top-controls button.active {
-      color: var(--fg);
-      font-weight: 600;
+    .lang-toggle {
+      display: inline-flex;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      overflow: hidden;
+    }
+
+    .lang-toggle button {
+      padding: 3px 10px;
+      line-height: 1.4;
+    }
+
+    .lang-toggle button + button {
+      border-left: 1px solid var(--border);
+    }
+
+    .lang-toggle button.active {
+      background: var(--fg);
+      color: var(--bg);
+    }
+
+    .lang-toggle button.active:hover {
+      color: var(--bg);
+    }
+
+    .theme-btn {
+      font-size: 16px;
+      line-height: 1;
     }
 
     h1 {
-      font-size: 24px;
+      font-size: 34px;
       font-weight: 600;
-      letter-spacing: -0.01em;
-      margin-bottom: 12px;
+      letter-spacing: -0.02em;
+      margin-bottom: 14px;
       font-family: var(--mono);
     }
 
@@ -136,13 +185,22 @@
 
     section {
       margin-bottom: 40px;
+      padding-top: 36px;
+      border-top: 1px solid var(--border);
+    }
+
+    section:first-of-type {
+      padding-top: 0;
+      border-top: none;
     }
 
     h2 {
-      font-size: 16px;
+      font-size: 13px;
       font-weight: 600;
-      margin-bottom: 12px;
-      color: var(--fg);
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+      margin-bottom: 14px;
+      color: var(--muted);
     }
 
     p {
@@ -186,9 +244,48 @@
     .install-group pre {
       margin-bottom: 16px;
     }
-    
+
     .install-group pre:last-child {
       margin-bottom: 0;
+    }
+
+    .cmd {
+      position: relative;
+    }
+
+    .cmd pre {
+      padding-right: 56px;
+    }
+
+    .copy-btn {
+      position: absolute;
+      top: 8px;
+      right: 8px;
+      padding: 4px 8px;
+      font-family: var(--sans);
+      font-size: 12px;
+      color: var(--muted);
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 5px;
+      cursor: pointer;
+      opacity: 0;
+      transition: opacity 0.12s ease, color 0.12s ease;
+    }
+
+    .cmd:hover .copy-btn,
+    .copy-btn:focus-visible {
+      opacity: 1;
+    }
+
+    .copy-btn:hover {
+      color: var(--fg);
+    }
+
+    .copy-btn.copied {
+      opacity: 1;
+      color: var(--fg);
+      border-color: var(--fg);
     }
 
   </style>
@@ -196,27 +293,34 @@
 <body>
 
   <div class="top-controls">
-    <a href="https://github.com/catoncat/cxs">GitHub</a>
-    <a href="https://www.npmjs.com/package/@act0r/cxs">npm</a>
-    <span style="color: var(--border);">|</span>
-    <button onclick="setLang('en')" id="btn-en">EN</button>
-    <button onclick="setLang('zh')" id="btn-zh">中</button>
-    <button onclick="toggleTheme()" id="btn-theme">◐</button>
+    <a href="https://github.com/catoncat/sherlog">GitHub</a>
+    <a href="https://www.npmjs.com/package/@act0r/sherlog">npm</a>
+    <span class="lang-toggle">
+      <button onclick="setLang('en')" id="btn-en" aria-label="English">EN</button>
+      <button onclick="setLang('zh')" id="btn-zh" aria-label="中文">中</button>
+    </span>
+    <button onclick="toggleTheme()" id="btn-theme" class="theme-btn" aria-label="Toggle theme">◐</button>
   </div>
 
   <header>
-    <h1>cxs</h1>
+    <h1>sherlog</h1>
     <div class="lede">
-      <span class="en">Search your local Codex and Claude Code session history.<br>Fast, purely local, and built exclusively for Agents.</span>
+      <span class="en">Search your local Codex and Claude Code session history.<br>Fast, purely local, and built for Agents.</span>
       <span class="zh">极速搜索本地 Codex 和 Claude Code 历史对话。<br>纯本地架构，专为 Agent 打造。</span>
     </div>
   </header>
 
   <div class="install-group">
     <div class="install-label"><span class="en">1. Install CLI</span><span class="zh">1. 安装 CLI</span></div>
-    <pre><code>npm i -g @act0r/cxs</code></pre>
+    <div class="cmd">
+      <pre><code>npm i -g @act0r/sherlog</code></pre>
+      <button class="copy-btn" onclick="copyCmd(this)" aria-label="Copy command">Copy</button>
+    </div>
     <div class="install-label" style="margin-top: 20px;"><span class="en">2. Install Agent Skill</span><span class="zh">2. 安装 Agent Skill</span></div>
-    <pre><code>npx skills add catoncat/cxs --full-depth --skill cxs -g -y</code></pre>
+    <div class="cmd">
+      <pre><code>npx skills add catoncat/sherlog --full-depth --skill sherlog -g -a codex -y</code></pre>
+      <button class="copy-btn" onclick="copyCmd(this)" aria-label="Copy command">Copy</button>
+    </div>
   </div>
 
   <main>
@@ -226,8 +330,8 @@
         <span class="zh">为什么不用 Embedding？</span>
       </h2>
       <p>
-        <span class="en"><strong>Because this is built for Agents.</strong> Embeddings try to do semantic reasoning for humans, but an Agent is <em>already</em> a world-class reasoning engine. Chunking logs into a vector database destroys the causal timeline (Command &rarr; Error &rarr; Fix). <code>cxs</code> simply uses fast full-text search (FTS) to drop a bookmark, and lets the Agent use its own intelligence to read the surrounding timeline.</span>
-        <span class="zh"><strong>因为这是给 Agent 用的。</strong>Embedding 试图替人类做语义理解，但 Agent 本身就是最顶级的语义引擎。把对话切碎塞进向量库，会彻底破坏“执行命令 &rarr; 报错 &rarr; 修复”的因果时间线。<code>cxs</code> 只用极速的 FTS 全文检索提供锚点，把阅读和推理的权力完整交还给 Agent。</span>
+        <span class="en"><strong>Because this is built for Agents.</strong> Embeddings try to do semantic reasoning for humans, but an Agent is <em>already</em> a world-class reasoning engine. Chunking logs into a vector database destroys the causal timeline (Command &rarr; Error &rarr; Fix). <code>Sherlog</code> simply uses fast full-text search (FTS) to drop a bookmark, and lets the Agent use its own intelligence to read the surrounding timeline.</span>
+        <span class="zh"><strong>因为这是给 Agent 用的。</strong>Embedding 试图替人类做语义理解，但 Agent 本身就是最顶级的语义引擎。把对话切碎塞进向量库，会彻底破坏“执行命令 &rarr; 报错 &rarr; 修复”的因果时间线。<code>Sherlog</code> 只用极速的 FTS 全文检索提供锚点，把阅读和推理的权力完整交还给 Agent。</span>
       </p>
     </section>
 
@@ -237,8 +341,8 @@
         <span class="zh">为什么不用 ripgrep？</span>
       </h2>
       <p>
-        <span class="en"><code>rg</code> dumps raw JSONL lines. Agents need conversational context, not unparsed strings. <code>cxs</code> understands the session structure: it finds the exact message, then provides primitives (<code>read-range</code>, <code>read-page</code>) for the Agent to page through the surrounding dialogue cleanly.</span>
-        <span class="zh"><code>rg</code> 只能搜出杂乱无章的单行 JSONL 文本。而 Agent 需要的是“对话上下文”，不是干瘪的字符串。<code>cxs</code> 真正理解会话结构：它先精确定位 (<code>find</code>)，再让 Agent 像人一样干净地翻阅上下文对话 (<code>read-range</code>, <code>read-page</code>)。</span>
+        <span class="en"><code>rg</code> dumps raw JSONL lines. Agents need conversational context, not unparsed strings. <code>Sherlog</code> understands the session structure: it finds the exact message, then provides primitives (<code>read-range</code>, <code>read-page</code>) for the Agent to page through the surrounding dialogue cleanly.</span>
+        <span class="zh"><code>rg</code> 只能搜出杂乱无章的单行 JSONL 文本。而 Agent 需要的是“对话上下文”，不是干瘪的字符串。<code>Sherlog</code> 真正理解会话结构：它先精确定位 (<code>find</code>)，再让 Agent 像人一样干净地翻阅上下文对话 (<code>read-range</code>, <code>read-page</code>)。</span>
       </p>
     </section>
 
@@ -259,8 +363,8 @@
         <span class="zh">高度可组合的基础组件</span>
       </h2>
       <p>
-        <span class="en">You don't have to use <code>cxs</code> end-to-end. It's a CLI that outputs standard JSON. Use it to locate the exact session, then pipe it to <code>jq</code>, read the raw file, or pass the context to other tools like Mainline. It's a retrieval engine, not a walled garden.</span>
-        <span class="zh">你不必被 <code>cxs</code> 绑定到底。它是一个标准的 CLI，支持 JSON 输出。你可以用它找到目标会话的精确位置，然后用 <code>jq</code> 处理数据，直接读取原始文件，或者把召回的上下文交接给其他工具（如 Mainline）。它是一个底层的检索引擎，而不是一个封闭的生态。</span>
+        <span class="en">You don't have to use <code>Sherlog</code> end-to-end. It's a CLI that outputs standard JSON. Use it to locate the exact session, then pipe it to <code>jq</code>, read the raw file, or pass the context to other tools like Mainline. It's a retrieval engine, not a walled garden.</span>
+        <span class="zh">你不必被 <code>Sherlog</code> 绑定到底。它是一个标准的 CLI，支持 JSON 输出。你可以用它找到目标会话的精确位置，然后用 <code>jq</code> 处理数据，直接读取原始文件，或者把召回的上下文交接给其他工具（如 Mainline）。它是一个底层的检索引擎，而不是一个封闭的生态。</span>
       </p>
     </section>
 
@@ -276,7 +380,7 @@
       
       <div class="en">
         <div class="install-label" style="margin-top: 24px;">Step 1: Recall Context</div>
-        <pre><code>$ cxs find "auth session migration"
+        <pre><code>$ shlog find "auth session migration"
 
 {
   "rank": 1,
@@ -286,7 +390,7 @@
 }</code></pre>
 
         <div class="install-label" style="margin-top: 24px;">Step 2: Progressive Read</div>
-        <pre><code>$ cxs read-range a1b2c3d4-0000-0000-0000-e5f6g7h8i9j0 --seq 18
+        <pre><code>$ shlog read-range a1b2c3d4-0000-0000-0000-e5f6g7h8i9j0 --seq 18
 
 # The Agent reads the surrounding dialogue to understand the context:
 [seq: 17] Agent: The JWT tokens are getting too large due to role-based claims.
@@ -296,7 +400,7 @@
 
       <div class="zh">
         <div class="install-label" style="margin-top: 24px;">Step 1: 召回相关历史对话 (Recall Context)</div>
-        <pre><code>$ cxs find "权限 session 迁移"
+        <pre><code>$ shlog find "权限 session 迁移"
 
 {
   "rank": 1,
@@ -306,7 +410,7 @@
 }</code></pre>
 
         <div class="install-label" style="margin-top: 24px;">Step 2: 渐进式翻阅对话 (Progressive Read)</div>
-        <pre><code>$ cxs read-range a1b2c3d4-0000-0000-0000-e5f6g7h8i9j0 --seq 18
+        <pre><code>$ shlog read-range a1b2c3d4-0000-0000-0000-e5f6g7h8i9j0 --seq 18
 
 # Agent 顺藤摸瓜，直接还原了当时的架构决策现场：
 [seq: 17] Agent: 发现权限字段太多，导致 JWT token 超载。
@@ -325,21 +429,17 @@
       document.documentElement.setAttribute('lang', l);
       document.getElementById('btn-en').classList.toggle('active', l === 'en');
       document.getElementById('btn-zh').classList.toggle('active', l === 'zh');
-      localStorage.setItem('cxs-lang', l);
+      localStorage.setItem('sherlog-lang', l);
     }
 
     function toggleTheme() {
       const isDark = document.documentElement.classList.toggle('dark');
-      localStorage.setItem('cxs-theme', isDark ? 'dark' : 'light');
+      localStorage.setItem('sherlog-theme', isDark ? 'dark' : 'light');
     }
 
-    const savedLang = localStorage.getItem('cxs-lang') || 'en';
+    const savedLang = localStorage.getItem('sherlog-lang') || 'en';
     setLang(savedLang);
-
-    const savedTheme = localStorage.getItem('cxs-theme');
-    if (savedTheme === 'dark' || (!savedTheme && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
-      document.documentElement.classList.add('dark');
-    }
+    // Theme class is already applied pre-paint by the inline <head> script.
   </script>
 </body>
 </html>

@@ -29,8 +29,8 @@ Collect final evidence that the multi-source foundation preserves existing Codex
 Run or record why unavailable:
 
 - `npm run check`
-- `npm run cxs -- status --json`
-- `npm run cxs -- status --source codex --json` if implemented
+- `npm run shlog -- status --json`
+- `npm run shlog -- status --source codex --json` if implemented
 - one focused `find` or `list` smoke using checkout CLI
 - `git status --short`
 

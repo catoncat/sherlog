@@ -130,7 +130,7 @@ Controller reconciliation after D1:
   `claude-code` only as a private/non-public synthetic-verification path.
 - D1 proof included CLI help/readback, unsupported-source smoke, and
   `git diff --check`.
-- D1 did not touch `skill-packages/cxs`, product code/tests, package metadata,
+- D1 did not touch `skill-packages/sherlog`, product code/tests, package metadata,
   release/install/global skill, push, PR, commit, or seal.
 - Next gate is S1 skill-source update. Lifecycle, release, installed CLI, and
   global skill state remain gated.
@@ -147,7 +147,7 @@ Active S1 launch:
   pending worktree id `local:de428e65-8a27-430e-a46d-53db11089100`.
 - S1 child resolved as thread `019e9c7a-42f5-7022-854f-c635286dfd09` in
   worktree `/Users/envvar/.codex/worktrees/c2b0/cxs`.
-- S1 prompt has been sent. The worker must update only `skill-packages/cxs/**`
+- S1 prompt has been sent. The worker must update only `skill-packages/sherlog/**`
   and `handoffs/S1-skill-source-update.md`.
 
 Controller reconciliation after S1:
@@ -156,14 +156,14 @@ Controller reconciliation after S1:
   `/Users/envvar/.codex/worktrees/c2b0/cxs`.
 - S1 handoff was copied into the canonical controller control plane at
   `handoffs/S1-skill-source-update.md`.
-- S1 updated only `skill-packages/cxs/**` and its handoff in the worker
+- S1 updated only `skill-packages/sherlog/**` and its handoff in the worker
   checkout, keeping the distributable skill source Codex-only for public CLI
   use while describing `claude-code` as a private/non-public checkout adapter
   path for synthetic verification and future promotion.
-- S1 proof included `git diff -- skill-packages/cxs`,
-  `npx skills ls -g --json`, `git diff --check`, `npm run cxs -- --help`,
-  `npm run cxs -- status --help`, and the expected
-  `npm run cxs -- status --source claude-code --json` unsupported-source
+- S1 proof included `git diff -- skill-packages/sherlog`,
+  `npx skills ls -g --json`, `git diff --check`, `npm run shlog -- --help`,
+  `npm run shlog -- status --help`, and the expected
+  `npm run shlog -- status --source claude-code --json` unsupported-source
   smoke.
 - S1 did not commit, seal, push, PR, release, install, npm publish, update
   package metadata, or update global skill state.
@@ -191,14 +191,14 @@ L1 lifecycle integration:
 
 P1 release closeout:
 
-- Started Mainline intent `int_c9461f18` for `准备 cxs 0.3.5 release PR`.
-- Registry readback before release: `npm view @act0r/cxs version --json`
+- Started Mainline intent `int_c9461f18` for `准备 Sherlog 0.3.5 release PR`.
+- Registry readback before release: `npm view @act0r/sherlog version --json`
   returned `0.3.4`.
 - `package.json` and `package-lock.json` were bumped to `0.3.5` with
   `npm version 0.3.5 --no-git-tag-version`; no tag was created.
 - Release-prep verification passed: `npm run check` (28 test files / 178
   tests), `npm run build`, and `npm pack --dry-run`.
-- `npm pack --dry-run` reported package `@act0r/cxs@0.3.5`, tarball
+- `npm pack --dry-run` reported package `@act0r/sherlog@0.3.5`, tarball
   `act0r-cxs-0.3.5.tgz`, and contents `LICENSE`, `README.md`, `dist/cli.js`,
   and `package.json`.
 - Local commit `chore(release): bump 0.3.5` was created.
@@ -210,20 +210,20 @@ P1 release closeout:
 - `mainline lint int_c9461f18 --json` passed.
 - Branch `codex/claude-code-source-controller` was pushed to origin.
 - Draft PR #51 was opened against `main`:
-  `https://github.com/catoncat/cxs/pull/51`.
+  `https://github.com/catoncat/sherlog/pull/51`.
 - PR #51 readback via
-  `gh pr view 51 --repo catoncat/cxs --json number,title,url,isDraft,state,mergeStateStatus,headRefName,baseRefName,reviewDecision,statusCheckRollup,latestReviews,commits`:
+  `gh pr view 51 --repo catoncat/sherlog --json number,title,url,isDraft,state,mergeStateStatus,headRefName,baseRefName,reviewDecision,statusCheckRollup,latestReviews,commits`:
   `state=OPEN`, `isDraft=true`, `mergeStateStatus=CLEAN`,
   `headRefName=codex/claude-code-source-controller`, `baseRefName=main`,
   `reviewDecision=""`, and `latestReviews=[]`.
 - PR #51 CI readback via `statusCheckRollup`: workflow `ci`, job `test`,
   `status=COMPLETED`, `conclusion=SUCCESS`, details URL
-  `https://github.com/catoncat/cxs/actions/runs/27061046513/job/79873841382`.
+  `https://github.com/catoncat/sherlog/actions/runs/27061046513/job/79873841382`.
 - Branch run readback via
-  `gh run list --repo catoncat/cxs --branch codex/claude-code-source-controller --limit 10 --json databaseId,workflowName,displayTitle,status,conclusion,createdAt,updatedAt,headSha,event,url`:
+  `gh run list --repo catoncat/sherlog --branch codex/claude-code-source-controller --limit 10 --json databaseId,workflowName,displayTitle,status,conclusion,createdAt,updatedAt,headSha,event,url`:
   run `27061046513`, workflow `ci`, event `pull_request`, head SHA
   `209b2e85c2be8139888af9d509150b28b199ab27`, status `completed`,
-  conclusion `success`, URL `https://github.com/catoncat/cxs/actions/runs/27061046513`.
+  conclusion `success`, URL `https://github.com/catoncat/sherlog/actions/runs/27061046513`.
 - PR #51 was marked ready, latest review-fix head `f64ffc3` passed workflow
   `ci` run `27062651358` and Cubic re-review.
 - PR #51 merged into `main` at `2026-06-06T13:18:30Z` with squash commit
@@ -231,21 +231,21 @@ P1 release closeout:
 - Release tag `v0.3.5` was pushed on top of `bcc43dd`; GitHub Actions release
   workflow run `27063398021` completed successfully and job
   `publish npm package` published to npm.
-- Registry readback after publish: `npm view @act0r/cxs version --json`
+- Registry readback after publish: `npm view @act0r/sherlog version --json`
   returned `"0.3.5"`.
 - PATH install was updated from the published registry package with
-  `pnpm add -g @act0r/cxs@0.3.5`.
+  `pnpm add -g @act0r/sherlog@0.3.5`.
 - Installed smoke after a local native rebuild fix:
-  `command -v cxs` -> `/Users/envvar/Library/pnpm/bin/cxs`;
-  `which -a cxs` -> `/Users/envvar/Library/pnpm/bin/cxs`,
+  `command -v shlog` -> `/Users/envvar/Library/pnpm/bin/cxs`;
+  `which -a shlog` -> `/Users/envvar/Library/pnpm/bin/cxs`,
   `/Users/envvar/Library/pnpm/cxs`;
-  `cxs --version` -> `0.3.5`;
-  `cxs status --json` passed;
-  `cxs list --cwd /Users/envvar/.codex/worktrees/4b9e/cxs --limit 3 --json`
+  `shlog --version` -> `0.3.5`;
+  `shlog status --json` passed;
+  `shlog list --cwd /Users/envvar/.codex/worktrees/4b9e/cxs --limit 3 --json`
   passed.
 - Global skill was updated from published GitHub source with
-  `npx skills add catoncat/cxs --full-depth --skill cxs -g -a codex -y`;
-  `npx skills ls -g --json` readback shows `cxs` at
+  `npx skills add catoncat/sherlog --full-depth --skill sherlog -g -a codex -y`;
+  `npx skills ls -g --json` readback shows `Sherlog` at
   `/Users/envvar/.agents/skills/cxs`.
 
 Current correction after user clarification:
@@ -355,5 +355,5 @@ Current correction after user clarification:
   install gates remain pending.
 - 2026-06-06: Rechecked live PR/CI/install truth for PR #51: PR remains
   `OPEN` and draft, `mergeStateStatus=CLEAN`, no reviews are present, CI run
-  `27061046513` succeeded, npm registry remains `0.3.4`, and PATH `cxs`
+  `27061046513` succeeded, npm registry remains `0.3.4`, and PATH `Sherlog`
   remains `/Users/envvar/Library/pnpm/bin/cxs` at `0.3.4`.

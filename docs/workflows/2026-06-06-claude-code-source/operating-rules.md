@@ -80,7 +80,7 @@ Current launch sequence:
 - Keep source checkout, skill source, npm registry CLI, and local PATH CLI as
   separate layers.
 - Do not report source changes as released without registry readback.
-- Do not report local CLI installed state without `command -v cxs`,
-  `which -a cxs`, `cxs --version`, and a real installed smoke such as
-  `cxs status --json`.
-- Do not update global `cxs` skill from dirty checkout or local symlink.
+- Do not report local CLI installed state without `command -v shlog`,
+  `which -a shlog`, `shlog --version`, and a real installed smoke such as
+  `shlog status --json`.
+- Do not update global `Sherlog` skill from dirty checkout or local symlink.

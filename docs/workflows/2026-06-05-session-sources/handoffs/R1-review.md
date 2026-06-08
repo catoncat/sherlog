@@ -26,12 +26,12 @@ raw SQLite schema errors.
 ### P1: Public install docs and skill source describe unreleased `--source` behavior as installed behavior
 
 README and release skill source describe `--source` as if users installing
-`@act0r/cxs` or global `cxs` already have it. E1 proves npm/PATH/global skill
+`@act0r/sherlog` or global `Sherlog` already have it. E1 proves npm/PATH/global skill
 are not updated:
 
 - npm registry version: `0.3.4`.
-- installed PATH `cxs` rejects `--source`.
-- global `cxs` skill is a symlink to the main repo skill source, not this
+- installed PATH `Sherlog` rejects `--source`.
+- global `Sherlog` skill is a symlink to the main repo skill source, not this
   reconciled checkout.
 
 Recommendation: docs and skill source should distinguish checkout/unreleased

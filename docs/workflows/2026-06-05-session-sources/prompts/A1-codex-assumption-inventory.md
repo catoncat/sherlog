@@ -3,7 +3,7 @@ You are executing `2026-06-05-session-sources/A1`.
 Use the `codex-session-orchestrator` skill.
 
 Goal:
-Inventory current Codex single-source assumptions in `cxs`.
+Inventory current Codex single-source assumptions in `Sherlog`.
 
 First action:
 Call `create_goal` with:

@@ -14,7 +14,7 @@ interface FindOutput {
 const ROOT = resolve(import.meta.dirname, "..");
 const CLI_ENTRY = resolve(ROOT, "src", "cli.ts");
 const QUERY_FILE = resolve(import.meta.dirname, "manual-queries.json");
-const OUT_BASE = resolve(ROOT, "data", "cxs-eval");
+const OUT_BASE = resolve(ROOT, "data", "shlog-eval");
 
 const stamp = new Date().toISOString().replace(/[:.]/g, "-");
 const outDir = join(OUT_BASE, stamp);
@@ -22,7 +22,7 @@ mkdirSync(outDir, { recursive: true });
 
 const queries = JSON.parse(readFileSync(QUERY_FILE, "utf8")) as ManualQuery[];
 const indexLines: string[] = [
-  "# cxs 手动评测批次",
+  "# shlog 手动评测批次",
   "",
   `- generated_at: ${new Date().toISOString()}`,
   `- out_dir: \`${outDir}\``,

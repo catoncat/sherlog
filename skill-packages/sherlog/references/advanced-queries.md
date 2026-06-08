@@ -2,7 +2,7 @@
 
 ## 实际 query 语义
 
-`cxs` 不是把用户输入原样透传给 SQLite FTS。当前行为是：
+`Sherlog` 不是把用户输入原样透传给 SQLite FTS。当前行为是：
 
 - 先把 query 做 tokenizer 处理
 - 每个 term 都会被双引号包住
@@ -47,18 +47,18 @@
 典型做法：
 
 ```bash
-"${CXS_BIN:-cxs}" list --cwd hammerspoon --since 2026-04-15 --json
+"${SHLOG_BIN:-${CXS_BIN:-shlog}}" list --cwd hammerspoon --since 2026-04-15 --json
 ```
 
 然后对候选 session 再跑：
 
 ```bash
-"${CXS_BIN:-cxs}" read-range <sessionUuid> --query "IME" --json
+"${SHLOG_BIN:-${CXS_BIN:-shlog}}" read-range <sessionUuid> --query "IME" --json
 ```
 
 ## Read-only SQLite metadata projection
 
-当问题只需要 session metadata projection 时,可以直接只读查询 cxs SQLite index。SQLite 是加速投影工具,不是内容证据工具；最后仍用 `read-page` / `read-range` 验证内容。
+当问题只需要 session metadata projection 时,可以直接只读查询 Sherlog SQLite index。SQLite 是加速投影工具,不是内容证据工具；最后仍用 `read-page` / `read-range` 验证内容。
 
 稳定可查字段只限:
 
@@ -78,7 +78,7 @@
 先拿 db path。这里用 `status` 只取 index 路径,不是把它当通用查询起手:
 
 ```bash
-DB_PATH="$("${CXS_BIN:-cxs}" status --json | jq -r '.context.dbPath')"
+DB_PATH="$("${SHLOG_BIN:-${CXS_BIN:-shlog}}" status --json | jq -r '.context.dbPath')"
 ```
 
 最早 session 候选:
@@ -127,11 +127,11 @@ sqlite3 -readonly "$DB_PATH" \
 拿到候选后验证内容:
 
 ```bash
-"${CXS_BIN:-cxs}" read-page <sessionUuid> --offset 0 --limit 30 --json
-"${CXS_BIN:-cxs}" read-range <sessionUuid> --query "关键词" --before 4 --after 8 --json
+"${SHLOG_BIN:-${CXS_BIN:-shlog}}" read-page <sessionUuid> --offset 0 --limit 30 --json
+"${SHLOG_BIN:-${CXS_BIN:-shlog}}" read-range <sessionUuid> --query "关键词" --before 4 --after 8 --json
 ```
 
-不要在 metadata projection 里查询 raw Codex JSONL;正常历史检索的 metadata 和内容都应回到 cxs index / cxs read commands。
+不要在 metadata projection 里查询 raw Codex JSONL;正常历史检索的 metadata 和内容都应回到 Sherlog index / Sherlog read commands。
 
 ## 同 title 的多变体 session
 

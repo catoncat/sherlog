@@ -1,3 +1,4 @@
+import { PROGRAM_NAME } from "../env";
 import type { QueryNextAction, Selector } from "../types";
 
 export function buildZeroResultsNextAction(
@@ -10,8 +11,8 @@ export function buildZeroResultsNextAction(
       reason: "zero_results_with_unconfirmed_selector_coverage",
       selector,
       steps: [
-        "Run cxs status for the same selector.",
-        "If status requestedCoverage.recommendedAction is sync, run cxs sync for the same selector.",
+        `Run ${PROGRAM_NAME} status for the same selector.`,
+        `If status requestedCoverage.recommendedAction is sync, run ${PROGRAM_NAME} sync for the same selector.`,
         `Retry ${commandLabel} with the same selector before concluding nothing exists.`,
       ],
     };
@@ -22,8 +23,8 @@ export function buildZeroResultsNextAction(
       reason: "zero_results_without_selector",
       steps: [
         "Choose the narrowest relevant root, cwd, or date selector.",
-        "Run cxs status for that selector.",
-        `If status requestedCoverage.recommendedAction is sync, run cxs sync for that selector, then retry ${commandLabel}.`,
+        `Run ${PROGRAM_NAME} status for that selector.`,
+        `If status requestedCoverage.recommendedAction is sync, run ${PROGRAM_NAME} sync for that selector, then retry ${commandLabel}.`,
       ],
     };
   }

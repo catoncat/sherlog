@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
-# Install maintainer-only cxs development skills from this checkout.
+# Install maintainer-only Sherlog development skills from this checkout.
 set -euo pipefail
 
 REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-SOURCE_FILE="$REPO/dev/skills/cxs-dogfood/source.md"
-TARGET="${CXS_DOGFOOD_SKILL_DIR:-$HOME/.agents/skills/cxs-dogfood}"
+SOURCE_FILE="$REPO/dev/skills/sherlog-dogfood/source.md"
+TARGET="${SHERLOG_DOGFOOD_SKILL_DIR:-$HOME/.agents/skills/sherlog-dogfood}"
 
 if [ ! -f "$SOURCE_FILE" ]; then
   echo "missing source skill: $SOURCE_FILE" >&2
@@ -24,5 +24,5 @@ fi
 mkdir -p "$TARGET"
 ln -sfn "$SOURCE_FILE" "$TARGET/SKILL.md"
 
-echo "cxs-dogfood -> $SOURCE_FILE"
+echo "sherlog-dogfood -> $SOURCE_FILE"
 echo "target: $TARGET"

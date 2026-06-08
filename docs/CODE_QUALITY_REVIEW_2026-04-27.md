@@ -1,8 +1,8 @@
-# cxs 代码质量审查报告（2026-04-27）
+# Sherlog 代码质量审查报告（2026-04-27）
 
 ## 结论
 
-当前 `cxs` 代码质量中上，已经是可接手的小型 CLI 项目；主要风险不在代码结构本身，而在工程化、异常路径和少数边界防御还需要补强。
+当前 `Sherlog` 代码质量中上，已经是可接手的小型 CLI 项目；主要风险不在代码结构本身，而在工程化、异常路径和少数边界防御还需要补强。
 
 综合评分：**7.5 / 10**。
 
@@ -37,7 +37,7 @@ npm run check
 
 ### 1. 项目边界清楚
 
-`cxs` 明确定位为本机 Codex session 日志的渐进式检索 CLI，不把 GUI、watcher、daemon、realtime sync 混进来。
+`Sherlog` 明确定位为本机 Codex session 日志的渐进式检索 CLI，不把 GUI、watcher、daemon、realtime sync 混进来。
 
 当前主工作流保持为：
 
@@ -132,7 +132,7 @@ try {
 
 > 状态：已在 commit `187c5d9` 部分缓解 — 引入 `tryRemoveStaleLock` 在删除前二次比对 `pid + createdAt`。但这是 best-effort,**不是原子 TOCTOU 修复**：在二次读取与 path-based `rmSync` 之间仍有残余 race 窗口,另一个进程可能在该窗口内删除并替换 lock,导致当前进程仍可能 `rmSync` 别人的新 lock。Node 层没有 inode-pinned unlink,要做真正原子需引入 OS-level flock(native bindings)。
 >
-> 工程决策：cxs 的 sync 是低并发异常路径,残余 race 窗口极窄,接受 best-effort 表述并在 `src/sync-lock.ts:tryRemoveStaleLock` 注释里明确标注。如未来观察到锁损坏,再考虑引入 flock 或换 rename-based 抓取。
+> 工程决策：Sherlog 的 sync 是低并发异常路径,残余 race 窗口极窄,接受 best-effort 表述并在 `src/sync-lock.ts:tryRemoveStaleLock` 注释里明确标注。如未来观察到锁损坏,再考虑引入 flock 或换 rename-based 抓取。
 
 原文（保留作为背景）：当前逻辑遇到已有 lock 后会读 lock info，判断 pid 不存在就删除 lock 文件。这里有一个竞态：读到 stale lock 之后、删除之前，另一个进程可能已经创建了新 lock；当前进程可能误删别人的新 lock。
 
@@ -202,4 +202,4 @@ try {
 
 ## 结语
 
-`cxs` 当前已经不是玩具脚本，结构、测试和文档同步意识都比较像一个正经小型 CLI。下一阶段最值得投入的是类型检查、异常路径资源释放、lock race 和 state DB schema 防御，而不是继续堆检索权重。
+`Sherlog` 当前已经不是玩具脚本，结构、测试和文档同步意识都比较像一个正经小型 CLI。下一阶段最值得投入的是类型检查、异常路径资源释放、lock race 和 state DB schema 防御，而不是继续堆检索权重。

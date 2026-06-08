@@ -4,7 +4,7 @@ Mode: `implementation-slice`
 
 ## Objective
 
-Align current-state docs and the release `cxs` skill package with the implemented multi-source foundation without claiming Claude Code support is published.
+Align current-state docs and the release `Sherlog` skill package with the implemented multi-source foundation without claiming Claude Code support is published.
 
 ## Read Paths
 
@@ -13,8 +13,8 @@ Align current-state docs and the release `cxs` skill package with the implemente
 - `docs/ARCHITECTURE.md`
 - `docs/ROADMAP.md`
 - `README.md`
-- `skill-packages/cxs/SKILL.md`
-- `skill-packages/cxs/references/**`
+- `skill-packages/sherlog/SKILL.md`
+- `skill-packages/sherlog/references/**`
 
 ## Allowed Writes
 
@@ -23,7 +23,7 @@ Expected bounded paths, subject to D1 and implementation results:
 - `docs/ARCHITECTURE.md`
 - `docs/ROADMAP.md`
 - `README.md` only if public CLI help changes.
-- `skill-packages/cxs/**`
+- `skill-packages/sherlog/**`
 - related docs tests if present
 - `docs/workflows/2026-06-05-session-sources/handoffs/I4-docs-skill-alignment.md`
 
@@ -39,8 +39,8 @@ Expected bounded paths, subject to D1 and implementation results:
 
 - `git diff --check`.
 - `npx skills ls -g --json` only if D1 says global skill state must be inspected; do not update it.
-- `cxs --help` only for installed release behavior, clearly labeled as release behavior.
-- Checkout CLI help via `npm run cxs -- --help` if CLI help changed.
+- `shlog --help` only for installed release behavior, clearly labeled as release behavior.
+- Checkout CLI help via `npm run shlog -- --help` if CLI help changed.
 
 ## Commit And Seal
 

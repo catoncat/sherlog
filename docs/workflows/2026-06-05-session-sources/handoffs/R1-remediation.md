@@ -24,19 +24,19 @@ Mainline intent: `int_462a342b` sealed and published as proposed
 
 - README now distinguishes source checkout behavior from older installed npm/PATH CLI behavior.
 - README documents that source-aware read commands do not migrate old indexes and require `sync`.
-- `skill-packages/cxs` and references document old CLI `--source` fallback and the new error shape.
+- `skill-packages/sherlog` and references document old CLI `--source` fallback and the new error shape.
 - `docs/INDEX_COVERAGE_DESIGN.md` now treats `source` as a selector and coverage dimension; implication is false across sources.
 
 ## Verification
 
 - `npm run test -- src/cli.test.ts`: passed, 28 tests.
 - `npm run check`: passed, 27 test files / 153 tests.
-- `npm run cxs -- status --source codex --json`: passed against default local index, preserving old-schema status fallback.
-- `npm run cxs -- list --source codex --json -n 1`: returned structured `index_schema_upgrade_required` against the old default local index.
-- `npm run cxs -- stats --source codex --json`: returned structured `index_schema_upgrade_required` against the old default local index.
-- `npm run cxs -- list --source codex --json --db docs/workflows/2026-06-05-session-sources/handoffs/E1-artifacts/e1-smoke.sqlite -n 1`: passed.
-- `npm run cxs -- read-page e1e10000-e1e1-41e1-81e1-e1e1e1e1e1e1 --source codex --json --db docs/workflows/2026-06-05-session-sources/handoffs/E1-artifacts/e1-smoke.sqlite --limit 1`: passed.
-- `npm run cxs -- find needle --source codex --json --db docs/workflows/2026-06-05-session-sources/handoffs/E1-artifacts/e1-smoke.sqlite`: passed.
+- `npm run shlog -- status --source codex --json`: passed against default local index, preserving old-schema status fallback.
+- `npm run shlog -- list --source codex --json -n 1`: returned structured `index_schema_upgrade_required` against the old default local index.
+- `npm run shlog -- stats --source codex --json`: returned structured `index_schema_upgrade_required` against the old default local index.
+- `npm run shlog -- list --source codex --json --db docs/workflows/2026-06-05-session-sources/handoffs/E1-artifacts/e1-smoke.sqlite -n 1`: passed.
+- `npm run shlog -- read-page e1e10000-e1e1-41e1-81e1-e1e1e1e1e1e1 --source codex --json --db docs/workflows/2026-06-05-session-sources/handoffs/E1-artifacts/e1-smoke.sqlite --limit 1`: passed.
+- `npm run shlog -- find needle --source codex --json --db docs/workflows/2026-06-05-session-sources/handoffs/E1-artifacts/e1-smoke.sqlite`: passed.
 - `mainline lint int_462a342b --json`: passed.
 
 ## Boundaries

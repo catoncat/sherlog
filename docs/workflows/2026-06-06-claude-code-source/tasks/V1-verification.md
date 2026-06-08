@@ -47,10 +47,10 @@ git branch --show-current || true
 git rev-parse HEAD
 git status --short --untracked-files=all
 npm run check
-npm run cxs -- --help
-npm run cxs -- status --json
-npm run cxs -- status --source claude-code --json
-npm run cxs -- sync --selector '{"source":"claude-code","kind":"all","root":"<tmp>"}' --db <tmp>/index.sqlite --json
+npm run shlog -- --help
+npm run shlog -- status --json
+npm run shlog -- status --source claude-code --json
+npm run shlog -- sync --selector '{"source":"claude-code","kind":"all","root":"<tmp>"}' --db <tmp>/index.sqlite --json
 git diff --check
 git status --short --untracked-files=all
 ```

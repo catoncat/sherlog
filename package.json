@@ -1,19 +1,19 @@
 {
-  "name": "@act0r/cxs",
-  "version": "0.3.7",
+  "name": "@act0r/sherlog",
+  "version": "0.3.8",
   "type": "module",
   "description": "Progressive search CLI for local Codex and Claude Code session logs",
   "license": "MIT",
-  "homepage": "https://github.com/catoncat/cxs",
+  "homepage": "https://github.com/catoncat/sherlog",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/catoncat/cxs.git"
+    "url": "git+https://github.com/catoncat/sherlog.git"
   },
   "bugs": {
-    "url": "https://github.com/catoncat/cxs/issues"
+    "url": "https://github.com/catoncat/sherlog/issues"
   },
   "bin": {
-    "cxs": "dist/cli.js"
+    "shlog": "dist/cli.js"
   },
   "files": [
     "dist/",
@@ -44,7 +44,8 @@
     "prepublishOnly": "npm run build",
     "test": "vitest run",
     "check": "tsc --noEmit && vitest run",
-    "cxs": "tsx ./src/cli.ts",
+    "shlog": "tsx ./src/cli.ts",
+    "cxs": "npm run shlog --",
     "eval:manual": "tsx ./eval/run-manual-eval.ts",
     "eval:compare": "tsx ./eval/compare-eval-batches.ts",
     "eval:perf": "tsx ./eval/perf-bench.ts",

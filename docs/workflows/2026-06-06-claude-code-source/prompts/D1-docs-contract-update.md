@@ -14,7 +14,7 @@ First action: call `create_goal` with that objective.
 
 Boundary:
 - This is an implementation-slice for docs/contract only.
-- Do not edit product code, tests, `skill-packages/cxs/**`, package files, release config, installed CLI state, or global skills.
+- Do not edit product code, tests, `skill-packages/sherlog/**`, package files, release config, installed CLI state, or global skills.
 - Allowed handoff write: `docs/workflows/2026-06-06-claude-code-source/handoffs/D1-docs-contract-update.md`.
 - Do not commit, seal, push, PR, npm publish, release, local install, or update global skills.
 - Do not ingest, copy, quote, or commit real Claude transcript content.
@@ -45,13 +45,13 @@ Update current-state public docs so they match verified checkout behavior:
 - do not present raw Claude JSONL as a stable public format decision
 
 Required proof:
-- `git diff -- docs README.md AGENTS.md skill-packages/cxs 2>/dev/null || true`
+- `git diff -- docs README.md AGENTS.md skill-packages/sherlog 2>/dev/null || true`
 - `git diff --check`
 - If docs mention CLI help/options, run relevant help/readback:
-  - `npm run cxs -- --help`
-  - `npm run cxs -- sync --help`
-  - `npm run cxs -- find --help`
-  - `npm run cxs -- status --source claude-code --json`
+  - `npm run shlog -- --help`
+  - `npm run shlog -- sync --help`
+  - `npm run shlog -- find --help`
+  - `npm run shlog -- status --source claude-code --json`
 
 Expected handoff:
 Write `docs/workflows/2026-06-06-claude-code-source/handoffs/D1-docs-contract-update.md`.

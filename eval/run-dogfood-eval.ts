@@ -29,7 +29,7 @@ interface FindAttemptSpec {
 
 const ROOT = resolve(import.meta.dirname, "..");
 const CLI_ENTRY = resolve(ROOT, "src", "cli.ts");
-const OUT_BASE = resolve(ROOT, "data", "cxs-dogfood-eval");
+const OUT_BASE = resolve(ROOT, "data", "shlog-dogfood-eval");
 const args = parseArgs(process.argv.slice(2));
 
 const parsed = parseDogfoodJsonl(readFileSync(args.goldenPath, "utf8"), args.goldenPath);
@@ -264,7 +264,7 @@ function renderReadme(
   rows: DogfoodEvalRow[],
 ): string {
   const lines = [
-    "# cxs dogfood eval batch",
+    "# shlog dogfood eval batch",
     "",
     `- generated_at: ${new Date().toISOString()}`,
     `- source: \`${sourcePath}\``,

@@ -3,7 +3,7 @@ You are executing `2026-06-05-session-sources/D1`.
 Use the `codex-session-orchestrator` skill.
 
 Goal:
-Write the architecture design packet for the `cxs` multi-source foundation.
+Write the architecture design packet for the `Sherlog` multi-source foundation.
 
 First action:
 Call `create_goal` with:

@@ -4,7 +4,7 @@
 
 - Updated: 2026-06-05
 - Status: complete locally; R1 remediation committed and Mainline-sealed
-- Orchestrator Goal: `持续推进 cxs 多源架构工作流的所有 waves，直到完成设计、实现分派、验证和收口，或出现真实阻塞`
+- Orchestrator Goal: `持续推进 Sherlog 多源架构工作流的所有 waves，直到完成设计、实现分派、验证和收口，或出现真实阻塞`
 - Mainline intents: R1 remediation `int_462a342b`; closeout docs `int_be5cccca`
 - Branch: `codex/session-sources-workflow`
 - Canonical control plane: `docs/workflows/2026-06-05-session-sources/`

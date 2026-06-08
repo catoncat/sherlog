@@ -8,12 +8,12 @@
 Use `codex-session-orchestrator`, `mainline`, and `superpowers:verification-before-completion`.
 
 Goal:
-`2026-06-06-claude-code-source: S1 - Align distributable cxs skill source after D1`
+`2026-06-06-claude-code-source: S1 - Align distributable sherlog skill source after D1`
 
 First action: call `create_goal` with that objective.
 
 Boundary:
-- This is an implementation-slice for `skill-packages/cxs` only.
+- This is an implementation-slice for `skill-packages/sherlog` only.
 - Do not edit product code/tests, package files, release config, installed CLI state, or global skills.
 - Allowed handoff write: `docs/workflows/2026-06-06-claude-code-source/handoffs/S1-skill-source-update.md`.
 - Do not commit, seal, push, PR, npm publish, release, local install, or update global skills.
@@ -27,10 +27,10 @@ Important checkout context:
 
 Read:
 - `AGENTS.md`
-- `skill-packages/cxs/SKILL.md`
-- `skill-packages/cxs/references/cli-surface.md`
-- `skill-packages/cxs/references/failure-cookbook.md`
-- `skill-packages/cxs/references/json-schema.md`
+- `skill-packages/sherlog/SKILL.md`
+- `skill-packages/sherlog/references/cli-surface.md`
+- `skill-packages/sherlog/references/failure-cookbook.md`
+- `skill-packages/sherlog/references/json-schema.md`
 - `README.md`
 - `docs/ARCHITECTURE.md`
 - `docs/ROADMAP.md`
@@ -39,7 +39,7 @@ Read:
 - `docs/workflows/2026-06-06-claude-code-source/handoffs/V1-verification.md`
 
 Work:
-Update `skill-packages/cxs` so the distributable skill source matches verified checkout behavior:
+Update `skill-packages/sherlog` so the distributable skill source matches verified checkout behavior:
 - skill install does not install the CLI;
 - fixed command surface remains `status`, `sync`, `find`, `read-range`, `read-page`, `list`, `stats`;
 - public CLI source remains `codex` only;
@@ -49,13 +49,13 @@ Update `skill-packages/cxs` so the distributable skill source matches verified c
 - do not present raw Claude JSONL as a stable public format decision.
 
 Required proof:
-- `git diff -- skill-packages/cxs`
+- `git diff -- skill-packages/sherlog`
 - `npx skills ls -g --json`
 - `git diff --check`
 - If skill text quotes/paraphrases CLI help:
-  - `npm run cxs -- --help`
-  - `npm run cxs -- status --help`
-  - `npm run cxs -- status --source claude-code --json`
+  - `npm run shlog -- --help`
+  - `npm run shlog -- status --help`
+  - `npm run shlog -- status --source claude-code --json`
 
 Expected handoff:
 Write `docs/workflows/2026-06-06-claude-code-source/handoffs/S1-skill-source-update.md`.

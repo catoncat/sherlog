@@ -9,11 +9,11 @@
 | `sync` 返回 `selector_required` | 原命令补 `--root`、`--cwd` 或 `--selector` | sync 必须显式给范围；不需要把 root 写进 JSON |
 | `find/list/stats/read-*` 输出 `index_unavailable` | `status --json` | 索引还没建立；选择范围后 `sync --root` / `sync --cwd` / `sync --selector` |
 | `find/list/stats/read-*` 输出 `index_schema_upgrade_required` | 原范围跑一次 `sync --source codex ...` | 已有 index 是旧 schema；只读命令不迁移，`sync` 是唯一写入口 |
-| raw JSONL 从当前 source snapshot 中消失后担心查不到 | 直接 `find/list/read-*` 查 cxs index | cxs 默认保留已索引历史；不要引导用户改查另一个 root。只有用户明确要丢弃旧历史时才 `sync --prune` |
+| raw JSONL 从当前 source snapshot 中消失后担心查不到 | 直接 `find/list/read-*` 查 Sherlog index | Sherlog 默认保留已索引历史；不要引导用户改查另一个 root。只有用户明确要丢弃旧历史时才 `sync --prune` |
 | `stats/list/find` 报 `database is locked` | 原命令重试一次 | 多半是 SQLite 忙；仍失败就先跳过 `stats` 直接读 |
 | 同一主题多条 uuid | `find -n 10 --json` | 按 `startedAt`、`cwd`、`matchCount` 选 |
 | 最新/最近 + 关键词被当前会话抢结果 | `find <query> --sort ended --exclude-session <uuid>` | 默认 `find` 是 relevance 排序；时间问题显式用 `--sort ended` 并排除 self-hit |
-| metadata-only 问题很慢或结果过宽 | 只读 SQLite 查 cxs index,再 `read-page` 验证候选 | 这是 skill-guidance 问题:agent 把 `status` 或 `find` 用成了通用入口 |
+| metadata-only 问题很慢或结果过宽 | 只读 SQLite 查 Sherlog index,再 `read-page` 验证候选 | 这是 skill-guidance 问题:agent 把 `status` 或 `find` 用成了通用入口 |
 | 中文/CJK 零结果 | 无 | 换至少两字中文、英文关键词，或先用 selector 缩范围 |
 | 用户问“最近本项目讨论了什么” | `list --cwd <abs_cwd> --sort ended --json` | 这是 metadata/listing 问题；索引不可用或 coverage 不明时再 `status --cwd` |
 | 用户说“在 X 项目里” | `status --json` | 从 `sourceInventory.cwdGroups` 选择 cwd selector |
@@ -25,15 +25,15 @@
 先看 `find --json` / `list --json` 有没有 `nextAction`。有就按它执行；没有也不要直接放弃,先确认目标范围 coverage。
 
 ```bash
-"${CXS_BIN:-cxs}" status --source codex --json
-"${CXS_BIN:-cxs}" status --source claude-code --json
+"${SHLOG_BIN:-${CXS_BIN:-shlog}}" status --source codex --json
+"${SHLOG_BIN:-${CXS_BIN:-shlog}}" status --source claude-code --json
 ```
 
 如果目标范围没有 fresh coverage，先同步明确范围。cwd/root 用快捷方式，日期窗再用 selector：
 
 ```bash
-"${CXS_BIN:-cxs}" status --source codex --cwd /Users/me/work/foo --json
-"${CXS_BIN:-cxs}" sync --source codex --cwd /Users/me/work/foo
+"${SHLOG_BIN:-${CXS_BIN:-shlog}}" status --source codex --cwd /Users/me/work/foo --json
+"${SHLOG_BIN:-${CXS_BIN:-shlog}}" sync --source codex --cwd /Users/me/work/foo
 ```
 
 如果 `status --selector` 返回 `recommendedAction: "query"`，跳过 `sync`。
@@ -43,7 +43,7 @@
 ## Sync non-zero with per-file errors
 
 ```bash
-"${CXS_BIN:-cxs}" sync --root /Users/me/.codex/sessions --json 2>&1
+"${SHLOG_BIN:-${CXS_BIN:-shlog}}" sync --root /Users/me/.codex/sessions --json 2>&1
 ```
 
 处理规则：
@@ -55,7 +55,7 @@
 
 ## index_unavailable
 
-`find` / `read-range` / `read-page` / `list` / `stats` 都读 cxs 自己的 SQLite 索引。第一次安装后还没跑过 `sync --root` / `sync --cwd` / `sync --selector` 时，这些命令会在 `--json` 模式下返回:
+`find` / `read-range` / `read-page` / `list` / `stats` 都读 Sherlog 自己的 SQLite 索引。第一次安装后还没跑过 `sync --root` / `sync --cwd` / `sync --selector` 时，这些命令会在 `--json` 模式下返回:
 
 ```json
 {
@@ -63,7 +63,7 @@
     "code": "index_unavailable",
     "message": "index not found: ...",
     "dbPath": "...",
-    "hint": "Run `cxs sync` first ..."
+    "hint": "Run `shlog sync` first ..."
   }
 }
 ```
@@ -71,8 +71,8 @@
 处理方式:
 
 ```bash
-"${CXS_BIN:-cxs}" status --json
-"${CXS_BIN:-cxs}" sync --root /Users/me/.codex/sessions
+"${SHLOG_BIN:-${CXS_BIN:-shlog}}" status --json
+"${SHLOG_BIN:-${CXS_BIN:-shlog}}" sync --root /Users/me/.codex/sessions
 ```
 
 没有单独 `init` 命令；`sync --root` / `sync --cwd` / `sync --selector` 会创建并更新索引。
@@ -89,7 +89,7 @@ source-aware 读命令遇到旧 index schema 时不会写库迁移，而是在 `
     "message": "index schema is too old for source-aware read commands: ...",
     "dbPath": "...",
     "missingColumns": ["sessions.source_id", "coverage.source_id"],
-    "hint": "Run `cxs sync --source codex --root <sessions-root>` ..."
+    "hint": "Run `shlog sync --source codex --root <sessions-root>` ..."
   }
 }
 ```
@@ -104,7 +104,7 @@ source-aware 读命令遇到旧 index schema 时不会写库迁移，而是在 `
 - 如果只是想读取历史，不一定非得先拿 `stats`。
 - 如果你刚跑过 `sync` 或怀疑别的进程正占着 db，先等一下再重试。
 
-## Slow or over-broad cxs use
+## Slow or over-broad Sherlog use
 
 症状:
 
@@ -114,37 +114,37 @@ source-aware 读命令遇到旧 index schema 时不会写库迁移，而是在 `
 
 处理方式:
 
-1. 把它归类为 `skill-guidance-issue`,不是 cxs CLI recall/ranking bug。
-2. 对 cxs SQLite index 做只读 metadata projection。
+1. 把它归类为 `skill-guidance-issue`,不是 shlog CLI recall/ranking bug。
+2. 对 Sherlog SQLite index 做只读 metadata projection。
 3. 用 `read-page` / `read-range` 验证最终候选的内容。
 
 Example:
 
 ```bash
-DB_PATH="$("${CXS_BIN:-cxs}" status --json | jq -r '.context.dbPath')"
+DB_PATH="$("${SHLOG_BIN:-${CXS_BIN:-shlog}}" status --json | jq -r '.context.dbPath')"
 sqlite3 -readonly "$DB_PATH" \
   "SELECT session_uuid, started_at, message_count, cwd, title
    FROM sessions
    ORDER BY started_at ASC
    LIMIT 20;"
-"${CXS_BIN:-cxs}" read-page <sessionUuid> --offset 0 --limit 20 --json
+"${SHLOG_BIN:-${CXS_BIN:-shlog}}" read-page <sessionUuid> --offset 0 --limit 20 --json
 ```
 
-不要改查 raw session files;正常历史检索的 projection 也应该来自 cxs index。
+不要改查 raw session files;正常历史检索的 projection 也应该来自 Sherlog index。
 
 ## Current project discussion query
 
 用户问“最近本项目讨论了什么”时，这是 metadata/listing primitive。先列当前 repo 最近 session:
 
 ```bash
-"${CXS_BIN:-cxs}" list --cwd /absolute/path/to/current/repo --sort ended -n 8 --json
+"${SHLOG_BIN:-${CXS_BIN:-shlog}}" list --cwd /absolute/path/to/current/repo --sort ended -n 8 --json
 ```
 
 如果返回 `index_unavailable`,或者用户明确怀疑目标范围没被索引,再诊断 coverage:
 
 ```bash
-"${CXS_BIN:-cxs}" status --cwd /absolute/path/to/current/repo --json
-"${CXS_BIN:-cxs}" sync --cwd /absolute/path/to/current/repo --json
+"${SHLOG_BIN:-${CXS_BIN:-shlog}}" status --cwd /absolute/path/to/current/repo --json
+"${SHLOG_BIN:-${CXS_BIN:-shlog}}" sync --cwd /absolute/path/to/current/repo --json
 ```
 
 然后至少再看：
@@ -159,7 +159,7 @@ sqlite3 -readonly "$DB_PATH" \
 用户问“最新一次 X / 最近哪个 session 提到 X”时:
 
 ```bash
-"${CXS_BIN:-cxs}" find "X" --cwd /absolute/path/to/current/repo --sort ended --exclude-session <current_session_uuid> --json -n 5
+"${SHLOG_BIN:-${CXS_BIN:-shlog}}" find "X" --cwd /absolute/path/to/current/repo --sort ended --exclude-session <current_session_uuid> --json -n 5
 ```
 
 不要直接用默认 `find "X"` 下“最新”结论；默认排序是 relevance。只有索引不可用、coverage 不明或结果明显缺失时,再 `status --cwd` / `sync --cwd`。

@@ -6,7 +6,7 @@ Mode: `inventory-packet`
 
 ## Conclusion
 
-Current `cxs` has no non-Codex source implementation. Single-source assumptions concentrate in default root resolution, Codex JSONL parser/event model, source inventory cwd/date inference, selector/coverage identity, DB uniqueness, CLI defaults, and release skill wording.
+Current `Sherlog` has no non-Codex source implementation. Single-source assumptions concentrate in default root resolution, Codex JSONL parser/event model, source inventory cwd/date inference, selector/coverage identity, DB uniqueness, CLI defaults, and release skill wording.
 
 ## Key Inventory
 
@@ -24,7 +24,7 @@ Current `cxs` has no non-Codex source implementation. Single-source assumptions 
 | Coverage | `src/db/schema.ts:81`, `src/db/coverage-store.ts:16` | Coverage key is selector JSON only, source-blind. | I2 |
 | Query SQL | `src/db/sql.ts:4`, `src/db/sql.ts:8` | Selector SQL filters by file path under root plus cwd/date. | I2 |
 | Status/sync coupling | `src/status.ts:8`, `src/status.ts:67`, `src/indexer.ts:13`, `src/indexer.ts:159` | Status and sync are wired to Codex inventory/parser. | I1/I3 |
-| Public docs/skill | `docs/ARCHITECTURE.md:5`, `skill-packages/cxs/SKILL.md:3`, `skill-packages/cxs/references/json-schema.md:169` | Public docs and release skill frame behavior as Codex history; JSON schema exposes `sourceRoot` but no source id. | I4/D1 |
+| Public docs/skill | `docs/ARCHITECTURE.md:5`, `skill-packages/sherlog/SKILL.md:3`, `skill-packages/sherlog/references/json-schema.md:169` | Public docs and release skill frame behavior as Codex history; JSON schema exposes `sourceRoot` but no source id. | I4/D1 |
 
 ## Proof
 

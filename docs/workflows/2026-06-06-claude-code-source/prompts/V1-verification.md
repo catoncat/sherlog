@@ -40,10 +40,10 @@ Read if present:
 
 Required verification:
 1. `npm run check`
-2. `npm run cxs -- --help`
-3. `npm run cxs -- status --json`
-4. public rejection smoke: `npm run cxs -- status --source claude-code --json`
-5. public selector rejection smoke: `npm run cxs -- sync --selector '{"source":"claude-code","kind":"all","root":"<tmp>"}' --db <tmp>/index.sqlite --json`
+2. `npm run shlog -- --help`
+3. `npm run shlog -- status --json`
+4. public rejection smoke: `npm run shlog -- status --source claude-code --json`
+5. public selector rejection smoke: `npm run shlog -- sync --selector '{"source":"claude-code","kind":"all","root":"<tmp>"}' --db <tmp>/index.sqlite --json`
 6. Codex default smoke using synthetic/temp data or smallest safe current-checkout path.
 7. Private synthetic Claude fixture sync/read/search smoke. Use generated temp JSONL only; prove accepted synthetic records index/read and skipped synthetic sentinels do not leak into search/read projections or metadata.
 8. Confirm no timeout increase remains, or record scoped evidence if one exists.

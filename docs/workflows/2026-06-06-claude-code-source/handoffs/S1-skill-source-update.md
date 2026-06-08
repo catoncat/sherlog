@@ -8,14 +8,14 @@ status: `pass`
 
 ## Conclusion
 
-S1 passes. The distributable skill source under `skill-packages/cxs` now matches
+S1 passes. The distributable skill source under `skill-packages/sherlog` now matches
 D1's verified checkout wording:
 
 - public CLI source remains `codex` only;
 - `--source codex` remains optional / default;
 - `claude-code` is described as a private / non-public checkout adapter path
   for synthetic verification and future promotion work;
-- the skill does not claim public `cxs sync --source claude-code`, npm release,
+- the skill does not claim public `shlog sync --source claude-code`, npm release,
   installed PATH CLI support, global skill update, or stable public Claude raw
   JSONL format.
 
@@ -25,11 +25,11 @@ Claude Code source promotion.
 
 ## Files Changed
 
-- `skill-packages/cxs/SKILL.md`
-- `skill-packages/cxs/references/cli-surface.md`
-- `skill-packages/cxs/references/failure-cookbook.md`
-- `skill-packages/cxs/references/json-schema.md`
-- `skill-packages/cxs/references/progressive-workflow.md`
+- `skill-packages/sherlog/SKILL.md`
+- `skill-packages/sherlog/references/cli-surface.md`
+- `skill-packages/sherlog/references/failure-cookbook.md`
+- `skill-packages/sherlog/references/json-schema.md`
+- `skill-packages/sherlog/references/progressive-workflow.md`
 - `docs/workflows/2026-06-06-claude-code-source/handoffs/S1-skill-source-update.md`
 
 ## Skill Wording Decisions
@@ -42,37 +42,37 @@ Claude Code source promotion.
   release/install/global skill proof, not guidance to read raw Claude files, and
   not a stable public raw JSONL format decision.
 - Left dogfood/dev-only workflow and private goldens out of the public skill
-  source, except for the existing user-triggered `$cxs-dogfood` self-eval
+  source, except for the existing user-triggered `$sherlog-dogfood` self-eval
   guidance that was already present.
 
 ## Proof Commands
 
 ```text
-$ git diff -- skill-packages/cxs
+$ git diff -- skill-packages/sherlog
 exit 0; showed changes only in:
-skill-packages/cxs/SKILL.md
-skill-packages/cxs/references/cli-surface.md
-skill-packages/cxs/references/failure-cookbook.md
-skill-packages/cxs/references/json-schema.md
-skill-packages/cxs/references/progressive-workflow.md
+skill-packages/sherlog/SKILL.md
+skill-packages/sherlog/references/cli-surface.md
+skill-packages/sherlog/references/failure-cookbook.md
+skill-packages/sherlog/references/json-schema.md
+skill-packages/sherlog/references/progressive-workflow.md
 
 $ npx skills ls -g --json
-exit 0; global skill list includes `cxs` at /Users/envvar/.agents/skills/cxs.
+exit 0; global skill list includes `Sherlog` at /Users/envvar/.agents/skills/cxs.
 This only proves global skill presence, not that it has been updated from this
 checkout.
 
 $ git diff --check
 exit 0
 
-$ npm run cxs -- --help
+$ npm run shlog -- --help
 exit 0; commands listed: status, sync, find, read-range, read-page, list, stats,
 help.
 
-$ npm run cxs -- status --help
+$ npm run shlog -- status --help
 exit 0; status options include `--source <id>      session source (public:
 codex)`.
 
-$ npm run cxs -- status --source claude-code --json
+$ npm run shlog -- status --source claude-code --json
 exit 1 by design; JSON error.code `unsupported_source`, source `claude-code`,
 message says only `codex` is public in this release.
 ```
@@ -86,12 +86,12 @@ After that, required CLI smokes passed / failed by design as listed above.
 
 ## Release And Install Statements
 
-- Source layer: `skill-packages/cxs` was updated in this checkout only.
-- Skill publication layer: global `cxs` skill was not updated. No `npx skills
-  add catoncat/cxs ...` install/update was run.
+- Source layer: `skill-packages/sherlog` was updated in this checkout only.
+- Skill publication layer: global `Sherlog` skill was not updated. No `npx skills
+  add catoncat/sherlog ...` install/update was run.
 - CLI publication layer: no package version bump, npm publish, release workflow,
   tag, or registry update was performed.
-- Local installed CLI layer: installed PATH `cxs` was not modified or validated
+- Local installed CLI layer: installed PATH `Sherlog` was not modified or validated
   as updated from this checkout.
 
 ## Missing Or Weak Evidence

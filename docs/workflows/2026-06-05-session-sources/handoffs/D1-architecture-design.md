@@ -81,7 +81,7 @@ Proceed to Wave 3 only after the orchestrator accepts `design.md`. Recommended o
 - No missing A1/A2/A3 handoff.
 - No failed required command before writing.
 - Mainline reported unrelated uncovered commits and stale proposals; left untouched because D1 is docs-only within a bounded workflow directory.
-- Memory quick-pass found only broad cxs startup-overhead context, not a material D1 design input.
+- Memory quick-pass found only broad Sherlog startup-overhead context, not a material D1 design input.
 
 ## Efficiency Notes
 

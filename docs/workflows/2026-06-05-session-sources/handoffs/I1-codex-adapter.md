@@ -83,9 +83,9 @@ Extracted Codex source discovery and parsing behind a source adapter boundary wh
 - `git diff --check`
   - exit 0.
 - Checkout CLI smoke with temp Codex root:
-  - `npm run --silent cxs -- status --root <tmp>/sessions --json`
-  - `npm run --silent cxs -- sync --root <tmp>/sessions --db <tmp>/index.sqlite --json`
-  - `npm run --silent cxs -- find "i1 adapter smoke" --db <tmp>/index.sqlite --json`
+  - `npm run --silent shlog -- status --root <tmp>/sessions --json`
+  - `npm run --silent shlog -- sync --root <tmp>/sessions --db <tmp>/index.sqlite --json`
+  - `npm run --silent shlog -- find "i1 adapter smoke" --db <tmp>/index.sqlite --json`
   - result: `statusTotalFiles=1`, `syncAdded=1`, `syncErrors=0`, `findResults=1`, `firstSession=aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa`.
 
 ## Blockers
@@ -103,7 +103,7 @@ None for I1.
 ## Noise Events
 
 - First `npm run check -- --runInBand` failed before code verification because `node_modules` was absent and `tsc` was not installed. Resolved with `npm ci`.
-- First CLI smoke attempted to parse stdout from non-silent `npm run cxs`; npm's script banner polluted JSON. Re-ran with `npm run --silent cxs -- ...` and passed.
+- First CLI smoke attempted to parse stdout from non-silent `npm run Sherlog`; npm's script banner polluted JSON. Re-ran with `npm run --silent shlog -- ...` and passed.
 - `rg --files src test tests` reported missing `test` and `tests` directories; useful result still identified relevant `src/*.test.ts` files.
 - Mainline reported unrelated uncovered commits, stale proposals, and AGENTS update availability; left untouched because they are outside I1.
 

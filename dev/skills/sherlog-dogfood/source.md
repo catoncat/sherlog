@@ -1,20 +1,20 @@
 ---
-name: cxs-dogfood
-description: "Dev-only interactive workflow for cxs maintainers to capture, verify, promote, and hand off private dogfood golden examples from real Codex history. Use only when the user explicitly says $cxs-dogfood, 记录这个 case, 添加 dogfood case, 记录这个 cxs golden, 把这次加入 dogfood, promote dogfood golden, or similar. When triggered, infer the case from the current conversation and ask only for missing essentials; do not make the user fill a template. After capture/eval, offer to start a repair handoff for another agent or continue fixing in the same chat. Do not use for normal cxs searches, normal coding tasks, or published cxs skill package edits."
+name: sherlog-dogfood
+description: "Dev-only interactive workflow for Sherlog maintainers to capture, verify, promote, and hand off private dogfood golden examples from real Codex history. Use only when the user explicitly says $sherlog-dogfood, 记录这个 case, 添加 dogfood case, 记录这个 Sherlog golden, 把这次加入 dogfood, promote dogfood golden, or similar. When triggered, infer the case from the current conversation and ask only for missing essentials; do not make the user fill a template. After capture/eval, offer to start a repair handoff for another agent or continue fixing in the same chat. Do not use for normal Sherlog searches, normal coding tasks, or published sherlog skill package edits."
 ---
 
-# cxs-dogfood
+# Sherlog Dogfood
 
-Dev-only interactive workflow for maintaining private cxs dogfood golden examples while developing `/Users/envvar/work/repos/cxs`.
+Dev-only interactive workflow for maintaining private Sherlog dogfood golden examples while developing `/Users/envvar/work/repos/cxs`.
 
-This skill is **not** a user-facing cxs feature and must not be copied into `skill-packages/cxs` or repo-local `.agents/skills`. Dogfooding always runs the **in-development** CLI via `npm run cxs --` (= `tsx ./src/cli.ts`) from the repo checkout, so it tracks the current working tree regardless of which global `cxs` is installed or however `cxs` is switched.
+This skill is **not** a user-facing Sherlog feature and must not be copied into `skill-packages/sherlog` or repo-local `.agents/skills`. Dogfooding always runs the **in-development** CLI via `npm run shlog --` (= `tsx ./src/cli.ts`) from the repo checkout, so it tracks the current working tree regardless of which global `Sherlog` is installed or however `Sherlog` is switched.
 
 ## Interaction contract
 
 When the user says only something like:
 
 ```text
-$cxs-dogfood 记录这个 case
+$sherlog-dogfood 记录这个 case
 ```
 
 handle the rest interactively. Do **not** ask the user to fill a JSON template.
@@ -23,10 +23,10 @@ Default behavior:
 
 1. Infer from the current conversation:
    - the original user ask / query wording
-   - whether the observed command was the published `cxs` or the in-development CLI (`npm run cxs --`)
+   - whether the observed command was the published `Sherlog` or the in-development CLI (`npm run shlog --`)
    - the bad behavior: recall miss, wrong ranking, wrong context, selector/coverage issue, or skill-guidance issue
    - any expected target session, cwd, title, snippet, or phrase already mentioned
-2. Reproduce with the in-development CLI (`npm run cxs --`) from the current checkout.
+2. Reproduce with the in-development CLI (`npm run shlog --`) from the current checkout.
 3. If the expected target or evidence phrase is still ambiguous, ask **one concise question** for the missing essential. Ask at most three short questions only if the case cannot be made evidence-backed otherwise.
 4. Append a `candidate` golden only after observed CLI/read output supports it.
 5. Report the created id, query/workflow attempts, target session(s), status, and current eval result.
@@ -35,12 +35,12 @@ Default behavior:
 Good user prompt:
 
 ```text
-$cxs-dogfood 记录这个 case
+$sherlog-dogfood 记录这个 case
 ```
 
 Good agent response pattern:
 
-- "我会从刚才这次 cxs 不符合预期的对话里提取 query 和期望。"
+- "我会从刚才这次 Sherlog 不符合预期的对话里提取 query 和期望。"
 - run commands
 - only ask if target/expectation is missing
 - append JSONL candidate
@@ -48,17 +48,17 @@ Good agent response pattern:
 - summarize evidence
 - offer repair handoff / same-chat fix / stop
 
-## Entry from cxs self-review
+## Entry from Sherlog self-review
 
-The `cxs` skill is the companion discovery layer for this skill. It may finish a lookup by saying this looks like a dogfood candidate and suggesting:
+The `Sherlog` skill is the companion discovery layer for this skill. It may finish a lookup by saying this looks like a dogfood candidate and suggesting:
 
 ```text
-$cxs-dogfood 记录这个 case
+$sherlog-dogfood 记录这个 case
 ```
 
 If the user confirms with that phrase, or with a short equivalent such as `记录`, `加进去`, or `对，记录这个 case`, treat it as an explicit trigger for this skill.
 
-Use the cxs self-review handoff as your starting evidence:
+Use the Sherlog self-review handoff as your starting evidence:
 
 - original query / user ask
 - observed command and flags
@@ -84,16 +84,16 @@ Do not start code changes just because a candidate failed. Start fixing only whe
 When the user asks for a handoff, output a compact block that another agent can use without re-asking basics:
 
 ```text
-## cxs dogfood repair handoff
+## Sherlog dogfood repair handoff
 
 Repo: /Users/envvar/work/repos/cxs
 Case: <id> (<status>)
 Symptom: <recall-miss|ranking-wrong|context-wrong|selector-coverage|skill-guidance>
 Original ask/query: <verbatim or derived query>
-Eval command: npm run eval:dogfood -- data/cxs-dogfood/goldens.local.jsonl
+Eval command: npm run eval:dogfood -- data/sherlog-dogfood/goldens.local.jsonl
 Focused repro (in-dev CLI from repo checkout):
-- npm run cxs -- find "<query>" --limit 10 --json
-- npm run cxs -- read-range/read-page ...
+- npm run shlog -- find "<query>" --limit 10 --json
+- npm run shlog -- read-range/read-page ...
 Expected: <session uuid/cwd/mustContain>
 Actual: <top result / competing result / failure message>
 Likely layer to check first: <coverage|skill guidance|CLI recall|ranking|context>
@@ -109,24 +109,24 @@ If the user says to fix in the same chat, switch to the repo workflow:
 1. Work in `/Users/envvar/work/repos/cxs`.
 2. Use Mainline if available/required by the repo.
 3. Run the dogfood eval first.
-4. Reproduce the specific case with the in-development CLI (`npm run cxs --`).
+4. Reproduce the specific case with the in-development CLI (`npm run shlog --`).
 5. Classify the layer before editing.
 6. Apply the smallest general fix.
 7. Verify with `npm run check` and dogfood eval.
 
 ## Hard boundaries
 
-- Only run this workflow after an explicit user trigger such as `$cxs-dogfood`, `把这次加入 dogfood`, `记录这个 cxs golden`, `记录这个 case`, or `promote dogfood golden`.
+- Only run this workflow after an explicit user trigger such as `$sherlog-dogfood`, `把这次加入 dogfood`, `记录这个 Sherlog golden`, `记录这个 case`, or `promote dogfood golden`.
 - Normal coding agents may run existing dogfood gates, but must not add new golden cases unless this skill was explicitly triggered.
 - New cases default to `status: "candidate"`.
 - Promote to `status: "hard"` only when the user explicitly asks to promote that case.
-- Store private examples in ignored local data, normally `/Users/envvar/work/repos/cxs/data/cxs-dogfood/goldens.local.jsonl`.
-- Never commit private dogfood examples. Never place them in `skill-packages/cxs` or repo-local `.agents/skills`.
-- Do not add a dogfood case for an agent mistake if the underlying cxs CLI behaved correctly; record it as a skill-guidance note or ask whether the user wants a skill/doc fix instead.
+- Store private examples in ignored local data, normally `/Users/envvar/work/repos/cxs/data/sherlog-dogfood/goldens.local.jsonl`.
+- Never commit private dogfood examples. Never place them in `skill-packages/sherlog` or repo-local `.agents/skills`.
+- Do not add a dogfood case for an agent mistake if the underlying shlog CLI behaved correctly; record it as a skill-guidance note or ask whether the user wants a skill/doc fix instead.
 
 ## Add candidate workflow
 
-1. Work from the cxs repo:
+1. Work from the Sherlog repo:
 
    ```bash
    cd /Users/envvar/work/repos/cxs
@@ -142,11 +142,11 @@ If the user says to fix in the same chat, switch to the repo workflow:
 3. Reproduce with the current development CLI:
 
    ```bash
-   npm run cxs -- status --json
-   npm run cxs -- find "<query>" --limit 10 --json
-   npm run cxs -- read-range <session_uuid> --seq <seq> --before 2 --after 2 --json
+   npm run shlog -- status --json
+   npm run shlog -- find "<query>" --limit 10 --json
+   npm run shlog -- read-range <session_uuid> --seq <seq> --before 2 --after 2 --json
    # or, for session-only hits:
-   npm run cxs -- read-page <session_uuid> --offset 0 --limit 20 --json
+   npm run shlog -- read-page <session_uuid> --offset 0 --limit 20 --json
    ```
 
    If the real observed workflow involved a selector, sort mode, alternate query attempt, or self-hit exclusion, capture those fields in the golden instead of flattening the case into one oversimplified query.
@@ -161,7 +161,7 @@ If the user says to fix in the same chat, switch to the repo workflow:
 5. Append one JSON object per line to:
 
    ```text
-   data/cxs-dogfood/goldens.local.jsonl
+   data/sherlog-dogfood/goldens.local.jsonl
    ```
 
    Candidate template:
@@ -173,7 +173,7 @@ If the user says to fix in the same chat, switch to the repo workflow:
 6. Verify immediately:
 
    ```bash
-   npm run eval:dogfood -- data/cxs-dogfood/goldens.local.jsonl
+   npm run eval:dogfood -- data/sherlog-dogfood/goldens.local.jsonl
    ```
 
    Candidate failures are reported but should not block normal development. Hard failures are blocking.
@@ -188,7 +188,7 @@ Only run when the user explicitly asks to promote a specific case.
 4. Re-run:
 
    ```bash
-   npm run eval:dogfood -- data/cxs-dogfood/goldens.local.jsonl
+   npm run eval:dogfood -- data/sherlog-dogfood/goldens.local.jsonl
    ```
 
 5. Report the case id, selected session, context mode, and final pass/fail.

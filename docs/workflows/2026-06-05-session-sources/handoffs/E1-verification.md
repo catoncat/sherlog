@@ -8,7 +8,7 @@ Mode: `evidence-session`
 
 The source checkout at `f8c7b2cf453627a3177d7614d0277455837190a4` passes the full repository check after local verification dependencies are materialized with `npm ci`. Checkout CLI behavior proves Codex remains the public/default source, `--source codex` works on a fresh source-aware index, and `--source claude-code` is rejected as non-public.
 
-Do not inflate this to release/install completion. The npm registry and installed PATH CLI still report version `0.3.4`, but the installed `cxs` on PATH rejects `--source`, and the global `cxs` skill is a symlink to `/Users/envvar/work/repos/cxs/skill-packages/cxs`, not the current reconciled checkout source.
+Do not inflate this to release/install completion. The npm registry and installed PATH CLI still report version `0.3.4`, but the installed `Sherlog` on PATH rejects `--source`, and the global `Sherlog` skill is a symlink to `/Users/envvar/work/repos/cxs/skill-packages/sherlog`, not the current reconciled checkout source.
 
 ## Files Read
 
@@ -40,15 +40,15 @@ SQLite sidecar files `e1-smoke.sqlite-shm` and `e1-smoke.sqlite-wal` were also p
 | --- | --- | --- |
 | E1 starts only after I4 complete and E1 ready | `wave-map.md` says Wave 3 I1/I2/I3/I4 complete and E1 ready | strong |
 | Full checkout verification | `npm run check` exit 0 after `npm ci`; TypeScript passed; Vitest 27 files / 152 tests passed | strong |
-| Omitted source defaults to Codex | `npm run cxs -- status --json` exit 0; root `/Users/envvar/.codex/sessions`, indexVersion constant `cxs-v7-source-identity`, 784 source files, 3532 sessions, 179298 messages | strong for status |
-| `--source codex` status works | `npm run cxs -- status --source codex --json` exit 0 with same Codex root and counts as omitted source | strong |
+| Omitted source defaults to Codex | `npm run shlog -- status --json` exit 0; root `/Users/envvar/.codex/sessions`, indexVersion constant `cxs-v7-source-identity`, 784 source files, 3532 sessions, 179298 messages | strong for status |
+| `--source codex` status works | `npm run shlog -- status --source codex --json` exit 0 with same Codex root and counts as omitted source | strong |
 | `sync` writes source-aware coverage | Artifact command `sync --source codex --root ... --db ... --json` exit 0; `scanned=1`, `added=1`, selector and coverage include `source: "codex"`, indexVersion `cxs-v7-source-identity` | strong on fresh db |
 | Focused `find --source codex` works | Artifact command `find "e1 source codex smoke needle" --source codex --db ... --json` exit 0; one result, expected session UUID/title/snippet | strong on fresh db |
 | Focused `list --source codex` works | Artifact command `list --source codex --db ... --limit 1 --json` exit 0; `query.sourceId="codex"`, one expected result | strong on fresh db |
 | Read paths preserve Codex source identity | Supplemental `read-page --source codex` and `read-range --source codex --seq 0` exit 0; session includes `sourceId`, `nativeSessionId`, and `sessionKey=codex:<uuid>` | strong on fresh db |
 | `stats --source codex` scopes to Codex | Supplemental `stats --source codex --db ... --json` exit 0; `sessionCount=1`, `messageCount=2`, coverage selector has `source: "codex"` | strong on fresh db |
-| Non-public `claude-code` rejected | `npm run cxs -- status --source claude-code --json` exit 1 by design; JSON error `code=unsupported_source`, `source=claude-code`, message says only Codex is public | strong |
-| Public docs/skill source aligned in checkout | `rg` over checkout docs and `skill-packages/cxs` finds `--source codex`, `claude-code` reserved/non-public, only Codex public wording | strong for source checkout |
+| Non-public `claude-code` rejected | `npm run shlog -- status --source claude-code --json` exit 1 by design; JSON error `code=unsupported_source`, `source=claude-code`, message says only Codex is public | strong |
+| Public docs/skill source aligned in checkout | `rg` over checkout docs and `skill-packages/sherlog` finds `--source codex`, `claude-code` reserved/non-public, only Codex public wording | strong for source checkout |
 | Published / installed layers updated | Registry/install readbacks show they are not updated to this behavior | missing by design |
 
 ## Command Results
@@ -63,12 +63,12 @@ SQLite sidecar files `e1-smoke.sqlite-shm` and `e1-smoke.sqlite-wal` were also p
 - `npm run check`:
   - first run before dependency setup -> exit 127, `tsc: command not found`
   - final run after `npm ci` -> exit 0; TypeScript passed; Vitest 27 files / 152 tests passed.
-- `npm run cxs -- status --json`:
+- `npm run shlog -- status --json`:
   - first run before dependency setup -> exit 127, `tsx: command not found`
   - final run -> exit 0; Codex source inventory root `/Users/envvar/.codex/sessions`, totalFiles 784, index sessionCount 3532, messageCount 179298, coverage `[]`.
-- `npm run cxs -- status --source codex --json` -> exit 0; same Codex root/counts as omitted source.
-- `npm run cxs -- status --source claude-code --json` -> exit 1 expected; JSON `unsupported_source`.
-- `npm run cxs -- list --source codex --limit 1 --json` against the default local db -> exit 1, `SqliteError: no such column: source_id`; this is a default-index compatibility boundary, not the fresh checkout smoke result.
+- `npm run shlog -- status --source codex --json` -> exit 0; same Codex root/counts as omitted source.
+- `npm run shlog -- status --source claude-code --json` -> exit 1 expected; JSON `unsupported_source`.
+- `npm run shlog -- list --source codex --limit 1 --json` against the default local db -> exit 1, `SqliteError: no such column: source_id`; this is a default-index compatibility boundary, not the fresh checkout smoke result.
 - Artifact fresh-db smoke:
   - `sync --source codex --root docs/.../E1-artifacts/codex-root --db docs/.../e1-smoke.sqlite --json` -> exit 0; `added=1`, `errors=0`, source-aware coverage written.
   - first parallel `find/list` attempt -> exit 1 `index_unavailable` because it raced before sync completed.
@@ -85,21 +85,21 @@ SQLite sidecar files `e1-smoke.sqlite-shm` and `e1-smoke.sqlite-wal` were also p
 | Layer | Readback | Conclusion |
 | --- | --- | --- |
 | Source checkout | `git rev-parse HEAD` -> `f8c7b2cf453627a3177d7614d0277455837190a4`; detached HEAD; only E1 handoff/artifacts untracked after verification | current reconciled checkout verified |
-| Source docs and skill source | `git log -1 -- README.md docs/ARCHITECTURE.md docs/ROADMAP.md skill-packages/cxs` -> `22b0d95 docs(cxs): 对齐 source 文档和 skill`; checkout `rg` finds public Codex / reserved Claude wording | checkout source aligned |
-| npm registry CLI | `npm view @act0r/cxs version` -> `0.3.4` | registry version read, but version alone does not prove source behavior; no publish done |
-| Installed PATH CLI | `command -v cxs` -> `/Users/envvar/Library/pnpm/bin/cxs`; `which -a cxs` -> pnpm shim paths; `cxs --version` -> `0.3.4`; `cxs status --source codex --json` -> exit 1 `unknown option '--source'` | installed CLI is old behavior and does not include this checkout's source option |
-| Installed global skill | `npx --no-install skills ls -g --json` exit 0 and lists `cxs` at `/Users/envvar/.agents/skills/cxs`; `ls -la` shows symlink to `/Users/envvar/work/repos/cxs/skill-packages/cxs`; that repo is clean at `251f9bf68e90d8fe5a547331ce40efaf2a074671`; `rg` finds no source/Claude wording there | global skill is not updated to the reconciled checkout source and is symlinked to the main repo |
+| Source docs and skill source | `git log -1 -- README.md docs/ARCHITECTURE.md docs/ROADMAP.md skill-packages/sherlog` -> `22b0d95 docs(Sherlog): 对齐 source 文档和 skill`; checkout `rg` finds public Codex / reserved Claude wording | checkout source aligned |
+| npm registry CLI | `npm view @act0r/sherlog version` -> `0.3.4` | registry version read, but version alone does not prove source behavior; no publish done |
+| Installed PATH CLI | `command -v shlog` -> `/Users/envvar/Library/pnpm/bin/cxs`; `which -a shlog` -> pnpm shim paths; `shlog --version` -> `0.3.4`; `shlog status --source codex --json` -> exit 1 `unknown option '--source'` | installed CLI is old behavior and does not include this checkout's source option |
+| Installed global skill | `npx --no-install skills ls -g --json` exit 0 and lists `Sherlog` at `/Users/envvar/.agents/skills/cxs`; `ls -la` shows symlink to `/Users/envvar/work/repos/cxs/skill-packages/sherlog`; that repo is clean at `251f9bf68e90d8fe5a547331ce40efaf2a074671`; `rg` finds no source/Claude wording there | global skill is not updated to the reconciled checkout source and is symlinked to the main repo |
 
 ## Missing Or Weak Evidence
 
-- The default local cxs index at `/Users/envvar/.local/state/cxs/index.sqlite` is not safe evidence for source-aware read/list behavior: `list --source codex` fails with `no such column: source_id`. `status` has a read-only fallback and succeeds, but broader default-index runtime claims are weak until the default index is synced/migrated through an allowed workflow.
+- The default local Sherlog index at `/Users/envvar/.local/state/cxs/index.sqlite` is not safe evidence for source-aware read/list behavior: `list --source codex` fails with `no such column: source_id`. `status` has a read-only fallback and succeeds, but broader default-index runtime claims are weak until the default index is synced/migrated through an allowed workflow.
 - E1 did not test a real second public source because `claude-code` must remain non-public. Cross-source collision/isolation is covered by `npm run check` and prior I2/I3 handoffs, not by a live second-source adapter.
 - Release/install evidence is intentionally negative: no npm publish, local CLI install, or global skill install was performed.
 
 ## Blockers Or Decisions Needed
 
-- Decide whether a later workflow should run an allowed local `cxs sync` or migration path for the default index. Current checkout source works on a fresh source-aware db, but default read commands can hit old-schema DB state.
-- Decide how to handle the installed global `cxs` skill symlink. It currently points to the main repo checkout, not a GitHub-installed release skill snapshot.
+- Decide whether a later workflow should run an allowed local `shlog sync` or migration path for the default index. Current checkout source works on a fresh source-aware db, but default read commands can hit old-schema DB state.
+- Decide how to handle the installed global `Sherlog` skill symlink. It currently points to the main repo checkout, not a GitHub-installed release skill snapshot.
 - Decide release sequencing if public users need `--source codex`: registry version is still `0.3.4`, and installed PATH CLI with the same version lacks the option.
 
 ## Noise Events

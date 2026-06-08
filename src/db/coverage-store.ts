@@ -1,4 +1,4 @@
-import { INDEX_VERSION } from "../env";
+import { INDEX_VERSION, isCurrentIndexVersion } from "../env";
 import { canonicalizeSelector, selectorImplies, selectorSource, selectorStorageKey } from "../selector";
 import { DEFAULT_SESSION_SOURCE_ID, type CoverageRecord, type Selector, type SessionRecord, type SessionSourceId } from "../types";
 import { deleteSessionById } from "./session-store";
@@ -65,7 +65,7 @@ export function coverageStatusForSelector(db: Db, requested: Selector | null): {
 } {
   if (!requested) return { complete: false, coveringSelectors: [] };
   const entries = listCoverageRecords(db, selectorSource(requested)).filter((entry) =>
-    entry.indexVersion === requestedIndexVersion(db) && selectorImplies(entry.selector, requested)
+    isCurrentIndexVersion(entry.indexVersion) && selectorImplies(entry.selector, requested)
   );
   return {
     complete: entries.length > 0,

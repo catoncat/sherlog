@@ -27,7 +27,7 @@ This is risk evidence only, not a stable schema guarantee.
 
 ## Reserved Boundary
 
-- Core cxs should only understand canonical parsed sessions/messages and source identity.
+- Core Sherlog should only understand canonical parsed sessions/messages and source identity.
 - Future Claude adapter owns raw JSONL/SDK decoding and filtering.
 - `cwd` is stable enough as selector metadata.
 - Timestamp is display/order metadata when parseable.
@@ -42,7 +42,7 @@ This is risk evidence only, not a stable schema guarantee.
 - Exclude `isSidechain === true` until subagent semantics are designed.
 - Extract text only from string content or text blocks.
 - Do not index tool result bodies, attachments, diagnostics, snapshots, hook payloads, signatures, or thinking by default.
-- Preserve `parentUuid` only as metadata; do not use it as cxs session identity.
+- Preserve `parentUuid` only as metadata; do not use it as Sherlog session identity.
 - Use JSONL file order as `seq`; timestamps for started/ended/display.
 - Unknown/malformed records should skip rather than fail outside strict mode.
 

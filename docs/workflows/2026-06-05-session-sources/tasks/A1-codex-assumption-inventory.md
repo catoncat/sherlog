@@ -20,7 +20,7 @@ Inventory every current Codex-only assumption that affects source discovery, par
 - `src/cli.ts`
 - `docs/ARCHITECTURE.md`
 - `docs/ROADMAP.md`
-- `skill-packages/cxs/**`
+- `skill-packages/sherlog/**`
 
 ## Allowed Writes
 

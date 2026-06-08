@@ -42,7 +42,7 @@ Expected bounded paths, subject to D1:
 - CLI tests for default Codex behavior and explicit `--source codex`.
 - Unsupported source error test if unsupported values are accepted by parser.
 - `npm run check`.
-- Smoke with `npm run cxs -- status --source codex --json` if D1 chooses that command shape.
+- Smoke with `npm run shlog -- status --source codex --json` if D1 chooses that command shape.
 - `git diff --check`.
 
 ## Commit And Seal

@@ -1,4 +1,4 @@
-# cxs ranking 权重说明
+# Sherlog ranking 权重说明
 
 本文是 [ranking.ts](../src/ranking.ts) 与 [query/search.ts](../src/query/search.ts) 与 [ranking.ts](../src/ranking.ts) 中所有 magic constant 的“为什么是这个值”说明，受众是未来要调权重的维护者(人或 agent)。
 
@@ -75,7 +75,7 @@ session-level 召回(来自 `sessions_fts`)拿不到这 4 分,只有 `messages_f
 
 - 量级取舍:4 表示“可回读的真实消息证据”比“只在 session 元数据里命中”值多大约半个 contentPhrase。这是一个产品价值判断:用户能 `read-range` 进去看到原文的命中,价值远高于只在 summary 里出现的命中。
 - 改高(>=8):会让 session-level 命中几乎永远沉底,尤其是“title 完全命中但没有 message 命中”的 session 会被压到看不见,跟 `scoreSession.titlePhrase=30` 的初衷打架。
-- 改低或去掉:read-range 体验劣化——用户 `cxs find` 看到结果,点进去 read-range 经常发现没有可定位的消息,要被迫去 read-page。
+- 改低或去掉:read-range 体验劣化——用户 `shlog find` 看到结果,点进去 read-range 经常发现没有可定位的消息,要被迫去 read-page。
 
 ### `matchRole === "user" ? 2 : 0`
 
@@ -128,7 +128,7 @@ token 维度的 title 命中,每命中一个 query token 加 10。
 - 量级取舍:18 比 titleTermHits×10 更大,这是因为 cwd 的“噪声密度”远低于 title——title 是自然语言、可能和 query 同词不同意,而 cwd 是文件路径,query token 命中 cwd 几乎一定意味着用户当时在那个仓库/目录。
 - 比 titlePhrase=30 略低,但单 token 命中就给 18,意味着“在某个 repo 名里出现过的 query token” = 半个 phrase 命中,这是给“按项目找”的工作流量身定的。
 - 改高:几乎所有 query 都会被 cwd 主导,严重的话两条同 repo 的不相关 session 比一条跨 repo 的精准命中还高,这是错的。
-- 改低或去掉:跨仓库使用 cxs 找“在哪个项目里讨论过 X”体验会变差,这是当前 cxs 的核心使用场景之一。
+- 改低或去掉:跨仓库使用 Sherlog 找“在哪个项目里讨论过 X”体验会变差,这是当前 Sherlog 的核心使用场景之一。
 
 ### `min(userHitCount, 3) * 4`
 
@@ -175,7 +175,7 @@ max(0, 18 - days_since_ended * 0.15)
 **18 的量级取舍**:
 
 - 18 设计成“接近 cwd 单 token 命中(也是 18)”但仍小于 `titlePhrase=30`。意思是:今天的 session 即使没有 cwd/title 命中,也大约相当于一次 cwd 命中的优先级——但永远不超过明确语义命中。
-- 这是反“最近就是最相关”的:cxs 的搜索更偏召回历史而不是 timeline 浏览,所以 recency 不能压过内容信号。
+- 这是反“最近就是最相关”的:Sherlog 的搜索更偏召回历史而不是 timeline 浏览,所以 recency 不能压过内容信号。
 
 **0.15/day 的量级取舍**:
 
@@ -189,7 +189,7 @@ max(0, 18 - days_since_ended * 0.15)
 
 **改动它会影响什么**:
 
-- 抬高 18 → recency 接近内容信号,适合“几乎只搜最近”的人,但会让 cxs 退化成时间倒序 + 内容过滤。
+- 抬高 18 → recency 接近内容信号,适合“几乎只搜最近”的人,但会让 Sherlog 退化成时间倒序 + 内容过滤。
 - 抬高 0.15 → 旧 session 更快沉底,适合搜短期记忆;副作用是“两个月前那次配置”这类长跨度回忆变难。
 - 把整个函数换成指数衰减:技术上可行,但目前没有数据支持指数比线性更好,而且会损失这套权重和别的常量之间清晰的“几分等于一次命中”的对应关系。
 
@@ -209,8 +209,8 @@ return candidateScore > currentScore;
 
 **为什么这样选**:
 
-- `bestRow` 决定 ranking,`bestDisplayRow` 决定用户在 `cxs find` 列表里看到的 snippet/seq/role/timestamp。两个故意拆开。
-- 一个 session 可能同时有 `messages_fts` row(score 偏低,但来自真实消息)和 `sessions_fts` row(score 偏高,但只命中标题/摘要)。如果 display 跟着分数走,用户会看到 `matchSeq=null` + 一个 session-level snippet,而 `cxs read-range <uuid>` 必须显式带 `--seq` 或 `--query` 才能锚定,空 `matchSeq` 直接断了直接重锚链路,被迫回退 `cxs read-page` 翻全 session。
+- `bestRow` 决定 ranking,`bestDisplayRow` 决定用户在 `shlog find` 列表里看到的 snippet/seq/role/timestamp。两个故意拆开。
+- 一个 session 可能同时有 `messages_fts` row(score 偏低,但来自真实消息)和 `sessions_fts` row(score 偏高,但只命中标题/摘要)。如果 display 跟着分数走,用户会看到 `matchSeq=null` + 一个 session-level snippet,而 `shlog read-range <uuid>` 必须显式带 `--seq` 或 `--query` 才能锚定,空 `matchSeq` 直接断了直接重锚链路,被迫回退 `shlog read-page` 翻全 session。
 - 显示层的真正决策是 **read-range 可用性**:有 anchor 的 row(message)永远优先,即便 session-level row 分数更高。
 
 **改动它会影响什么**:

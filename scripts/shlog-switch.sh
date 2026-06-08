@@ -1,35 +1,35 @@
 #!/usr/bin/env bash
-# cxs-switch — 在「项目最新版(dev)」与「发布版(release)」之间切换 cxs 的 CLI 与 Skill。
+# shlog-switch — 在「项目最新版(dev)」与「发布版(release)」之间切换 Sherlog 的 CLI 与 Skill。
 #
 # 背景:
-#   - 全局 `cxs` 是 pnpm 装的发布版 @act0r/cxs;dev 时把 PATH 里的 shim 改成
+#   - 全局 `shlog` 是 pnpm 装的发布版 @act0r/sherlog;dev 时把 PATH 里的 shim 改成
 #     exec 本 repo 的 dist/cli.js(首次切 dev 前会备份原始 shim,release 时还原)。
-#   - Codex 读 `~/.agents/skills/cxs`;Claude 读 `~/.claude/skills/cxs`。
+#   - Codex 读 `~/.agents/skills/sherlog`;Claude 读 `~/.claude/skills/sherlog`。
 #     dev/release 必须同时切这两个 slot,否则不同 agent 会看到不同 skill 文案。
 #
 # 用法:
-#   scripts/cxs-switch.sh dev                         # CLI + Skill 都切到本 repo 最新(会先 npm run build)
-#   scripts/cxs-switch.sh dev --repo /path/to/cxs     # CLI + Skill 都切到指定 checkout/worktree
-#   scripts/cxs-switch.sh release                     # CLI + Skill 都切回发布版
-#   scripts/cxs-switch.sh status                      # 查看当前各自处于哪个版本
+#   scripts/shlog-switch.sh dev                            # CLI + Skill 都切到本 repo 最新(会先 npm run build)
+#   scripts/shlog-switch.sh dev --repo /path/to/sherlog    # CLI + Skill 都切到指定 checkout/worktree
+#   scripts/shlog-switch.sh release                        # CLI + Skill 都切回发布版
+#   scripts/shlog-switch.sh status                         # 查看当前各自处于哪个版本
 #   第二参数可限定范围: ... dev cli  /  ... release skill|skills
 set -euo pipefail
 
 DEFAULT_REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-REPO="${CXS_SWITCH_REPO:-$DEFAULT_REPO}"
-STATE_DIR="$HOME/.cxs-switch"
+REPO="${SHLOG_SWITCH_REPO:-${CXS_SWITCH_REPO:-$DEFAULT_REPO}}"
+STATE_DIR="$HOME/.shlog-switch"
 mkdir -p "$STATE_DIR"
 
 usage() {
   cat <<'EOF'
-用法: cxs-switch {dev|release|status} [cli|skill|skills|both] [--repo <path>]
+用法: shlog-switch {dev|release|status} [cli|skill|skills|both] [--repo <path>]
 
 示例:
-  scripts/cxs-switch.sh dev
-  scripts/cxs-switch.sh dev --repo /path/to/cxs-worktree
-  scripts/cxs-switch.sh dev cli --repo /path/to/cxs-worktree
-  scripts/cxs-switch.sh dev skill --repo /path/to/cxs-worktree
-  CXS_SWITCH_REPO=/path/to/cxs-worktree scripts/cxs-switch.sh dev
+  scripts/shlog-switch.sh dev
+  scripts/shlog-switch.sh dev --repo /path/to/sherlog-worktree
+  scripts/shlog-switch.sh dev cli --repo /path/to/sherlog-worktree
+  scripts/shlog-switch.sh dev skill --repo /path/to/sherlog-worktree
+  SHLOG_SWITCH_REPO=/path/to/sherlog-worktree scripts/shlog-switch.sh dev
 EOF
 }
 
@@ -66,25 +66,25 @@ while [ "$#" -gt 0 ]; do
 done
 
 REPO="$(cd "$REPO" 2>/dev/null && pwd)" || { echo "✗ repo 不存在: $REPO"; exit 1; }
-[ -f "$REPO/package.json" ] || { echo "✗ 不是 cxs checkout: $REPO"; exit 1; }
-[ -d "$REPO/skill-packages/cxs" ] || { echo "✗ 缺少 skill-packages/cxs: $REPO"; exit 1; }
+[ -f "$REPO/package.json" ] || { echo "✗ 不是 Sherlog checkout: $REPO"; exit 1; }
+[ -d "$REPO/skill-packages/sherlog" ] || { echo "✗ 缺少 skill-packages/sherlog: $REPO"; exit 1; }
 
 # ---- CLI ----
-SHIM="$(command -v cxs || true)"
+SHIM="$(command -v shlog || true)"
 DEV_CLI="$REPO/dist/cli.js"
-SHIM_BACKUP="$STATE_DIR/cxs.release-shim"
+SHIM_BACKUP="$STATE_DIR/shlog.release-shim"
 
 # ---- Skill ----
-CODEX_SKILL="$HOME/.agents/skills/cxs"
-CLAUDE_SKILL="$HOME/.claude/skills/cxs"
-DEV_SKILL="$REPO/skill-packages/cxs"
-RELEASE_SKILL_BACKUP="$STATE_DIR/cxs.release-skill"
+CODEX_SKILL="$HOME/.agents/skills/sherlog"
+CLAUDE_SKILL="$HOME/.claude/skills/sherlog"
+DEV_SKILL="$REPO/skill-packages/sherlog"
+RELEASE_SKILL_BACKUP="$STATE_DIR/shlog.release-skill"
 
 note() { printf '  %s\n' "$*"; }
 
 cli_dev_target() {
   [ -n "$SHIM" ] || return 0
-  sed -n 's/^# cxs-switch: DEV -> //p' "$SHIM" 2>/dev/null | head -n 1
+  sed -n 's/^# shlog-switch: DEV -> //p' "$SHIM" 2>/dev/null | head -n 1
 }
 
 cli_mode() {
@@ -113,8 +113,8 @@ skill_slot_mode() {
       return
     fi
     case "$target" in
-      */skill-packages/cxs)
-        echo "dev-other (${target%/skill-packages/cxs})"
+      */skill-packages/sherlog)
+        echo "dev-other (${target%/skill-packages/sherlog})"
         return
         ;;
     esac
@@ -127,7 +127,7 @@ skill_mode() {
 }
 
 cli_to_dev() {
-  [ -n "$SHIM" ] || { echo "✗ PATH 中找不到 cxs shim"; return 1; }
+  [ -n "$SHIM" ] || { echo "✗ PATH 中找不到 shlog shim"; return 1; }
   ( cd "$REPO" && npm run build >/dev/null 2>&1 ) || { echo "✗ npm run build 失败"; return 1; }
   # 首次切 dev 前,把原始(发布版)shim 备份一次;已在 dev 时不覆盖备份
   if [ ! -f "$SHIM_BACKUP" ] && [ -z "$(cli_dev_target)" ]; then
@@ -135,7 +135,7 @@ cli_to_dev() {
   fi
   cat > "$SHIM" <<EOF
 #!/bin/sh
-# cxs-switch: DEV -> $REPO
+# shlog-switch: DEV -> $REPO
 exec node "$DEV_CLI" "\$@"
 EOF
   chmod +x "$SHIM"
@@ -143,14 +143,14 @@ EOF
 }
 
 cli_to_release() {
-  [ -n "$SHIM" ] || { echo "✗ PATH 中找不到 cxs shim"; return 1; }
+  [ -n "$SHIM" ] || { echo "✗ PATH 中找不到 shlog shim"; return 1; }
   if [ -f "$SHIM_BACKUP" ]; then
     cp "$SHIM_BACKUP" "$SHIM"; chmod +x "$SHIM"
     note "CLI    -> release  (还原 pnpm shim 备份)"
   else
     echo "  备份缺失,改用 pnpm 重装发布版…"
-    pnpm add -g @act0r/cxs >/dev/null 2>&1 || { echo "✗ pnpm add -g @act0r/cxs 失败"; return 1; }
-    note "CLI    -> release  (pnpm 重装 @act0r/cxs)"
+    pnpm add -g @act0r/sherlog >/dev/null 2>&1 || { echo "✗ pnpm add -g @act0r/sherlog 失败"; return 1; }
+    note "CLI    -> release  (pnpm 重装 @act0r/sherlog)"
   fi
 }
 
@@ -176,7 +176,7 @@ skill_to_release() {
     if [ -e "$RELEASE_SKILL_BACKUP" ]; then
       mv "$RELEASE_SKILL_BACKUP" "$CODEX_SKILL"
     else
-      echo "✗ release skill 备份缺失: $RELEASE_SKILL_BACKUP;请重新运行 npx skills add catoncat/cxs --full-depth --skill cxs -g -a codex -y"
+      echo "✗ release skill 备份缺失: $RELEASE_SKILL_BACKUP;请重新运行 npx skills add catoncat/sherlog --full-depth --skill sherlog -g -a codex -y"
       return 1
     fi
   fi
@@ -198,7 +198,7 @@ case "$action" in
   *) usage; exit 2 ;;
 esac
 
-echo "── cxs-switch status ──"
+echo "── shlog-switch status ──"
 echo "CLI:    $(cli_mode)"
 echo "Skill:  $(skill_mode)"
 echo "target repo: $REPO"

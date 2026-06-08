@@ -15,7 +15,7 @@ behavior:
 - public CLI source remains `codex` only;
 - `claude-code` is described as a private / non-public adapter path verified
   with synthetic programmatic smokes;
-- docs do not claim public `cxs sync --source claude-code`, npm registry
+- docs do not claim public `shlog sync --source claude-code`, npm registry
   release, installed PATH behavior, or global skill state;
 - raw Claude JSONL remains a private implementation detail and not a stable
   public format decision.
@@ -45,10 +45,10 @@ install, or global skill update.
 ## Release And Install Boundaries
 
 - Source checkout docs changed in `/Users/envvar/.codex/worktrees/35c5/cxs`.
-- `skill-packages/cxs/**` was not changed in D1.
+- `skill-packages/sherlog/**` was not changed in D1.
 - `package.json`, lockfiles, CI, release config, npm registry, installed PATH
   CLI, and global skill state were not changed.
-- A globally installed `cxs` may still be the old npm release until the later
+- A globally installed `Sherlog` may still be the old npm release until the later
   release and install gates pass.
 
 ## Mainline Overlap Classification
@@ -76,19 +76,19 @@ level=block, allowed_boundary=inspect_or_stop, overlap=int_b6b9939a; classified 
 $ mainline show int_b6b9939a --json
 confirmed proposed private adapter spike: public=false, public CLI remains codex-only, no release/install.
 
-$ git diff -- docs README.md AGENTS.md skill-packages/cxs 2>/dev/null || true
-showed only README.md and docs/*.md changes; no skill-packages/cxs changes.
+$ git diff -- docs README.md AGENTS.md skill-packages/sherlog 2>/dev/null || true
+showed only README.md and docs/*.md changes; no skill-packages/sherlog changes.
 
-$ npm run cxs -- --help
+$ npm run shlog -- --help
 exit 0; command list remains status, sync, find, read-range, read-page, list, stats, help.
 
-$ npm run cxs -- sync --help
+$ npm run shlog -- sync --help
 exit 0; --source option says session source (public: codex).
 
-$ npm run cxs -- find --help
+$ npm run shlog -- find --help
 exit 0; --source option says session source (public: codex).
 
-$ npm run cxs -- status --source claude-code --json
+$ npm run shlog -- status --source claude-code --json
 exit 1 by design; error.code unsupported_source; message says only codex is public.
 
 $ git diff --check
@@ -104,7 +104,7 @@ M docs/ROADMAP.md
 
 ## Missing Or Weak Evidence
 
-- D1 did not update or verify `skill-packages/cxs`; S1 must do that next.
+- D1 did not update or verify `skill-packages/sherlog`; S1 must do that next.
 - D1 did not run `npm run check` because it only changed docs and the required
   docs/CLI readbacks passed. V1 already ran `npm run check` against the same C1
   checkout before docs edits.

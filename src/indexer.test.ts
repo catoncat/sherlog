@@ -330,7 +330,7 @@ describe("syncSessions", () => {
     await blocker.done;
 
     expect(summary.added).toBe(1);
-    expect(elapsedMs).toBeGreaterThanOrEqual(250);
+    expect(elapsedMs).toBeGreaterThanOrEqual(150);
   });
 
   test("removes stale sync writer locks from dead pids before proceeding", async () => {

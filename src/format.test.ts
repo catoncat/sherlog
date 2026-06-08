@@ -88,7 +88,7 @@ describe("printStats", () => {
       topCwds: [],
     });
 
-    expect(consoleLogSpy).toHaveBeenCalledWith(chalk.bold.cyan("cxs stats"));
+    expect(consoleLogSpy).toHaveBeenCalledWith(chalk.bold.cyan("shlog stats"));
     expect(consoleLogSpy).toHaveBeenCalledWith("sessions:        10");
     expect(consoleLogSpy).toHaveBeenCalledWith("messages:        50");
     expect(consoleLogSpy).toHaveBeenCalledWith("earliest:        2023-01-01");
@@ -195,7 +195,7 @@ describe("效率回述", () => {
   test("showStats=false 时 find 省略整段效率注解(只剩命令行)", () => {
     printFindResults("health check", [makeFindResult()], 1234, 87, false);
     const out = captured(consoleLogSpy);
-    expect(out).toContain('cxs find "health check"');
+    expect(out).toContain('shlog find "health check"');
     expect(out).not.toContain("检索");
     expect(out).not.toContain("87ms");
     expect(out).toContain("[1]"); // 结果正文照常输出

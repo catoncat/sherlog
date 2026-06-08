@@ -1,16 +1,16 @@
-# cxs Developer Skills
+# Sherlog Developer Skills
 
 This directory is for maintainer-only skills used while developing this repo.
 It is intentionally separate from `skill-packages/`, which is the user-facing
 skill package surface installed by:
 
 ```bash
-npx skills add catoncat/cxs --full-depth --skill cxs -g -a codex -y
+npx skills add catoncat/sherlog --full-depth --skill sherlog -g -a codex -y
 ```
 
 Rules:
 
-- Keep user-facing cxs skill sources in `skill-packages/cxs`.
+- Keep user-facing Sherlog skill sources in `skill-packages/sherlog`.
 - Keep maintainer-only workflows here under `dev/skills/`.
 - Do not commit private dogfood data; local goldens stay under ignored `data/`.
 - Keep maintainer skill source files named something other than `SKILL.md`.

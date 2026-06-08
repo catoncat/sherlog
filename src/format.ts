@@ -1,4 +1,5 @@
 import chalk from "chalk";
+import { PROGRAM_NAME } from "./env";
 import type {
   CwdCount,
   FindResult,
@@ -15,7 +16,7 @@ const SUMMARY_TEXT_BUDGET = 220;
 const TRANSCRIPT_TEXT_BUDGET = 1_000;
 
 export function printSyncSummary(summary: SyncSummary): void {
-  console.log(chalk.bold.cyan("cxs sync"));
+  console.log(chalk.bold.cyan(`${PROGRAM_NAME} sync`));
   console.log(`scanned:  ${summary.scanned}`);
   console.log(`added:    ${summary.added}`);
   console.log(`updated:  ${summary.updated}`);
@@ -43,11 +44,11 @@ export function printFindResults(
   nextAction?: QueryNextAction,
 ): void {
   // 效率回述(中性事实):检索覆盖的语料规模 + 结果数 + 端到端耗时。诚实分母
-  // 随搜索范围走,不出现编造的"省 X%"。CXS_STATS=0 时省略整段注解。
+  // 随搜索范围走,不出现编造的"省 X%"。SHLOG_STATS=0 时省略整段注解。
   const readout = showStats
     ? chalk.gray(` · 检索 ${formatCount(scannedMessageCount)} 条 · 结果 ${results.length} · ${elapsedMs}ms`)
     : "";
-  console.log(chalk.bold.cyan(`cxs find "${query}"`) + readout);
+  console.log(chalk.bold.cyan(`${PROGRAM_NAME} find "${query}"`) + readout);
   if (results.length === 0) {
     console.log(chalk.yellow("没有找到结果"));
     printNextAction(nextAction);
@@ -65,9 +66,9 @@ export function printFindResults(
     }
     console.log(stripMarks(result.snippet));
     if (result.matchSeq === null) {
-      console.log(chalk.gray(`next: cxs read-page ${result.sessionRef} --offset 0 --limit 40`));
+      console.log(chalk.gray(`next: ${PROGRAM_NAME} read-page ${result.sessionRef} --offset 0 --limit 40`));
     } else {
-      console.log(chalk.gray(`next: cxs read-range ${result.sessionRef} --seq ${result.matchSeq}`));
+      console.log(chalk.gray(`next: ${PROGRAM_NAME} read-range ${result.sessionRef} --seq ${result.matchSeq}`));
     }
   }
 }
@@ -81,11 +82,11 @@ export function printReadRangeResult(
   elapsedMs: number,
   showStats: boolean,
 ): void {
-  console.log(chalk.bold.cyan(`cxs read-range ${session.sessionUuid}`));
+  console.log(chalk.bold.cyan(`${PROGRAM_NAME} read-range ${session.sessionUuid}`));
   console.log(chalk.gray(`${session.title || "(no title)"} · ${session.cwd || "-"}`));
   console.log(chalk.gray(`anchor=${anchorSeq} · range=${rangeStartSeq}-${rangeEndSeq}`));
   // 只报原始计数(读取/全量),不算 saved% —— "共 T 条"是功能信息(告诉还有多少
-  // 可读),避免在"多读一点也许才对"的时刻给 under-read 诱因。CXS_STATS=0 时省略。
+  // 可读),避免在"多读一点也许才对"的时刻给 under-read 诱因。SHLOG_STATS=0 时省略。
   if (showStats) {
     console.log(chalk.gray(`读取 ${messages.length} 条 / 本 session 共 ${session.messageCount} 条 · ${elapsedMs}ms`));
   }
@@ -108,9 +109,9 @@ export function printReadPage(
   elapsedMs: number,
   showStats: boolean,
 ): void {
-  console.log(chalk.bold.cyan(`cxs read-page ${session.sessionUuid}`));
+  console.log(chalk.bold.cyan(`${PROGRAM_NAME} read-page ${session.sessionUuid}`));
   // total/offset/limit/hasMore 是功能信息(翻页必需),始终显示;仅末尾的端到端
-  // 耗时归类为效率回述,受 CXS_STATS 控制。
+  // 耗时归类为效率回述,受 SHLOG_STATS 控制。
   const elapsed = showStats ? ` · ${elapsedMs}ms` : "";
   console.log(chalk.gray(`${session.title || "(no title)"} · total=${totalCount} · offset=${offset} · limit=${limit} · hasMore=${hasMore}${elapsed}`));
   console.log();
@@ -122,7 +123,7 @@ export function printReadPage(
 }
 
 export function printSessionList(results: SessionListEntry[], nextAction?: QueryNextAction): void {
-  console.log(chalk.bold.cyan(`cxs list`));
+  console.log(chalk.bold.cyan(`${PROGRAM_NAME} list`));
   if (results.length === 0) {
     console.log(chalk.yellow("没有匹配的 session"));
     printNextAction(nextAction);
@@ -140,7 +141,7 @@ export function printSessionList(results: SessionListEntry[], nextAction?: Query
 }
 
 export function printStats(stats: StatsSummary): void {
-  console.log(chalk.bold.cyan(`cxs stats`));
+  console.log(chalk.bold.cyan(`${PROGRAM_NAME} stats`));
   console.log(`sessions:        ${stats.sessionCount}`);
   console.log(`messages:        ${stats.messageCount}`);
   console.log(`earliest:        ${stats.earliestStartedAt ?? "-"}`);
@@ -161,7 +162,7 @@ export function printStats(stats: StatsSummary): void {
 }
 
 export function printStatus(status: StatusSummary): void {
-  console.log(chalk.bold.cyan("cxs status"));
+  console.log(chalk.bold.cyan(`${PROGRAM_NAME} status`));
   console.log(`cwd:            ${status.context.cwd}`);
   console.log(`root:           ${status.context.root}`);
   console.log(`db_path:        ${status.context.dbPath}`);

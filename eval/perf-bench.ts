@@ -43,7 +43,7 @@ const BENCH_QUERIES: string[] = [
 const RUNS_PER_QUERY = 5; // 第 1 次作为 warmup,统计后 4 次
 const ROOT = resolve(import.meta.dirname, "..");
 const CLI_ENTRY = resolve(ROOT, "src", "cli.ts");
-const OUT_BASE = resolve(ROOT, "data", "cxs-perf");
+const OUT_BASE = resolve(ROOT, "data", "shlog-perf");
 
 interface CliArgs {
   root: string;
@@ -53,7 +53,7 @@ interface CliArgs {
 
 function parseArgs(argv: string[]): CliArgs {
   let root = join(homedir(), ".codex", "sessions");
-  let db = join(tmpdir(), `cxs-perf-${Date.now()}.db`);
+  let db = join(tmpdir(), `shlog-perf-${Date.now()}.db`);
   let jsonOnly = false;
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
@@ -221,7 +221,7 @@ console.log(JSON.stringify({
 
 function buildMarkdown(r: Report): string {
   const lines: string[] = [];
-  lines.push("# cxs 性能基准报告");
+  lines.push("# shlog 性能基准报告");
   lines.push("");
   lines.push(`- generated_at: ${r.generatedAt}`);
   lines.push(`- root: \`${r.rootDir}\``);

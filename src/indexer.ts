@@ -1,4 +1,4 @@
-import { DEFAULT_DB_PATH, INDEX_VERSION, ensureDataDir } from "./env";
+import { DEFAULT_DB_PATH, INDEX_VERSION, ensureDataDir, isCurrentIndexVersion } from "./env";
 import {
   cleanupMismatchedMessagesForSelector,
   countSessionsForSelector,
@@ -208,7 +208,7 @@ function isUnchanged(
   if (!indexed) return false;
   return indexed.rawFileMtime === mtimeMs
     && indexed.rawFileSize === size
-    && indexed.indexVersion === INDEX_VERSION;
+    && isCurrentIndexVersion(indexed.indexVersion);
 }
 
 function applyOperations(

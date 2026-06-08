@@ -1,8 +1,8 @@
-# cxs 当前架构
+# Sherlog 当前架构
 
 ## 一句话
 
-`cxs` 是一个面向本机 Codex session 日志的渐进式检索 CLI，当前架构是：
+`Sherlog` 是一个面向本机 Codex session 日志的渐进式检索 CLI，当前架构是：
 
 `status -> sync --root/--cwd/--selector -> message/session recall -> session heuristic rerank -> read-range/read-page`
 
@@ -10,13 +10,13 @@
 
 ## 当前命令面
 
-- `cxs sync`
-- `cxs status`
-- `cxs find <query>`
-- `cxs read-range <sessionUuid>`
-- `cxs read-page <sessionUuid>`
-- `cxs list`
-- `cxs stats`
+- `shlog sync`
+- `shlog status`
+- `shlog find <query>`
+- `shlog read-range <sessionUuid>`
+- `shlog read-page <sessionUuid>`
+- `shlog list`
+- `shlog stats`
 
 这套命令面已经定型，不再保留 `window/session` 旧别名语义。
 
@@ -47,7 +47,7 @@ Codex adapter 会把原有 `sessionUuid` 映射为 source-aware identity：
 
 [indexer.ts](/Users/envvar/work/repos/cxs/src/indexer.ts) 按显式 selector 扫描选定 source 的 session snapshot。当前公开 source 可以是 Codex 或 Claude Code；增量判断仍基于文件 `mtime`、`size` 和 `indexVersion`。
 
-strict sync 默认只更新当前 source snapshot 中仍可见的文件，并保留已经进入 SQLite 的旧 session。这样 raw JSONL 的维护、移动或删除不会让 cxs 的历史查询丢失。只有显式传 `--prune` 时，sync 才会把 selector 范围收敛成当前 source snapshot，并删除同一 source 中已不存在的旧 index row。一个 source 的 sync/prune 不会删除另一个 source 的数据。当前 source 中仍存在但被过滤或不能解析成 session 的文件仍按当前状态处理。
+strict sync 默认只更新当前 source snapshot 中仍可见的文件，并保留已经进入 SQLite 的旧 session。这样 raw JSONL 的维护、移动或删除不会让 Sherlog 的历史查询丢失。只有显式传 `--prune` 时，sync 才会把 selector 范围收敛成当前 source snapshot，并删除同一 source 中已不存在的旧 index row。一个 source 的 sync/prune 不会删除另一个 source 的数据。当前 source 中仍存在但被过滤或不能解析成 session 的文件仍按当前状态处理。
 
 [parser.ts](/Users/envvar/work/repos/cxs/src/parser.ts) 只抽取 `event_msg` 里的：
 

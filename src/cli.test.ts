@@ -24,7 +24,7 @@ afterEach(() => {
   }
 });
 
-describe("cxs cli", () => {
+describe("shlog cli", { timeout: 20_000 }, () => {
   test("help only shows status/sync/find/read-range/read-page/list/stats", async () => {
     const result = await runCli(["--help"]);
     expect(result.exitCode).toBe(0);
@@ -687,8 +687,8 @@ describe("cxs cli", () => {
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toContain("没有找到结果");
     expect(result.stdout).toContain("next:");
-    expect(result.stdout).toContain("cxs status");
-    expect(result.stdout).toContain("cxs sync");
+    expect(result.stdout).toContain("shlog status");
+    expect(result.stdout).toContain("shlog sync");
   });
 
   test("list text output tells agents to check coverage before giving up on zero results", async () => {
@@ -710,8 +710,8 @@ describe("cxs cli", () => {
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toContain("没有匹配的 session");
     expect(result.stdout).toContain("next:");
-    expect(result.stdout).toContain("cxs status");
-    expect(result.stdout).toContain("cxs sync");
+    expect(result.stdout).toContain("shlog status");
+    expect(result.stdout).toContain("shlog sync");
   });
 
   test("selector JSON can omit root when --root is provided", async () => {
@@ -867,7 +867,7 @@ describe("cxs cli", () => {
 
     const result = await runCli(["find", "health check", "--db", dbPath]);
     expect(result.exitCode).toBe(0);
-    expect(result.stdout).toContain("next: cxs read-range 44444444-4444-4444-8444-444444444444 --seq 0");
+    expect(result.stdout).toContain("next: shlog read-range 44444444-4444-4444-8444-444444444444 --seq 0");
     expect(result.stdout).not.toContain("next: cxs window");
   });
 
@@ -964,7 +964,7 @@ describe("cxs cli", () => {
 
     expect(result.exitCode).toBe(1);
     expect(result.stderr).toContain(`index not found: ${dbPath}`);
-    expect(result.stderr).toContain("cxs sync");
+    expect(result.stderr).toContain("shlog sync");
     expect(result.stderr).toContain("No separate init command is needed");
     expect(result.stderr).not.toContain("Error:");
     expect(result.stderr).not.toContain("at openReadDb");
@@ -984,7 +984,7 @@ describe("cxs cli", () => {
     expect(payload.error.code).toBe("index_unavailable");
     expect(payload.error.message).toContain(dbPath);
     expect(payload.error.dbPath).toBe(dbPath);
-    expect(payload.error.hint).toContain("cxs sync");
+    expect(payload.error.hint).toContain("shlog sync");
     expect(result.stderr).toBe("");
   });
 
@@ -1019,7 +1019,7 @@ describe("cxs cli", () => {
         "sessions.session_key",
         "coverage.source_id",
       ]);
-      expect(payload.error.hint).toContain("cxs sync --source codex");
+      expect(payload.error.hint).toContain("shlog sync --source codex");
       expect(result.stdout).not.toContain("SqliteError");
       expect(result.stdout).not.toContain("no such column");
     }

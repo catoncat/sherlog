@@ -60,7 +60,7 @@ describe("dogfood eval core", () => {
   test("parses find workflow options for dogfood runner attempts", () => {
     const parsed = parseDogfoodJsonl(JSON.stringify({
       id: "recent-project-skill-md",
-      query: "$cxs 最近本项目讨论 SKILLS.md 的 session",
+      query: "$sherlog 最近本项目讨论 SKILLS.md 的 session",
       intent: "recover the prior skill discussion",
       status: "candidate",
       find: {

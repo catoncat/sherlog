@@ -4,7 +4,7 @@ This file is the context-compaction recovery point for the multi-source workflow
 
 ## Objective
 
-Build the multi-source foundation for `cxs` without publishing Claude Code support and without changing the fixed command surface.
+Build the multi-source foundation for `Sherlog` without publishing Claude Code support and without changing the fixed command surface.
 
 ## Canonical Control Plane
 
@@ -39,7 +39,7 @@ Build the multi-source foundation for `cxs` without publishing Claude Code suppo
 1. I1: complete. Extracted source adapter interface, registry, and Codex adapter while preserving current Codex behavior.
 2. I2: complete. Added source-aware selector, coverage, DB migration/backfill, and query/read identity safety.
 3. I3: complete. Wired `--source codex` through all fixed commands and rejected unsupported/non-public sources.
-4. I4: complete. Updated docs and `skill-packages/cxs` source after behavior existed.
+4. I4: complete. Updated docs and `skill-packages/sherlog` source after behavior existed.
 5. E1: complete. Evidence recorded source checkout, release skill, npm CLI, installed CLI, and default-index boundary separately.
 6. R1: complete. Review found old-schema UX, release/install wording, and coverage doc drift findings.
 7. Remediation: complete. Old-schema read commands now return `index_schema_upgrade_required`; README/skill wording and coverage design docs are source-aware and release-bounded.
@@ -49,5 +49,5 @@ Build the multi-source foundation for `cxs` without publishing Claude Code suppo
 - Do not add a public Claude Code adapter.
 - Do not add commands.
 - Do not add watcher, daemon, or realtime sync.
-- Do not update global `cxs`, npm release, global skill, push, or PR unless explicitly authorized.
+- Do not update global `Sherlog`, npm release, global skill, push, or PR unless explicitly authorized.
 - Do not let one source's sync, prune, coverage, or query mutate or read another source accidentally.

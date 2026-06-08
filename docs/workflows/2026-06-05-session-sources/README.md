@@ -1,8 +1,8 @@
-# cxs Session Sources Workflow
+# Sherlog Session Sources Workflow
 
 ## Purpose
 
-Design and implement the multi-source foundation for `cxs` without changing the fixed command surface or publishing a Claude Code adapter in the first phase.
+Design and implement the multi-source foundation for `Sherlog` without changing the fixed command surface or publishing a Claude Code adapter in the first phase.
 
 This workflow turns the current Codex-only assumptions into explicit `SessionSource` boundaries, then migrates Codex into the first adapter while preserving existing Codex index, query, read, and coverage behavior.
 
@@ -15,7 +15,7 @@ In scope:
 - Design source-aware selector, coverage, and DB compatibility.
 - Prepare a reserved boundary for future Claude Code support.
 - Keep the command set fixed: `status`, `sync`, `find`, `read-range`, `read-page`, `list`, `stats`.
-- Update source checkout docs and `skill-packages/cxs` only when behavior or public guidance changes.
+- Update source checkout docs and `skill-packages/sherlog` only when behavior or public guidance changes.
 
 Out of scope:
 

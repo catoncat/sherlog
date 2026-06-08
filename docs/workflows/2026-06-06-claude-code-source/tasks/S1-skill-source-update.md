@@ -6,10 +6,10 @@ Status: `planned`
 
 ## Objective
 
-Update the distributable cxs skill source after D1 has aligned public docs with
+Update the distributable sherlog skill source after D1 has aligned public docs with
 verified C1/V1 checkout behavior.
 
-S1 must make `skill-packages/cxs` match the same private/public source boundary:
+S1 must make `skill-packages/sherlog` match the same private/public source boundary:
 `codex` remains the only public CLI source, while `claude-code` may be described
 only as a private/non-public adapter path in the source checkout and future
 promotion candidate. S1 does not release, install, or update the global skill.
@@ -17,10 +17,10 @@ promotion candidate. S1 does not release, install, or update the global skill.
 ## Required Reads
 
 - `AGENTS.md`
-- `skill-packages/cxs/SKILL.md`
-- `skill-packages/cxs/references/cli-surface.md`
-- `skill-packages/cxs/references/failure-cookbook.md`
-- `skill-packages/cxs/references/json-schema.md`
+- `skill-packages/sherlog/SKILL.md`
+- `skill-packages/sherlog/references/cli-surface.md`
+- `skill-packages/sherlog/references/failure-cookbook.md`
+- `skill-packages/sherlog/references/json-schema.md`
 - `README.md`
 - `docs/ARCHITECTURE.md`
 - `docs/ROADMAP.md`
@@ -34,13 +34,13 @@ checkout rather than guessing.
 
 ## Allowed Writes
 
-- `skill-packages/cxs/**`
+- `skill-packages/sherlog/**`
 - `docs/workflows/2026-06-06-claude-code-source/handoffs/S1-skill-source-update.md`
 
 ## Forbidden
 
 - Product code and tests under `src/**`, `test/**`, or equivalent runtime areas
-- Public docs outside `skill-packages/cxs/**`, unless a tiny wording mismatch in
+- Public docs outside `skill-packages/sherlog/**`, unless a tiny wording mismatch in
   D1 docs blocks skill consistency and is explicitly reported
 - `package.json`, lockfiles, release config, CI, installed CLI state, global
   skills
@@ -52,7 +52,7 @@ checkout rather than guessing.
 ## Required Content Boundaries
 
 - The skill must continue to say it installs workflow guidance only and does
-  not install the `cxs` CLI.
+  not install the `Sherlog` CLI.
 - The fixed command surface remains `status`, `sync`, `find`, `read-range`,
   `read-page`, `list`, `stats`.
 - Public CLI source remains `codex` only.
@@ -68,7 +68,7 @@ checkout rather than guessing.
 ## Required Proof
 
 ```bash
-git diff -- skill-packages/cxs
+git diff -- skill-packages/sherlog
 npx skills ls -g --json
 git diff --check
 ```
@@ -76,9 +76,9 @@ git diff --check
 Run checkout CLI readbacks if the skill quotes or paraphrases command help:
 
 ```bash
-npm run cxs -- --help
-npm run cxs -- status --help
-npm run cxs -- status --source claude-code --json
+npm run shlog -- --help
+npm run shlog -- status --help
+npm run shlog -- status --source claude-code --json
 ```
 
 Do not update the global skill from this dirty checkout. Do not run

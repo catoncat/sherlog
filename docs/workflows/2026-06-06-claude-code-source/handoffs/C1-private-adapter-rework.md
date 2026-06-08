@@ -33,8 +33,8 @@ status: `implemented-verified-ready-for-local-commit`
 | Parser skipped-record metadata fixed | Focused parser test shows skipped/meta/sidechain-first records cannot set identity, `cwd`, timestamps, or read/search projections. |
 | Inventory skipped-record metadata fixed | Focused inventory test shows skipped records cannot set grouping, date range, snapshot file metadata, fingerprint input, or coverage freshness input. |
 | Search/read privacy fixed | Focused sync/read test plus private smoke show skipped sentinel strings absent from find results and read page. |
-| Public CLI rejection preserved | `npm run cxs -- status --source claude-code --json` exited 1 with `unsupported_source`. |
-| Public selector rejection preserved | `npm run cxs -- sync --selector '{"source":"claude-code",...}' --json` exited 1 with `unsupported_source`. |
+| Public CLI rejection preserved | `npm run shlog -- status --source claude-code --json` exited 1 with `unsupported_source`. |
+| Public selector rejection preserved | `npm run shlog -- sync --selector '{"source":"claude-code",...}' --json` exited 1 with `unsupported_source`. |
 | Codex default behavior preserved | Focused tests `src/sources/codex.test.ts`, `src/cli.test.ts`, and full `npm run check` passed. Public adapters list remains exactly `["codex"]`. |
 | Current-main drift avoided | Did not touch `src/sources/codex-parser.ts`, `src/format.ts`, or `src/query/snippet.ts`; Claude summary builder uses current-main 5000-char per-message truncation pattern. |
 | Synthetic fixture only | New tests and smoke create temp synthetic JSONL records under `/tmp`; no real transcript paths or content are committed. |
@@ -83,10 +83,10 @@ exit 0; 2 test files passed, 34 tests passed.
 $ npm run check
 exit 0; tsc --noEmit and Vitest passed; 28 test files passed, 178 tests passed.
 
-$ npm run cxs -- status --source claude-code --json
+$ npm run shlog -- status --source claude-code --json
 exit 1 by design; JSON error code unsupported_source, source claude-code, message says only codex is public.
 
-$ npm run cxs -- sync --selector '{"source":"claude-code","kind":"all","root":"<tmp>"}' --db <tmp>/index.sqlite --json
+$ npm run shlog -- sync --selector '{"source":"claude-code","kind":"all","root":"<tmp>"}' --db <tmp>/index.sqlite --json
 exit 1 by design; JSON error code unsupported_source, source claude-code, message says only codex is public.
 
 $ node --import tsx -e '<private synthetic fixture sync/read smoke>'
@@ -104,8 +104,8 @@ pending final post-commit readback.
 - selector/source mismatch test: `src/sources/claude-code.test.ts` / `rejects an explicit selector source mismatch before syncing or writing coverage`.
 - parser skipped metadata test: `src/sources/claude-code.test.ts` / `ignores skipped records when deriving parser identity cwd timestamps and projections`.
 - inventory skipped metadata test: `src/sources/claude-code.test.ts` / `ignores skipped records when deriving inventory grouping dates and snapshot file metadata`.
-- public CLI `--source claude-code` rejection smoke: `npm run cxs -- status --source claude-code --json`, exit 1 with `unsupported_source`.
-- public selector JSON rejection smoke: `npm run cxs -- sync --selector '{"source":"claude-code",...}' --json`, exit 1 with `unsupported_source`.
+- public CLI `--source claude-code` rejection smoke: `npm run shlog -- status --source claude-code --json`, exit 1 with `unsupported_source`.
+- public selector JSON rejection smoke: `npm run shlog -- sync --selector '{"source":"claude-code",...}' --json`, exit 1 with `unsupported_source`.
 - private synthetic fixture sync/read smoke: `node --import tsx -e '<private synthetic fixture sync/read smoke>'`, exit 0 with one private Claude row indexed/read and no default Codex leakage.
 - Codex default regression smoke: `npm run test -- src/sources/codex.test.ts src/cli.test.ts` and full `npm run check`.
 
