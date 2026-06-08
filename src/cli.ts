@@ -89,7 +89,7 @@ program
   .action(async (options) => {
     try {
       const sourceId = publicSource(options.source);
-      const selector = requireSelector({ ...options, source: sourceId });
+      const selector = syncSelector({ ...options, source: sourceId });
       const summary = await syncSessions({
         dbPath: options.db,
         sourceId,
@@ -542,8 +542,11 @@ function emitSourceError(error: SourceOptionError, jsonMode: boolean): void {
 }
 
 function emitIndexUnavailableError(error: IndexUnavailableError, jsonMode: boolean): void {
+  const nextAction = buildIndexBootstrapNextAction();
   const hint =
-    `Run \`${PROGRAM_NAME} sync\` first to create the index. No separate init command is needed; sync initializes and updates it.`;
+    `Run \`${PROGRAM_NAME} sync\` first to create the default Codex index. ` +
+    `Only for explicitly current-project questions, run \`${PROGRAM_NAME} sync --cwd ${shellArg(process.cwd())}\` instead. ` +
+    "No separate init command is needed; sync initializes and updates it.";
   if (jsonMode) {
     console.log(
       JSON.stringify(
@@ -553,6 +556,7 @@ function emitIndexUnavailableError(error: IndexUnavailableError, jsonMode: boole
             message: error.message,
             dbPath: error.dbPath,
             hint,
+            nextAction,
           },
         },
         null,
@@ -563,6 +567,35 @@ function emitIndexUnavailableError(error: IndexUnavailableError, jsonMode: boole
     console.error(`${error.message}\n${hint}`);
   }
   process.exitCode = 1;
+}
+
+function buildIndexBootstrapNextAction() {
+  const sourceId: SessionSourceId = "codex";
+  const root = getSessionSourceAdapter(sourceId).defaultRoot();
+  return {
+    kind: "bootstrap_index",
+    reason: "index_unavailable",
+    commands: [
+      {
+        label: "default Codex history",
+        when: "first install or unscoped history query",
+        recommended: true,
+        argv: [PROGRAM_NAME, "sync"],
+        selector: canonicalizeSelector({ source: sourceId, kind: "all", root }),
+      },
+      {
+        label: "current working directory only",
+        when: "question is explicitly scoped to the current working directory",
+        recommended: false,
+        argv: [PROGRAM_NAME, "sync", "--cwd", process.cwd()],
+        selector: canonicalizeSelector({ source: sourceId, kind: "cwd", root, cwd: process.cwd() }),
+      },
+    ],
+  };
+}
+
+function shellArg(value: string): string {
+  return JSON.stringify(value);
 }
 
 function emitIndexSchemaUpgradeRequiredError(error: IndexSchemaUpgradeRequiredError, jsonMode: boolean): void {
@@ -605,7 +638,7 @@ function emitSelectorError(error: SelectorParseError, jsonMode: boolean): void {
   process.exitCode = 1;
 }
 
-function requireSelector(options: { selector?: string; root?: string; cwd?: string; source: SessionSourceId }): Selector {
+function syncSelector(options: { selector?: string; root?: string; cwd?: string; source: SessionSourceId }): Selector {
   const selector = optionalSelector({
     selector: options.selector,
     root: options.root,
@@ -613,10 +646,9 @@ function requireSelector(options: { selector?: string; root?: string; cwd?: stri
     source: options.source,
     rootOnlySelector: true,
   });
-  if (!selector) {
-    throw new SelectorParseError("sync requires --selector, --cwd, or --root with an explicit scope");
-  }
-  return selector;
+  if (selector) return selector;
+  const root = getSessionSourceAdapter(options.source).defaultRoot();
+  return canonicalizeSelector({ kind: "all", source: options.source, root });
 }
 
 function optionalSelector(options: { selector?: string; root?: string; cwd?: string; source: SessionSourceId; rootOnlySelector?: boolean }): Selector | null {

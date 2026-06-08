@@ -10,7 +10,7 @@ Sherlog 是面向 agent 的本地 session retrieval backend。当前公开 sourc
 
 - 内容回答只来自 Sherlog index。
 - 原始 sessions 只用于盘点资源与制定同步计划。
-- 同步范围必须显式、结构化、可验证。
+- 同步范围必须结构化、可验证；裸 `sync` 只能作为 first-install bootstrap shorthand，并必须还原为 canonical selector。
 - 查询结果必须能够声明 index 覆盖边界。
 - 首次安装后，agent 可以通过有限同步快速进入可用状态。
 
@@ -30,7 +30,7 @@ Sherlog index 是唯一可用于回答内容问题的真相源。
 
 ### 显式同步
 
-`sync` 是唯一写入口。
+`sync` 是唯一写入口。裸 `sync` 是 first-install bootstrap shorthand，进入 index/coverage 流程前必须 canonicalize 为默认 source/root 的 `all` selector。
 
 只读命令不得隐式触发同步。
 
@@ -201,8 +201,8 @@ Coverage 可以蕴含更窄 selector。
 
 约束：
 
-- 同步范围必须显式；`--cwd` / `--root` 只是确定性 shorthand，进入实现前必须 canonicalize 成 selector
-- 无 selector/scope 是错误
+- 同步范围必须可还原为 selector；裸 `sync`、`--cwd`、`--root` 都只是确定性 shorthand，进入实现前必须 canonicalize 成 selector
+- 无 selector/scope 的裸 `sync` 只表示 first-install bootstrap：默认 source/root 下的 `all` selector；不得扩展为 `find/list/read-*` 的隐式同步语义
 - 严格成功才写 complete coverage
 - strict sync 默认保留 selector 范围内已索引、但当前 source snapshot 中已消失的旧 row；raw JSONL 的维护、移动或删除不应让 Sherlog 历史查询丢失
 - `--prune` 才把 selector 范围内的 index 收敛成当前 source snapshot 的投影，并删除 source 中已不存在的旧 row

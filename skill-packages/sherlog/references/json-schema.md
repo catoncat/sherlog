@@ -136,7 +136,23 @@ errors in `--json` mode for expected index setup failures:
 ```ts
 {
   error:
-    | { code: "index_unavailable"; message: string; dbPath: string; hint: string }
+    | {
+        code: "index_unavailable";
+        message: string;
+        dbPath: string;
+        hint: string;
+        nextAction: {
+          kind: "bootstrap_index";
+          reason: "index_unavailable";
+          commands: Array<{
+            label: string;
+            when: string;
+            recommended: boolean;
+            argv: string[];
+            selector: Selector;
+          }>;
+        };
+      }
     | { code: "index_schema_upgrade_required"; message: string; dbPath: string; missingColumns: string[]; hint: string };
 }
 ```

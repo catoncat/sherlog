@@ -5,7 +5,7 @@
 | Command | Purpose |
 | --- | --- |
 | `shlog status` | Show execution context, source inventory, index state, and coverage. `--selector` checks whether a target range is fresh. Does not write the index. |
-| `shlog sync --root <dir>\|--cwd <path>\|--selector <json>` | Scan selected sessions for the chosen source and update the SQLite index. This is the only write command. |
+| `shlog sync [--root <dir>\|--cwd <path>\|--selector <json>]` | Scan selected sessions for the chosen source and update the SQLite index. Bare `shlog sync` initializes default Codex history. This is the only write command. |
 | `shlog find <query>` | Search indexed sessions across all public sources by default and return ranked session candidates with minimal snippets. Use `--source <id>` to narrow, or `--root`, `--cwd`, and `--sort ended` for scoped "latest + keyword" queries. |
 | `shlog read-range <sessionUuid>` | Read a small message window around a matched sequence or in-session query. |
 | `shlog read-page <sessionUuid>` | Read a session page by offset and limit. |
@@ -42,9 +42,10 @@ Unknown sources still return `unsupported_source` before doing command work. Cla
 
 ## Selectors
 
-`sync` requires an explicit scope, but it no longer requires handwritten `root` inside selector JSON. Prefer these CLI shortcuts:
+`sync` is the only write command. Bare `shlog sync` is a first-install bootstrap shortcut: it canonicalizes to `all(codex, ~/.codex/sessions)`, creates the index if needed, and writes coverage for the default Codex source root. For agent work, prefer narrower CLI shortcuts:
 
 ```bash
+shlog sync
 shlog sync --root /Users/you/.codex/sessions
 shlog sync --cwd /Users/you/work/project
 shlog find "health check" --cwd /Users/you/work/project --sort ended
@@ -93,7 +94,7 @@ Sync is strict by default. If any selected file fails to parse or write, `sync` 
 Pass `--prune` only when you explicitly want to delete indexed sessions that are no longer present in the selected source snapshot.
 Pass `--best-effort` only when you explicitly want successful files written despite failures; best-effort sync does not record complete coverage.
 
-`sync` is not required before every query. Use `status --cwd` or `status --selector` to check coverage first. A fresh `{"kind":"all", ...}` coverage record covers narrower selectors under the same source and root; a high `stats.sessionCount` only means rows exist and is not itself a freshness proof.
+`sync` is not required before every query. Use `status --cwd` or `status --selector` to check coverage first. A fresh `{"kind":"all", ...}` coverage record covers narrower selectors under the same source and root; a high `stats.sessionCount` only means rows exist and is not itself a freshness proof. Read commands never initialize or refresh the index; if they return `index_unavailable`, run `shlog sync` for default Codex history or a scoped sync such as `shlog sync --cwd <project>`.
 
 Indexes created before `shlog-v7-source-identity` should be refreshed with `sync --root`, `sync --cwd`, or `sync --selector` so selector coverage and reads use source-aware identity, current `path_date`, and source-root provenance fields. Existing `cxs-v7-source-identity` indexes remain readable as a compatibility path. Source-aware read commands do not migrate old indexes because they are read-only; they return `index_schema_upgrade_required` with a `shlog sync` hint when the index needs this refresh.
 

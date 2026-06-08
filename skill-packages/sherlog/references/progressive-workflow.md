@@ -15,7 +15,7 @@ Hard rules:
 - Read-only SQLite can shortlist sessions, counts, dates, cwd distributions, and other stable metadata.
 - Stable session metadata fields are `source_id`, `native_session_id`, `session_key`, `session_uuid`, `started_at`, `ended_at`, `cwd`, `title`, `summary_text`, `message_count`, `source_root`, `file_path`.
 - Content claims require `read-range` or `read-page`.
-- `sync` only updates index/coverage; normal retrieval does not need `sync` unless coverage is missing or stale.
+- `sync` only updates index/coverage; normal retrieval does not need `sync` unless coverage is missing or stale. Bare `sync` is only a first-install default Codex bootstrap; scoped agent work should still use `sync --cwd` / `sync --root` / `sync --selector`.
 - Do not use `sync --prune` for normal retrieval.
 - `find` default sort is relevance; use `--sort ended` only when the user's question is time-oriented.
 - `matchSource = "session"` means `matchSeq = null`; use `read-page` instead of inventing a seq.
@@ -55,9 +55,10 @@ sqlite3 -readonly "$DB_PATH" \
 "${SHLOG_BIN:-${CXS_BIN:-shlog}}" find "cf tunnel" --json -n 5
 ```
 
-如果命令返回 `index_unavailable`,或者你需要确认目标范围 coverage,再用 `status` / `sync`:
+如果命令返回 `index_unavailable`,先初始化默认 index 或同步目标范围；如果你需要确认目标范围 coverage,再用 `status` / `sync`:
 
 ```bash
+"${SHLOG_BIN:-${CXS_BIN:-shlog}}" sync
 "${SHLOG_BIN:-${CXS_BIN:-shlog}}" status --root /Users/me/.codex/sessions --selector '{"kind":"all"}' --json
 "${SHLOG_BIN:-${CXS_BIN:-shlog}}" sync --root /Users/me/.codex/sessions --json
 ```

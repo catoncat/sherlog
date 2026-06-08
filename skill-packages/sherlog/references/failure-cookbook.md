@@ -6,8 +6,8 @@
 | --- | --- | --- |
 | `find` 零结果但用户坚持存在 | 对相关 public source 跑 `status --source <id> --cwd <path> --json` 或 `status --source <id> --selector '<json>' --json` | 看每个目标范围的 `requestedCoverage`；必要时按 source 同步；再带同范围查询 |
 | `sync` 非零退出带 per-file errors | `sync --root <dir> --json 2>&1` 或 `sync --selector '<json>' --json 2>&1` | 看 `errorDetails[]`；默认严格模式；只在允许部分成功时加 `--best-effort` |
-| `sync` 返回 `selector_required` | 原命令补 `--root`、`--cwd` 或 `--selector` | sync 必须显式给范围；不需要把 root 写进 JSON |
-| `find/list/stats/read-*` 输出 `index_unavailable` | `status --json` | 索引还没建立；选择范围后 `sync --root` / `sync --cwd` / `sync --selector` |
+| 旧安装版 `sync` 返回 `selector_required` | 更新 CLI，或原命令补 `--root`、`--cwd` / `--selector` | 当前版本裸 `sync` 应能 first-install bootstrap；旧版需要显式范围 |
+| `find/list/stats/read-*` 输出 `index_unavailable` | 看 JSON `nextAction` 或直接 `sync` | 索引还没建立；普通 first install 跑 `sync`，项目范围优先 `sync --cwd <path>` |
 | `find/list/stats/read-*` 输出 `index_schema_upgrade_required` | 原范围跑一次 `sync --source codex ...` | 已有 index 是旧 schema；只读命令不迁移，`sync` 是唯一写入口 |
 | raw JSONL 从当前 source snapshot 中消失后担心查不到 | 直接 `find/list/read-*` 查 Sherlog index | Sherlog 默认保留已索引历史；不要引导用户改查另一个 root。只有用户明确要丢弃旧历史时才 `sync --prune` |
 | `stats/list/find` 报 `database is locked` | 原命令重试一次 | 多半是 SQLite 忙；仍失败就先跳过 `stats` 直接读 |
@@ -55,7 +55,7 @@
 
 ## index_unavailable
 
-`find` / `read-range` / `read-page` / `list` / `stats` 都读 Sherlog 自己的 SQLite 索引。第一次安装后还没跑过 `sync --root` / `sync --cwd` / `sync --selector` 时，这些命令会在 `--json` 模式下返回:
+`find` / `read-range` / `read-page` / `list` / `stats` 都读 Sherlog 自己的 SQLite 索引。第一次安装后还没跑过 `sync` / `sync --root` / `sync --cwd` / `sync --selector` 时，这些命令会在 `--json` 模式下返回:
 
 ```json
 {
@@ -63,7 +63,14 @@
     "code": "index_unavailable",
     "message": "index not found: ...",
     "dbPath": "...",
-    "hint": "Run `shlog sync` first ..."
+    "hint": "Run `shlog sync` first ...",
+    "nextAction": {
+      "kind": "bootstrap_index",
+      "commands": [
+        { "label": "default Codex history", "when": "first install or unscoped history query", "recommended": true, "argv": ["shlog", "sync"], "selector": { "source": "codex", "kind": "all", "root": "..." } },
+        { "label": "current working directory only", "when": "question is explicitly scoped to the current working directory", "recommended": false, "argv": ["shlog", "sync", "--cwd", "..."], "selector": { "source": "codex", "kind": "cwd", "root": "...", "cwd": "..." } }
+      ]
+    }
   }
 }
 ```
@@ -71,11 +78,13 @@
 处理方式:
 
 ```bash
-"${SHLOG_BIN:-${CXS_BIN:-shlog}}" status --json
+"${SHLOG_BIN:-${CXS_BIN:-shlog}}" sync
+# 或者已有明确项目范围时:
+"${SHLOG_BIN:-${CXS_BIN:-shlog}}" sync --cwd /Users/me/work/foo
 "${SHLOG_BIN:-${CXS_BIN:-shlog}}" sync --root /Users/me/.codex/sessions
 ```
 
-没有单独 `init` 命令；`sync --root` / `sync --cwd` / `sync --selector` 会创建并更新索引。
+没有单独 `init` 命令；裸 `sync` 会创建默认 Codex index，`sync --root` / `sync --cwd` / `sync --selector` 会创建并更新对应范围的索引。
 
 ## index_schema_upgrade_required
 
@@ -170,12 +179,12 @@ sqlite3 -readonly "$DB_PATH" \
 
 | 命令 | error 出口 | 形状 |
 | --- | --- | --- |
-| `sync` 缺 selector | stdout | `{ "error": { "code": "selector_required", "message": "..." } }` |
+| 旧安装版 `sync` 缺 selector | stdout | `{ "error": { "code": "selector_required", "message": "..." } }` |
 | `sync` invalid selector | stdout | `{ "error": { "code": "invalid_selector", "message": "..." } }` |
 | `sync` per-file 错 | stderr | `SyncSummary`，看 `errors / errorDetails[]` |
 | `sync` 锁超时 | stderr | `{ "error": <message string> }` |
 | `status` invalid selector | stdout | `{ "error": { "code": "invalid_selector", "message": "..." } }` |
-| `find / read-range / read-page / list / stats` 索引不存在 | stdout | `{ "error": { "code": "index_unavailable", "message": "...", "dbPath": "...", "hint": "..." } }` |
+| `find / read-range / read-page / list / stats` 索引不存在 | stdout | `{ "error": { "code": "index_unavailable", "message": "...", "dbPath": "...", "hint": "...", "nextAction": { "kind": "bootstrap_index", "commands": [...] } } }` |
 | `find / read-range / read-page / list / stats` 旧 index schema | stdout | `{ "error": { "code": "index_schema_upgrade_required", "message": "...", "dbPath": "...", "missingColumns": ["..."], "hint": "..." } }` |
 | 任意命令传未知 source | stdout | `{ "error": { "code": "unsupported_source", "source": "...", "message": "Public sources in this release: codex|claude-code." } }` |
 | `find / read-range / read-page / list / stats` 其他异常 | 进程异常退出 | 直接非零退出 |

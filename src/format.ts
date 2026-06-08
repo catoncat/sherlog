@@ -17,6 +17,7 @@ const TRANSCRIPT_TEXT_BUDGET = 1_000;
 
 export function printSyncSummary(summary: SyncSummary): void {
   console.log(chalk.bold.cyan(`${PROGRAM_NAME} sync`));
+  console.log(`selector: ${JSON.stringify(summary.selector)}`);
   console.log(`scanned:  ${summary.scanned}`);
   console.log(`added:    ${summary.added}`);
   console.log(`updated:  ${summary.updated}`);

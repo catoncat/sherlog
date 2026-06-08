@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, test } from "vitest";
 import { spawn as childSpawn } from "node:child_process";
-import { chmodSync, mkdtempSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
+import { chmodSync, existsSync, mkdtempSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import Database from "better-sqlite3";
@@ -307,17 +307,42 @@ describe("shlog cli", { timeout: 20_000 }, () => {
     expect(pagePayload.totalCount).toBe(2);
   });
 
-  test("sync requires an explicit selector", async () => {
-    const base = mkdtempSync(join(tmpdir(), "cxs-cli-sync-selector-required-"));
+  test("bare sync bootstraps the default Codex root for first install", async () => {
+    const base = mkdtempSync(join(tmpdir(), "cxs-cli-sync-first-install-"));
     tempDirs.push(base);
+    const home = join(base, "home");
+    const root = join(home, ".codex", "sessions");
+    const day = join(root, "2026", "06", "09");
+    mkdirSync(day, { recursive: true });
+    writeFileSync(
+      join(day, "rollout-2026-06-09T10-00-00-12121212-1212-4212-8212-121212121212.jsonl"),
+      [
+        line("session_meta", { id: "12121212-1212-4212-8212-121212121212", cwd: "/tmp/first-install" }),
+        line("event_msg", { type: "user_message", message: "first install needle" }),
+      ].join("\n"),
+    );
 
-    const result = await runCli(["sync", "--db", join(base, "index.sqlite"), "--json"]);
-    expect(result.exitCode).toBe(1);
-    const payload = JSON.parse(result.stdout) as {
-      error: { code: string; message: string };
+    const dbPath = join(base, "index.sqlite");
+    const synced = await runCli(["sync", "--db", dbPath, "--json"], { env: { HOME: home } });
+    expect(synced.exitCode).toBe(0);
+    const syncPayload = JSON.parse(synced.stdout) as {
+      added: number;
+      coverage: { selector: { source: string; kind: string; root: string } };
     };
-    expect(payload.error.code).toBe("selector_required");
-    expect(payload.error.message).toContain("--selector");
+    expect(syncPayload.added).toBe(1);
+    expect(syncPayload.coverage.selector).toEqual({ source: "codex", kind: "all", root });
+    expect(existsSync(dbPath)).toBe(true);
+
+    const textSync = await runCli(["sync", "--db", dbPath], { env: { HOME: home } });
+    expect(textSync.exitCode).toBe(0);
+    expect(textSync.stdout).toContain("selector:");
+    expect(textSync.stdout).toContain('"kind":"all"');
+    expect(textSync.stdout).toContain(root);
+
+    const found = await runCli(["find", "first install needle", "--db", dbPath, "--json"], { env: { HOME: home } });
+    expect(found.exitCode).toBe(0);
+    const findPayload = JSON.parse(found.stdout) as { results: Array<{ sessionUuid: string }> };
+    expect(findPayload.results[0]?.sessionUuid).toBe("12121212-1212-4212-8212-121212121212");
   });
 
   test("fixed commands reject unsupported --source values before other work", async () => {
@@ -965,6 +990,7 @@ describe("shlog cli", { timeout: 20_000 }, () => {
     expect(result.exitCode).toBe(1);
     expect(result.stderr).toContain(`index not found: ${dbPath}`);
     expect(result.stderr).toContain("shlog sync");
+    expect(result.stderr).toContain("shlog sync --cwd");
     expect(result.stderr).toContain("No separate init command is needed");
     expect(result.stderr).not.toContain("Error:");
     expect(result.stderr).not.toContain("at openReadDb");
@@ -979,12 +1005,34 @@ describe("shlog cli", { timeout: 20_000 }, () => {
 
     expect(result.exitCode).toBe(1);
     const payload = JSON.parse(result.stdout) as {
-      error: { code: string; message: string; dbPath: string; hint: string };
+      error: {
+        code: string;
+        message: string;
+        dbPath: string;
+        hint: string;
+        nextAction: {
+          kind: string;
+          commands: Array<{
+            label: string;
+            when: string;
+            recommended: boolean;
+            argv: string[];
+            selector: { source: string; kind: string; root: string; cwd?: string };
+          }>;
+        };
+      };
     };
     expect(payload.error.code).toBe("index_unavailable");
     expect(payload.error.message).toContain(dbPath);
     expect(payload.error.dbPath).toBe(dbPath);
     expect(payload.error.hint).toContain("shlog sync");
+    expect(payload.error.nextAction.kind).toBe("bootstrap_index");
+    expect(payload.error.nextAction.commands[0]?.argv).toEqual(["shlog", "sync"]);
+    expect(payload.error.nextAction.commands[0]?.recommended).toBe(true);
+    expect(payload.error.nextAction.commands[0]?.selector).toMatchObject({ source: "codex", kind: "all" });
+    expect(payload.error.nextAction.commands[1]?.argv.slice(0, 3)).toEqual(["shlog", "sync", "--cwd"]);
+    expect(payload.error.nextAction.commands[1]?.recommended).toBe(false);
+    expect(payload.error.nextAction.commands[1]?.selector).toMatchObject({ source: "codex", kind: "cwd" });
     expect(result.stderr).toBe("");
   });
 
@@ -1248,20 +1296,24 @@ function createSourceUnawareIndex(dbPath: string): void {
   }
 }
 
-async function runCli(args: string[]): Promise<{ exitCode: number; stdout: string; stderr: string }> {
+async function runCli(
+  args: string[],
+  options: { env?: Record<string, string> } = {},
+): Promise<{ exitCode: number; stdout: string; stderr: string }> {
   // Spawn cli.ts via tsx so the test works under both Bun (via bunx) and
   // Node (via npx tsx) without requiring a build step. process.execPath
   // resolves to the runtime that's running vitest.
-  return runExecutable(process.execPath, ["--import", "tsx", "cli.ts", ...args], import.meta.dirname);
+  return runExecutable(process.execPath, ["--import", "tsx", "cli.ts", ...args], import.meta.dirname, options);
 }
 
 async function runExecutable(
   executable: string,
   args: string[],
   cwd = import.meta.dirname,
+  options: { env?: Record<string, string> } = {},
 ): Promise<{ exitCode: number; stdout: string; stderr: string }> {
   return new Promise((resolve, reject) => {
-    const proc = childSpawn(executable, args, { cwd, stdio: ["ignore", "pipe", "pipe"] });
+    const proc = childSpawn(executable, args, { cwd, env: { ...process.env, ...options.env }, stdio: ["ignore", "pipe", "pipe"] });
     let stdout = "";
     let stderr = "";
     proc.stdout!.setEncoding("utf8");

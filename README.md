@@ -21,16 +21,10 @@ npx skills add catoncat/sherlog --full-depth --skill sherlog -g -a codex -y
 
 ## Quick Start
 
-Check coverage for a project:
+Initialize the default Codex index:
 
 ```bash
-shlog status --cwd /Users/you/work/project --json
-```
-
-Build or refresh coverage:
-
-```bash
-shlog sync --cwd /Users/you/work/project
+shlog sync
 ```
 
 Search and read progressively:
@@ -39,6 +33,13 @@ Search and read progressively:
 shlog find "health check"
 shlog read-range <sessionRef> --seq <matchSeq>
 shlog read-page <sessionRef> --offset 0 --limit 20
+```
+
+For project-scoped agent work, check and refresh only that coverage:
+
+```bash
+shlog status --cwd /Users/you/work/project --json
+shlog sync --cwd /Users/you/work/project
 ```
 
 ## Documentation
