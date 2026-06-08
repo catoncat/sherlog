@@ -69,7 +69,7 @@
 对外推荐安装方式，也是本机更新全局线上 skill 的方式：
 
 ```bash
-npx skills add catoncat/cxs --full-depth --skill cxs -g -a codex -y
+npx skills add catoncat/cxs --full-depth --skill cxs -g -y
 ```
 
 注意这个 skill 不会自动安装 `cxs` CLI 本体。默认约定：
@@ -82,7 +82,7 @@ npx skills add catoncat/cxs --full-depth --skill cxs -g -a codex -y
 做完涉及 CLI 行为、JSON contract、命令输出、skill 文案或对外使用流程的改动后，不要只停在源码验证；必须分清四层状态，并在 closeout 里明说当前哪几层已经更新：
 
 - 源码层：当前 checkout 的代码和 `skill-packages/cxs` 是否已改、已测、已 commit / seal / push。
-- Skill 发布层：`skill-packages/cxs` 只是发布源码；全局安装版 skill 必须用 `npx skills add catoncat/cxs --full-depth --skill cxs -g -a codex -y` 从 GitHub 更新，不能 rsync dirty tree 或本地 symlink 冒充发布。
+- Skill 发布层：`skill-packages/cxs` 只是发布源码；全局安装版 skill 必须用 `npx skills add catoncat/cxs --full-depth --skill cxs -g -y` 从 GitHub 更新，不能 rsync dirty tree 或本地 symlink 冒充发布。
 - CLI 发布层：`cxs` CLI 只代表 npm registry 发布版；不能用 `npm install -g .`、`pnpm add -g <checkout>` 或本地 symlink 冒充发布。
 - 本机安装层：用 `command -v cxs` / `which -a cxs`、`cxs --version` 和必要 CLI smoke 确认当前 `PATH` 上到底运行的是哪一个版本。
 

@@ -3,339 +3,343 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>cxs — local agent session search</title>
-  <meta name="description" content="Search your local Codex and Claude Code session history. Finds the right session, reads only the relevant slice.">
+  <title>cxs — agent session search</title>
+  <meta name="description" content="Search your local Codex and Claude Code session history.">
   <link rel="icon" type="image/svg+xml" href="favicon.svg">
   <style>
-    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-
     :root {
-      --mono: ui-monospace, 'Cascadia Code', 'Source Code Pro', Menlo, Consolas, monospace;
       --bg: #ffffff;
-      --fg: #1a1a1a;
-      --muted: #6b6b6b;
-      --dim: #aaa;
-      --border: #e8e8e8;
-      --code-bg: #141414;
-      --code-fg: #d4d0c8;
-      --green: #5a9e6f;
-      --yellow: #b89a4a;
-      --accent: #1a6b3c;
-      --ctrl-bg: transparent;
-      --ctrl-fg: var(--dim);
-      --ctrl-border: var(--border);
-      --ctrl-hover: var(--border);
+      --fg: #111111;
+      --muted: #555555;
+      --border: #e5e5e5;
+      --code-bg: #f4f4f4;
+      --code-fg: #111;
+      --accent: #000000;
+      
+      --sans: -apple-system, BlinkMacSystemFont, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", "Segoe UI", Helvetica, Arial, sans-serif;
+      --mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
     }
 
     html.dark {
-      --bg: #111111;
-      --fg: #e0ddd6;
-      --muted: #888;
-      --dim: #555;
-      --border: #2a2a2a;
-      --code-bg: #0a0a0a;
-      --code-fg: #c8c4bc;
-      --accent: #5a9e6f;
-      --ctrl-hover: #1e1e1e;
+      --bg: #0d1117;
+      --fg: #c9d1d9;
+      --muted: #8b949e;
+      --border: #30363d;
+      --code-bg: #161b22;
+      --code-fg: #c9d1d9;
+      --accent: #58a6ff;
     }
 
-    /* hide/show lang variants */
-    html[lang="en"] .zh { display: none; }
-    html[lang="zh"] .en { display: none; }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
 
     body {
       background: var(--bg);
       color: var(--fg);
-      font-family: var(--mono);
-      font-size: 13.5px;
-      line-height: 1.7;
-      max-width: 660px;
+      font-family: var(--sans);
+      font-size: 16px;
+      line-height: 1.6;
+      max-width: 680px;
       margin: 0 auto;
-      padding: 0 24px 64px;
-      transition: background 0.15s, color 0.15s;
+      padding: 40px 24px 80px;
+      -webkit-font-smoothing: antialiased;
     }
 
-    a { color: var(--accent); text-decoration: none; }
-    a:hover { text-decoration: underline; }
+    html[lang="en"] .zh { display: none; }
+    html[lang="zh"] .en { display: none; }
 
-    /* ── top bar ── */
-    .topbar {
+    header {
+      margin-bottom: 48px;
+    }
+
+    .top-controls {
       display: flex;
-      justify-content: space-between;
-      align-items: center;
-      padding: 28px 0 32px;
-      border-bottom: 1px solid var(--border);
-      gap: 12px;
-    }
-
-    .logo { font-weight: 700; font-size: 14px; }
-    .logo-sub { color: var(--muted); font-weight: 400; }
-
-    .topbar-right { display: flex; align-items: center; gap: 8px; }
-
-    .nav-links { display: flex; gap: 16px; font-size: 12px; }
-    .nav-links a { color: var(--muted); }
-
-    /* ── controls (lang + theme) ── */
-    .ctrl {
-      display: flex;
-      align-items: center;
-      gap: 1px;
-      border: 1px solid var(--border);
-      border-radius: 4px;
-      overflow: hidden;
-    }
-
-    .ctrl-btn {
-      background: var(--ctrl-bg);
-      border: none;
-      color: var(--dim);
-      cursor: pointer;
-      font-family: var(--mono);
-      font-size: 11px;
-      padding: 4px 9px;
-      line-height: 1;
-      transition: background 0.1s, color 0.1s;
-      letter-spacing: 0.02em;
-    }
-
-    .ctrl-btn:hover { background: var(--ctrl-hover); color: var(--fg); }
-    .ctrl-btn.active { background: var(--fg); color: var(--bg); }
-
-    .ctrl-divider {
-      width: 1px;
-      height: 20px;
-      background: var(--border);
-    }
-
-    /* ── lede ── */
-    .lede {
-      padding: 32px 0 28px;
-      border-bottom: 1px solid var(--border);
-    }
-
-    .problem {
+      justify-content: flex-end;
+      gap: 16px;
+      margin-bottom: 40px;
       font-size: 14px;
-      line-height: 1.7;
-      color: var(--fg);
-      margin-bottom: 18px;
     }
 
-    .agent-callout {
-      font-size: 12px;
+    .top-controls a, .top-controls button {
       color: var(--muted);
-      border-left: 2px solid var(--border);
-      padding-left: 12px;
-      line-height: 1.65;
+      text-decoration: none;
+      background: none;
+      border: none;
+      cursor: pointer;
+      font-family: var(--sans);
+    }
+    
+    .top-controls a:hover, .top-controls button:hover {
+      color: var(--fg);
+    }
+    
+    .top-controls button.active {
+      color: var(--fg);
+      font-weight: 600;
     }
 
-    .install-stack {
-      display: grid;
-      gap: 10px;
-      margin-top: 20px;
+    h1 {
+      font-size: 24px;
+      font-weight: 600;
+      letter-spacing: -0.01em;
+      margin-bottom: 12px;
+      font-family: var(--mono);
     }
 
-    .install-row {
-      display: flex;
-      align-items: center;
-      gap: 14px;
-      min-width: 0;
+    .lede {
+      font-size: 18px;
+      color: var(--muted);
+      margin-bottom: 32px;
+      line-height: 1.5;
+      text-wrap: balance;
+    }
+
+    pre {
+      background: var(--code-bg);
+      color: var(--code-fg);
+      padding: 20px;
+      border-radius: 8px;
+      font-family: var(--mono);
+      font-size: 13px;
+      line-height: 1.7;
+      overflow-x: auto;
+      margin-bottom: 48px;
+      border: 1px solid var(--border);
+    }
+    
+    code {
+      background: var(--code-bg);
+      padding: 0.2em 0.4em;
+      border-radius: 4px;
+      font-family: var(--mono);
+      font-size: 0.9em;
+      color: var(--code-fg);
+    }
+    
+    pre code {
+      background: none;
+      padding: 0;
+      border-radius: 0;
+      font-size: inherit;
+      color: inherit;
+    }
+    
+    mark {
+      background-color: rgba(255, 212, 0, 0.4);
+      color: inherit;
+      padding: 0 4px;
+      border-radius: 3px;
+    }
+    
+    html.dark mark {
+      background-color: rgba(255, 212, 0, 0.2);
+    }
+
+    section {
+      margin-bottom: 40px;
+    }
+
+    h2 {
+      font-size: 16px;
+      font-weight: 600;
+      margin-bottom: 12px;
+      color: var(--fg);
+    }
+
+    p {
+      margin-bottom: 16px;
+      color: var(--fg);
+    }
+
+    strong {
+      font-weight: 600;
+    }
+
+    footer {
+      margin-top: 64px;
+      padding-top: 24px;
+      border-top: 1px solid var(--border);
+      font-size: 14px;
+      color: var(--muted);
+      font-family: var(--mono);
+    }
+
+    a {
+      color: var(--accent);
+      text-decoration: none;
+    }
+    
+    a:hover {
+      text-decoration: underline;
+    }
+
+    .install-group {
+      margin-bottom: 48px;
     }
 
     .install-label {
-      font-size: 11px;
-      color: var(--dim);
-      text-transform: uppercase;
-      letter-spacing: 0.08em;
-      white-space: nowrap;
-    }
-
-    .install-cmd {
-      background: var(--code-bg);
-      color: var(--code-fg);
-      padding: 8px 14px;
-      font-family: var(--mono);
       font-size: 13px;
-      flex: 1;
-      min-width: 0;
-      overflow-x: auto;
-      white-space: nowrap;
-    }
-
-    .install-note {
       color: var(--muted);
-      font-size: 11.5px;
-      line-height: 1.6;
+      margin-bottom: 8px;
+      font-weight: 600;
     }
-
-    /* ── sections ── */
-    .section {
-      padding: 28px 0;
-      border-bottom: 1px solid var(--border);
-    }
-
-    .section-label {
-      font-size: 10.5px;
-      font-weight: 700;
-      letter-spacing: 0.12em;
-      text-transform: uppercase;
-      color: var(--dim);
+    
+    .install-group pre {
       margin-bottom: 16px;
     }
-
-    .thesis {
-      display: grid;
-      gap: 18px;
+    
+    .install-group pre:last-child {
+      margin-bottom: 0;
     }
 
-    .thesis p {
-      color: var(--fg);
-      font-size: 13.5px;
-      line-height: 1.75;
-    }
-
-    .thesis strong {
-      color: var(--accent);
-      font-weight: 700;
-    }
-
-    .contrast {
-      display: grid;
-      gap: 10px;
-      border-left: 2px solid var(--border);
-      padding-left: 12px;
-      color: var(--muted);
-      font-size: 12px;
-      line-height: 1.65;
-    }
-
-    /* ── footer ── */
-    footer {
-      padding-top: 28px;
-      font-size: 11.5px;
-      color: var(--dim);
-      display: flex;
-      gap: 16px;
-    }
-    footer a { color: var(--dim); }
-
-    @media (max-width: 480px) {
-      .logo-sub { display: none; }
-    }
   </style>
 </head>
 <body>
 
-<div class="topbar">
-  <span class="logo">cxs <span class="logo-sub">— <span class="en">agent session search</span><span class="zh">Agent 会话搜索</span></span></span>
-  <div class="topbar-right">
-    <nav class="nav-links">
-      <a href="https://github.com/catoncat/cxs">GitHub</a>
-      <a href="https://www.npmjs.com/package/@act0r/cxs">npm</a>
-    </nav>
-    <div class="ctrl">
-      <button class="ctrl-btn active" id="btn-en" onclick="setLang('en')">EN</button>
-      <div class="ctrl-divider"></div>
-      <button class="ctrl-btn" id="btn-zh" onclick="setLang('zh')">中</button>
-      <div class="ctrl-divider"></div>
-      <button class="ctrl-btn" id="btn-theme" onclick="toggleTheme()" title="Toggle theme">
-        <span id="theme-icon">◐</span>
-      </button>
-    </div>
+  <div class="top-controls">
+    <a href="https://github.com/catoncat/cxs">GitHub</a>
+    <a href="https://www.npmjs.com/package/@act0r/cxs">npm</a>
+    <span style="color: var(--border);">|</span>
+    <button onclick="setLang('en')" id="btn-en">EN</button>
+    <button onclick="setLang('zh')" id="btn-zh">中</button>
+    <button onclick="toggleTheme()" id="btn-theme">◐</button>
   </div>
-</div>
 
-<div class="lede">
-  <p class="problem">
-    <span class="en">Agents do not search like humans. They start with a hunch, inspect a result,
-    refine the query, and keep following evidence. <strong>cxs indexes the work
-    process itself</strong>: requests, decisions, commands, errors, and fixes from
-    local Codex and Claude Code sessions.</span>
-    <span class="zh">Agent 不像人一样搜索。它会先拿一个大致判断去查，读一段结果，再改查询，继续顺着证据往下找。<strong>cxs 索引的是工作过程本身</strong>：请求、决策、命令、报错和修复，都来自本机 Codex 与 Claude Code 会话。</span>
-  </p>
-  <p class="agent-callout">
-    <span class="en">No daemon, no cloud, no full-transcript dump. The index stays local, and the
-    agent reads only the slice it needs.</span>
-    <span class="zh">无守护进程，无云端，不倾倒完整 transcript。索引留在本机，Agent 只读取当前需要的片段。</span>
-  </p>
-  <div class="install-stack">
-    <div class="install-row">
-      <span class="install-label"><span class="en">CLI</span><span class="zh">命令行</span></span>
-      <div class="install-cmd">npm i -g @act0r/cxs</div>
+  <header>
+    <h1>cxs</h1>
+    <div class="lede">
+      <span class="en">Search your local Codex and Claude Code session history. Fast, purely local, and built exclusively for Agents.</span>
+      <span class="zh">极速搜索本地 Codex 和 Claude Code 历史对话。纯本地架构，专为 Agent 打造。</span>
     </div>
-    <div class="install-row">
-      <span class="install-label"><span class="en">skill</span><span class="zh">Skill</span></span>
-      <div class="install-cmd">npx skills add catoncat/cxs --full-depth --skill cxs -g -a codex -y</div>
-    </div>
-    <p class="install-note">
-      <span class="en">The npm package installs only the CLI. Install the agent skill separately, then restart Codex or open a new session.</span>
-      <span class="zh">npm 包只安装 CLI。Agent skill 需要单独安装，装完后重启 Codex 或开启新会话。</span>
-    </p>
+  </header>
+
+  <div class="install-group">
+    <div class="install-label"><span class="en">1. Install CLI</span><span class="zh">1. 安装 CLI</span></div>
+    <pre><code>npm i -g @act0r/cxs</code></pre>
+    <div class="install-label" style="margin-top: 20px;"><span class="en">2. Install Agent Skill</span><span class="zh">2. 安装 Agent Skill</span></div>
+    <pre><code>npx skills add catoncat/cxs --full-depth --skill cxs -g -y</code></pre>
   </div>
-</div>
 
-<div class="section">
-  <div class="section-label"><span class="en">Why cxs</span><span class="zh">为什么需要 cxs</span></div>
-  <div class="thesis">
-    <p>
-      <span class="en">Most knowledge tools assume somebody will stop and write a clean note. Agent
-      work rarely waits for that. The useful memory is already present in the
-      messy trail: what was asked, what was tried, what failed, and what finally
-      held.</span>
-      <span class="zh">大多数知识工具假设总会有人停下来写一篇干净的笔记。Agent 工作通常不会等这一步。真正有用的记忆已经在过程里：当时问了什么、试了什么、哪里失败、最后哪个修法站住了。</span>
-    </p>
-    <p>
-      <span class="en"><strong>cxs gives that trail back to the agent.</strong> It does not need to
-      guess the whole answer through one embedding lookup. The agent can search,
-      inspect, refine, and read progressively, just like it already works.</span>
-      <span class="zh"><strong>cxs 把这条轨迹还给 Agent。</strong> 它不需要靠一次 embedding 查询猜完整答案。Agent 可以搜索、检查、改写查询、逐步读取，这正是 Agent 本来就擅长的工作方式。</span>
-    </p>
-    <div class="contrast">
-      <span class="en">QMD is strongest when notes, runbooks, or code docs already exist. cxs is
-      strongest when the work happened inside agent conversations and was never
-      turned into a document.</span>
-      <span class="zh">QMD 在已有笔记、runbook 或代码文档时最强。cxs 在工作发生于 Agent 对话、但从未整理成文档时最强。</span>
-    </div>
-  </div>
-</div>
+  <main>
+    <section>
+      <h2>
+        <span class="en">Why not Embeddings?</span>
+        <span class="zh">为什么不用 Embedding？</span>
+      </h2>
+      <p>
+        <span class="en"><strong>Because this is built for Agents.</strong> Embeddings try to do semantic reasoning for humans, but an Agent is <em>already</em> a world-class reasoning engine. Chunking logs into a vector database destroys the causal timeline (Command &rarr; Error &rarr; Fix). <code>cxs</code> simply uses fast full-text search (FTS) to drop a bookmark, and lets the Agent use its own intelligence to read the surrounding timeline.</span>
+        <span class="zh"><strong>因为这是给 Agent 用的。</strong>Embedding 试图替人类做语义理解，但 Agent 本身就是最顶级的语义引擎。把对话切碎塞进向量库，会彻底破坏“执行命令 &rarr; 报错 &rarr; 修复”的因果时间线。<code>cxs</code> 只用极速的 FTS 全文检索提供锚点，把阅读和推理的权力完整交还给 Agent。</span>
+      </p>
+    </section>
 
-<footer>
-  <span>Node 22+ · macOS · Linux · MIT</span>
-  <a href="https://github.com/catoncat/cxs">github.com/catoncat/cxs</a>
-</footer>
+    <section>
+      <h2>
+        <span class="en">Why not ripgrep?</span>
+        <span class="zh">为什么不用 ripgrep？</span>
+      </h2>
+      <p>
+        <span class="en"><code>rg</code> dumps raw JSONL lines. Agents need conversational context, not unparsed strings. <code>cxs</code> understands the session structure: it finds the exact message, then provides primitives (<code>read-range</code>, <code>read-page</code>) for the Agent to page through the surrounding dialogue cleanly.</span>
+        <span class="zh"><code>rg</code> 只能搜出杂乱无章的单行 JSONL 文本。而 Agent 需要的是“对话上下文”，不是干瘪的字符串。<code>cxs</code> 真正理解会话结构：它先精确定位 (<code>find</code>)，再让 Agent 像人一样干净地翻阅上下文对话 (<code>read-range</code>, <code>read-page</code>)。</span>
+      </p>
+    </section>
 
-<script>
-  const html = document.documentElement;
+    <section>
+      <h2>
+        <span class="en">Zero Documentation Tax</span>
+        <span class="zh">零文档整理负担</span>
+      </h2>
+      <p>
+        <span class="en">You don't need to stop and write clean notes. The raw history of how you and your agent solved a problem last time is directly searchable next time.</span>
+        <span class="zh">不再需要停下手中的活去整理一份干净的文档或 Runbook。你和 Agent 解决上一个问题的原始对话过程，就是最直接的记忆，随时可供下次查阅。</span>
+      </p>
+    </section>
 
-  function setLang(l) {
-    html.setAttribute('lang', l);
-    document.getElementById('btn-en').classList.toggle('active', l === 'en');
-    document.getElementById('btn-zh').classList.toggle('active', l === 'zh');
-    localStorage.setItem('cxs-lang', l);
-  }
+    <section>
+      <h2>
+        <span class="en">A Composable Primitive</span>
+        <span class="zh">高度可组合的基础组件</span>
+      </h2>
+      <p>
+        <span class="en">You don't have to use <code>cxs</code> end-to-end. It's a CLI that outputs standard JSON. Use it to locate the exact session, then pipe it to <code>jq</code>, read the raw file, or pass the context to other tools like Mainline. It's a retrieval engine, not a walled garden.</span>
+        <span class="zh">你不必被 <code>cxs</code> 绑定到底。它是一个标准的 CLI，支持 JSON 输出。你可以用它找到目标会话的精确位置，然后用 <code>jq</code> 处理数据，直接读取原始文件，或者把召回的上下文交接给其他工具（如 Mainline）。它是一个底层的检索引擎，而不是一个封闭的生态。</span>
+      </p>
+    </section>
 
-  function toggleTheme() {
-    const dark = html.classList.toggle('dark');
-    document.getElementById('theme-icon').textContent = dark ? '○' : '◐';
-    localStorage.setItem('cxs-theme', dark ? 'dark' : 'light');
-  }
+    <section>
+      <h2>
+        <span class="en">How it works in practice</span>
+        <span class="zh">Agent 召回上下文示例</span>
+      </h2>
+      <p>
+        <span class="en">When an Agent joins a new task, it searches past conversations to understand <em>why</em> decisions were made or <em>how</em> past workflows were executed.</span>
+        <span class="zh">当 Agent 接手任务时，它会搜索历史对话，来搞清楚当时的“架构决策背景”或是“具体的工作流”。</span>
+      </p>
+      
+      <div class="en">
+        <div class="install-label" style="margin-top: 24px;">Step 1: Recall Context</div>
+        <pre><code>$ cxs find "auth session migration"
 
-  // restore preferences
-  (function() {
-    const lang = localStorage.getItem('cxs-lang') || 'en';
-    const theme = localStorage.getItem('cxs-theme');
-    if (lang === 'zh') setLang('zh');
-    if (theme === 'dark') {
-      html.classList.add('dark');
-      document.getElementById('theme-icon').textContent = '○';
+{
+  "rank": 1,
+  "title": "Refactoring auth flow",
+  "matchSeq": 18,
+  "snippet": "Let's migrate from <mark>JWT</mark> to <mark>server sessions</mark>..."
+}</code></pre>
+
+        <div class="install-label" style="margin-top: 24px;">Step 2: Progressive Read</div>
+        <pre><code>$ cxs read-range a1b2c3d4-0000-0000-0000-e5f6g7h8i9j0 --seq 18
+
+# The Agent reads the surrounding dialogue to understand the context:
+[seq: 17] Agent: The JWT tokens are getting too large due to role-based claims.
+[seq: 18] User: Let's migrate from JWT to server sessions. We can use Redis.
+[seq: 19] Agent: Good idea. I'll update auth.middleware.ts to check Redis instead of verifying JWT signatures.</code></pre>
+      </div>
+
+      <div class="zh">
+        <div class="install-label" style="margin-top: 24px;">Step 1: 召回相关历史对话 (Recall Context)</div>
+        <pre><code>$ cxs find "权限 session 迁移"
+
+{
+  "rank": 1,
+  "title": "重构登录逻辑",
+  "matchSeq": 18,
+  "snippet": "我们从 <mark>JWT</mark> 迁移到 <mark>服务端 session</mark> 吧..."
+}</code></pre>
+
+        <div class="install-label" style="margin-top: 24px;">Step 2: 渐进式翻阅对话 (Progressive Read)</div>
+        <pre><code>$ cxs read-range a1b2c3d4-0000-0000-0000-e5f6g7h8i9j0 --seq 18
+
+# Agent 顺藤摸瓜，直接还原了当时的架构决策现场：
+[seq: 17] Agent: 发现权限字段太多，导致 JWT token 超载。
+[seq: 18] User: 我们从 JWT 迁移到服务端 session 吧。用 Redis 存。
+[seq: 19] Agent: 好主意。我这就去改 auth.middleware.ts，把 JWT 校验换成 Redis 查询。</code></pre>
+      </div>
+    </section>
+  </main>
+
+  <footer>
+    Node 22+ &middot; macOS &middot; Linux
+  </footer>
+
+  <script>
+    function setLang(l) {
+      document.documentElement.setAttribute('lang', l);
+      document.getElementById('btn-en').classList.toggle('active', l === 'en');
+      document.getElementById('btn-zh').classList.toggle('active', l === 'zh');
+      localStorage.setItem('cxs-lang', l);
     }
-    // also honor system dark mode if no preference saved
-    if (!theme && window.matchMedia('(prefers-color-scheme: dark)').matches) {
-      html.classList.add('dark');
-      document.getElementById('theme-icon').textContent = '○';
-    }
-  })();
-</script>
 
+    function toggleTheme() {
+      const isDark = document.documentElement.classList.toggle('dark');
+      localStorage.setItem('cxs-theme', isDark ? 'dark' : 'light');
+    }
+
+    const savedLang = localStorage.getItem('cxs-lang') || 'en';
+    setLang(savedLang);
+
+    const savedTheme = localStorage.getItem('cxs-theme');
+    if (savedTheme === 'dark' || (!savedTheme && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
+      document.documentElement.classList.add('dark');
+    }
+  </script>
 </body>
 </html>

@@ -25,22 +25,21 @@ Core workflow:
 status -> ensure selector coverage -> find/list -> read-range/read-page
 ```
 
-## Why CXS
+## Why CXS?
 
-Most knowledge systems assume somebody will stop and write the memory down:
-a note, a runbook, a capability card, a cleaned-up document. That works when
-the team already has the discipline and the time to maintain those artifacts.
+`cxs` searches your local Codex and Claude Code session history. It turns past conversations into instantly queryable runbooks. 
 
-Agent-heavy work produces a different kind of record. The useful memory is
-already in the work itself: the user's request, the agent's interpretation, the
-commands it ran, the errors it hit, the decision it made, and the fix that
-finally worked. `cxs` indexes that process directly.
+**Why not `ripgrep`?**
+`rg` dumps raw JSONL lines. Agents need conversational context, not unparsed strings. `cxs` understands the session structure: it finds the exact message, then provides primitives (`read-range`, `read-page`) for the agent to page through the surrounding dialogue cleanly.
 
-That is why `cxs` does not need to behave like a heavyweight embedding-first
-knowledge base. The user is not the only searcher. An agent can start with an
-imperfect query, inspect a ranked candidate, refine the search, and pull the
-next slice of evidence. `cxs` gives the agent a reliable trail through prior
-work instead of asking a vector index to guess the whole answer in one shot.
+**Why not Embedding / Vector Search?**
+**Because `cxs` is built for Agents.** Embeddings try to do semantic reasoning for humans, but an Agent is *already* a semantic reasoning engine. Chunking logs into a vector database destroys the causal timeline (Command -> Error -> Fix). `cxs` simply uses fast full-text search (FTS) to drop a bookmark, and lets the Agent use its own intelligence to read the surrounding timeline.
+
+**Zero Documentation Tax**
+You don't need to stop and write clean notes. The raw history of how you and your agent solved a problem last time is directly searchable next time.
+
+**A Composable Primitive**
+You don't have to use `cxs` end-to-end. It's a CLI that outputs standard JSON. Use it to locate the exact session, then pipe it to `jq`, read the raw file directly, or pass the context to other tools like Mainline. It's a retrieval engine, not a walled garden.
 
 ## What It Is
 
@@ -85,7 +84,7 @@ npx @act0r/cxs@latest status --json
 Install the agent skill separately:
 
 ```bash
-npx skills add catoncat/cxs --full-depth --skill cxs -g -a codex -y
+npx skills add catoncat/cxs --full-depth --skill cxs -g -y
 ```
 
 The npm package installs the `cxs` CLI only. It does not install the agent
@@ -338,7 +337,7 @@ skill-packages/cxs
 Install or update it with:
 
 ```bash
-npx skills add catoncat/cxs --full-depth --skill cxs -g -a codex -y
+npx skills add catoncat/cxs --full-depth --skill cxs -g -y
 ```
 
 List available skills in the repository:
