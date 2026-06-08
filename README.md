@@ -3,8 +3,8 @@
 [https://cxs.chen.rs](https://cxs.chen.rs)
 
 `cxs` is a local-first CLI for searching local Codex and Claude Code session
-logs. It is designed for progressive retrieval: find the right session first,
-then read only the relevant range or page.
+logs. It is built for agents that know how to investigate: find the right
+session first, then read only the relevant range or page.
 
 The public session sources in this checkout are `codex` and experimental
 `claude-code`. `find` searches all public indexed sources by default so agents
@@ -25,9 +25,26 @@ Core workflow:
 status -> ensure selector coverage -> find/list -> read-range/read-page
 ```
 
+## Why CXS
+
+Most knowledge systems assume somebody will stop and write the memory down:
+a note, a runbook, a capability card, a cleaned-up document. That works when
+the team already has the discipline and the time to maintain those artifacts.
+
+Agent-heavy work produces a different kind of record. The useful memory is
+already in the work itself: the user's request, the agent's interpretation, the
+commands it ran, the errors it hit, the decision it made, and the fix that
+finally worked. `cxs` indexes that process directly.
+
+That is why `cxs` does not need to behave like a heavyweight embedding-first
+knowledge base. The user is not the only searcher. An agent can start with an
+imperfect query, inspect a ranked candidate, refine the search, and pull the
+next slice of evidence. `cxs` gives the agent a reliable trail through prior
+work instead of asking a vector index to guess the whole answer in one shot.
+
 ## What It Is
 
-- A CLI for indexed search over local Codex JSONL sessions.
+- A CLI for indexed search over local Codex and Claude Code session logs.
 - A retrieval backend for agents, sidecars, and local tools that need session recall.
 - A manual-sync tool: `sync` is the only command that writes the SQLite index.
 
@@ -44,7 +61,8 @@ Requirements:
 
 - macOS or Linux. Windows users should use WSL.
 - Node.js `>= 22`.
-- Read access to `~/.codex/sessions`.
+- Read access to local session logs, such as `~/.codex/sessions` and
+  `~/.claude/projects`.
 
 Install the CLI globally:
 
@@ -64,9 +82,20 @@ npx @act0r/cxs@latest --help
 npx @act0r/cxs@latest status --json
 ```
 
+Install the agent skill separately:
+
+```bash
+npx skills add catoncat/cxs --full-depth --skill cxs -g -a codex -y
+```
+
+The npm package installs the `cxs` CLI only. It does not install the agent
+skill. The skill also does not install the CLI; it calls `CXS_BIN` when set and
+otherwise expects `cxs` to be available on `PATH`. Restart Codex or open a new
+session after installing or updating the skill.
+
 ## Quick Start
 
-Inspect the Codex source inventory and index coverage:
+Inspect the default source inventory and index coverage:
 
 ```bash
 cxs status --json
@@ -262,7 +291,7 @@ Not implemented yet:
 - Range cache.
 - Duplicate-family collapse or diversity control.
 - Strong gold-set acceptance suite.
-- Public Claude Code CLI support.
+- Stable Claude Code raw transcript format contract.
 
 More detail: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md). Roadmap:
 [docs/ROADMAP.md](docs/ROADMAP.md).

@@ -3,8 +3,8 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>cxs — Codex session search</title>
-  <meta name="description" content="Search your Codex session history. Finds the right session, reads only the relevant slice.">
+  <title>cxs — local agent session search</title>
+  <meta name="description" content="Search your local Codex and Claude Code session history. Finds the right session, reads only the relevant slice.">
   <link rel="icon" type="image/svg+xml" href="favicon.svg">
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -129,11 +129,17 @@
       line-height: 1.65;
     }
 
+    .install-stack {
+      display: grid;
+      gap: 10px;
+      margin-top: 20px;
+    }
+
     .install-row {
       display: flex;
       align-items: center;
       gap: 14px;
-      margin-top: 20px;
+      min-width: 0;
     }
 
     .install-label {
@@ -151,6 +157,15 @@
       font-family: var(--mono);
       font-size: 13px;
       flex: 1;
+      min-width: 0;
+      overflow-x: auto;
+      white-space: nowrap;
+    }
+
+    .install-note {
+      color: var(--muted);
+      font-size: 11.5px;
+      line-height: 1.6;
     }
 
     /* ── sections ── */
@@ -168,50 +183,31 @@
       margin-bottom: 16px;
     }
 
-    /* ── code blocks ── */
-    pre {
-      background: var(--code-bg);
-      color: var(--code-fg);
-      padding: 14px 16px;
-      font-family: var(--mono);
+    .thesis {
+      display: grid;
+      gap: 18px;
+    }
+
+    .thesis p {
+      color: var(--fg);
+      font-size: 13.5px;
+      line-height: 1.75;
+    }
+
+    .thesis strong {
+      color: var(--accent);
+      font-weight: 700;
+    }
+
+    .contrast {
+      display: grid;
+      gap: 10px;
+      border-left: 2px solid var(--border);
+      padding-left: 12px;
+      color: var(--muted);
       font-size: 12px;
-      line-height: 1.7;
-      overflow-x: auto;
-      margin-top: 10px;
+      line-height: 1.65;
     }
-
-    .p { color: var(--green); user-select: none; }
-    .o { color: var(--code-fg); opacity: 0.5; }
-    .h { color: var(--yellow); }
-    .c { color: #4a4a4a; }
-
-    /* ── workflow ── */
-    .wf-step {
-      display: grid;
-      grid-template-columns: 18px 1fr;
-      gap: 12px;
-      padding: 10px 0;
-      border-bottom: 1px solid var(--border);
-      font-size: 13px;
-    }
-    .wf-step:last-child { border-bottom: none; }
-    .wf-n { color: var(--dim); font-size: 11px; padding-top: 2px; }
-    .wf-cmd { color: var(--accent); font-weight: 700; }
-    .wf-desc { color: var(--muted); font-size: 12px; }
-
-    /* ── command ref ── */
-    .cmd {
-      display: grid;
-      grid-template-columns: 110px 1fr;
-      gap: 12px;
-      padding: 8px 0;
-      border-bottom: 1px solid var(--border);
-      font-size: 12.5px;
-      align-items: baseline;
-    }
-    .cmd:last-child { border-bottom: none; }
-    .cmd-name { color: var(--accent); font-weight: 700; }
-    .cmd-info { color: var(--muted); }
 
     /* ── footer ── */
     footer {
@@ -224,9 +220,6 @@
     footer a { color: var(--dim); }
 
     @media (max-width: 480px) {
-      .cmd { grid-template-columns: 1fr; gap: 2px; }
-      .wf-step { grid-template-columns: 1fr; }
-      .wf-n { display: none; }
       .logo-sub { display: none; }
     }
   </style>
@@ -234,7 +227,7 @@
 <body>
 
 <div class="topbar">
-  <span class="logo">cxs <span class="logo-sub">— <span class="en">Codex session search</span><span class="zh">Codex 会话搜索</span></span></span>
+  <span class="logo">cxs <span class="logo-sub">— <span class="en">agent session search</span><span class="zh">Agent 会话搜索</span></span></span>
   <div class="topbar-right">
     <nav class="nav-links">
       <a href="https://github.com/catoncat/cxs">GitHub</a>
@@ -254,115 +247,54 @@
 
 <div class="lede">
   <p class="problem">
-    <span class="en">After hundreds of Codex sessions, finding a past decision, bug fix, or
-    discussion means loading entire transcripts and guessing. <strong>cxs indexes
-    your local session logs into SQLite</strong> so you — or an agent — can search
-    by query, get ranked session IDs back, then read only the relevant slice.
-    No daemon, no cloud, nothing leaves the machine.</span>
-    <span class="zh">几百个 Codex 会话之后，要找一个过去的决策、bug 修复或讨论，就得加载整段记录靠猜。<strong>cxs 把本地会话日志索引到 SQLite</strong>，让你或 Agent 可以按关键词搜索、拿到排好序的会话 ID，再只读相关片段。无守护进程，无云端，数据不出本机。</span>
+    <span class="en">Agents do not search like humans. They start with a hunch, inspect a result,
+    refine the query, and keep following evidence. <strong>cxs indexes the work
+    process itself</strong>: requests, decisions, commands, errors, and fixes from
+    local Codex and Claude Code sessions.</span>
+    <span class="zh">Agent 不像人一样搜索。它会先拿一个大致判断去查，读一段结果，再改查询，继续顺着证据往下找。<strong>cxs 索引的是工作过程本身</strong>：请求、决策、命令、报错和修复，都来自本机 Codex 与 Claude Code 会话。</span>
   </p>
   <p class="agent-callout">
-    <span class="en">Designed for agent use: all commands accept <code>--json</code> for
-    structured output. An agent can call <code>cxs find</code>, get session IDs,
-    then call <code>cxs read-range</code> to pull just the context it needs —
-    without loading full transcripts into its context window.</span>
-    <span class="zh">专为 Agent 设计：所有命令支持 <code>--json</code> 结构化输出。Agent 可以调用 <code>cxs find</code> 拿到会话 ID，再用 <code>cxs read-range</code> 只取需要的上下文——不用把完整记录塞进 context window。</span>
+    <span class="en">No daemon, no cloud, no full-transcript dump. The index stays local, and the
+    agent reads only the slice it needs.</span>
+    <span class="zh">无守护进程，无云端，不倾倒完整 transcript。索引留在本机，Agent 只读取当前需要的片段。</span>
   </p>
-  <div class="install-row">
-    <span class="install-label"><span class="en">install</span><span class="zh">安装</span></span>
-    <div class="install-cmd">npm i -g @act0r/cxs</div>
+  <div class="install-stack">
+    <div class="install-row">
+      <span class="install-label"><span class="en">CLI</span><span class="zh">命令行</span></span>
+      <div class="install-cmd">npm i -g @act0r/cxs</div>
+    </div>
+    <div class="install-row">
+      <span class="install-label"><span class="en">skill</span><span class="zh">Skill</span></span>
+      <div class="install-cmd">npx skills add catoncat/cxs --full-depth --skill cxs -g -a codex -y</div>
+    </div>
+    <p class="install-note">
+      <span class="en">The npm package installs only the CLI. Install the agent skill separately, then restart Codex or open a new session.</span>
+      <span class="zh">npm 包只安装 CLI。Agent skill 需要单独安装，装完后重启 Codex 或开启新会话。</span>
+    </p>
   </div>
 </div>
 
 <div class="section">
-  <div class="section-label"><span class="en">How it works</span><span class="zh">工作流程</span></div>
-  <div>
-    <div class="wf-step">
-      <span class="wf-n">1</span>
-      <div>
-        <div class="wf-cmd">cxs status --cwd &lt;project&gt;</div>
-        <div class="wf-desc"><span class="en">Check how many sessions exist and whether the index is current.</span><span class="zh">查看项目有多少会话，以及索引是否是最新的。</span></div>
-      </div>
-    </div>
-    <div class="wf-step">
-      <span class="wf-n">2</span>
-      <div>
-        <div class="wf-cmd">cxs sync --cwd &lt;project&gt;</div>
-        <div class="wf-desc"><span class="en">Ingest new sessions. Incremental — only processes what's new.</span><span class="zh">增量索引新会话，只处理尚未索引的部分。</span></div>
-      </div>
-    </div>
-    <div class="wf-step">
-      <span class="wf-n">3</span>
-      <div>
-        <div class="wf-cmd">cxs find "&lt;query&gt;"</div>
-        <div class="wf-desc"><span class="en">Returns ranked session IDs and scores. No transcript content.</span><span class="zh">返回按相关度排序的会话 ID 和分数，不返回正文内容。</span></div>
-      </div>
-    </div>
-    <div class="wf-step">
-      <span class="wf-n">4</span>
-      <div>
-        <div class="wf-cmd">cxs read-range &lt;id&gt; --seq &lt;n&gt;</div>
-        <div class="wf-desc"><span class="en">Read a focused window of messages around the matching sequence.</span><span class="zh">读取命中序号附近的一段消息，而不是整个会话。</span></div>
-      </div>
-    </div>
-  </div>
-</div>
-
-<div class="section">
-  <div class="section-label"><span class="en">Example — finding a past decision</span><span class="zh">示例 — 查找过去的决策</span></div>
-<pre>
-<span class="p">$</span> cxs find "why we dropped the caching layer" --cwd .
-<span class="h">9f2a1c3e</span>  2025-02-14  score:0.91  caching layer removal + perf tradeoffs
-<span class="h">a4d88b01</span>  2025-02-11  score:0.67  infra cost review Q1
-<span class="o">c1e32f90  2025-02-03  score:0.38  release planning</span>
-
-<span class="p">$</span> cxs read-range 9f2a1c3e --seq 34 --window 6
-<span class="c"># returns messages [31..37], centered on the decision exchange</span>
-</pre>
-</div>
-
-<div class="section">
-  <div class="section-label"><span class="en">Example — agent use with JSON output</span><span class="zh">示例 — Agent 调用，JSON 输出</span></div>
-<pre>
-<span class="p">$</span> cxs find "auth token refresh race" --json
-{
-  "results": [
-    { "sessionId": "9f2a1c3e-...", "score": 0.91, "endedAt": "2025-02-14" },
-    { "sessionId": "a4d88b01-...", "score": 0.67, "endedAt": "2025-02-11" }
-  ]
-}
-
-<span class="p">$</span> cxs read-range 9f2a1c3e-... --seq 34 --json
-<span class="c"># structured message array — pipe directly to jq or another tool</span>
-</pre>
-</div>
-
-<div class="section">
-  <div class="section-label"><span class="en">Commands</span><span class="zh">命令</span></div>
-  <div>
-    <div class="cmd">
-      <span class="cmd-name">status</span>
-      <span class="cmd-info"><span class="en">Index coverage and session inventory for a project.</span><span class="zh">查看项目的索引覆盖率和会话列表。</span></span>
-    </div>
-    <div class="cmd">
-      <span class="cmd-name">sync</span>
-      <span class="cmd-info"><span class="en">Ingest new sessions into the index. Safe to run repeatedly.</span><span class="zh">将新会话写入索引，可安全重复执行。</span></span>
-    </div>
-    <div class="cmd">
-      <span class="cmd-name">find</span>
-      <span class="cmd-info"><span class="en">Rank sessions by query relevance. Returns IDs and scores only.</span><span class="zh">按查询相关度对会话排序，只返回 ID 和分数。</span></span>
-    </div>
-    <div class="cmd">
-      <span class="cmd-name">read-range</span>
-      <span class="cmd-info"><span class="en">Read messages around a specific sequence number.</span><span class="zh">读取指定序号附近的一段消息。</span></span>
-    </div>
-    <div class="cmd">
-      <span class="cmd-name">read-page</span>
-      <span class="cmd-info"><span class="en">Page through a session in fixed chunks.</span><span class="zh">按固定分页浏览整个会话。</span></span>
-    </div>
-    <div class="cmd">
-      <span class="cmd-name">list</span>
-      <span class="cmd-info"><span class="en">List indexed sessions by project or CWD, sorted by recency.</span><span class="zh">按项目或工作目录列出已索引的会话，按时间倒序。</span></span>
+  <div class="section-label"><span class="en">Why cxs</span><span class="zh">为什么需要 cxs</span></div>
+  <div class="thesis">
+    <p>
+      <span class="en">Most knowledge tools assume somebody will stop and write a clean note. Agent
+      work rarely waits for that. The useful memory is already present in the
+      messy trail: what was asked, what was tried, what failed, and what finally
+      held.</span>
+      <span class="zh">大多数知识工具假设总会有人停下来写一篇干净的笔记。Agent 工作通常不会等这一步。真正有用的记忆已经在过程里：当时问了什么、试了什么、哪里失败、最后哪个修法站住了。</span>
+    </p>
+    <p>
+      <span class="en"><strong>cxs gives that trail back to the agent.</strong> It does not need to
+      guess the whole answer through one embedding lookup. The agent can search,
+      inspect, refine, and read progressively, just like it already works.</span>
+      <span class="zh"><strong>cxs 把这条轨迹还给 Agent。</strong> 它不需要靠一次 embedding 查询猜完整答案。Agent 可以搜索、检查、改写查询、逐步读取，这正是 Agent 本来就擅长的工作方式。</span>
+    </p>
+    <div class="contrast">
+      <span class="en">QMD is strongest when notes, runbooks, or code docs already exist. cxs is
+      strongest when the work happened inside agent conversations and was never
+      turned into a document.</span>
+      <span class="zh">QMD 在已有笔记、runbook 或代码文档时最强。cxs 在工作发生于 Agent 对话、但从未整理成文档时最强。</span>
     </div>
   </div>
 </div>
