@@ -9,6 +9,7 @@
 | 旧安装版 `sync` 返回 `selector_required` | 更新 CLI，或原命令补 `--root`、`--cwd` / `--selector` | 当前版本裸 `sync` 应能 first-install bootstrap；旧版需要显式范围 |
 | `find/list/stats/read-*` 输出 `index_unavailable` | 看 JSON `nextAction` 或直接 `sync` | 索引还没建立；普通 first install 跑 `sync`，项目范围优先 `sync --cwd <path>` |
 | `find/list/stats/read-*` 输出 `index_schema_upgrade_required` | 原范围跑一次 `sync --source codex ...` | 已有 index 是旧 schema；只读命令不迁移，`sync` 是唯一写入口 |
+| `read-range/read-page` 输出 `session_not_found` | 看 JSON `nextAction`，再 `status --source <id> --json` | 只代表当前 index 没有这个 `sessionRef`；可能未同步、coverage stale、source/id 不匹配。必要时同 source scoped sync 后重试 |
 | raw JSONL 从当前 source snapshot 中消失后担心查不到 | 直接 `find/list/read-*` 查 Sherlog index | Sherlog 默认保留已索引历史；不要引导用户改查另一个 root。只有用户明确要丢弃旧历史时才 `sync --prune` |
 | `stats/list/find` 报 `database is locked` | 原命令重试一次 | 多半是 SQLite 忙；仍失败就先跳过 `stats` 直接读 |
 | 同一主题多条 uuid | `find -n 10 --json` | 按 `startedAt`、`cwd`、`matchCount` 选 |
@@ -186,6 +187,7 @@ sqlite3 -readonly "$DB_PATH" \
 | `status` invalid selector | stdout | `{ "error": { "code": "invalid_selector", "message": "..." } }` |
 | `find / read-range / read-page / list / stats` 索引不存在 | stdout | `{ "error": { "code": "index_unavailable", "message": "...", "dbPath": "...", "hint": "...", "nextAction": { "kind": "bootstrap_index", "commands": [...] } } }` |
 | `find / read-range / read-page / list / stats` 旧 index schema | stdout | `{ "error": { "code": "index_schema_upgrade_required", "message": "...", "dbPath": "...", "missingColumns": ["..."], "hint": "..." } }` |
+| `read-range / read-page` session 未索引 | stdout | `{ "error": { "code": "session_not_found", "sessionRef": "...", "sourceId": "...", "nativeSessionId": "...", "hint": "...", "nextAction": { "kind": "check_coverage_then_retry_read", "commands": [...] } } }` |
 | 任意命令传未知 source | stdout | `{ "error": { "code": "unsupported_source", "source": "...", "message": "Public sources in this release: codex|claude-code." } }` |
 | `find / read-range / read-page / list / stats` 其他异常 | 进程异常退出 | 直接非零退出 |
 

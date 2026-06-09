@@ -30,6 +30,7 @@ import {
   getMessagePage,
   getMessageRange,
   listSessionSummaries,
+  SessionNotFoundError,
 } from "./query";
 import { canonicalizeSelector, parseSelectorJson, SelectorParseError, selectorSource } from "./selector";
 import { collectStatus } from "./status";
@@ -203,6 +204,9 @@ program
         elapsedMs,
         statsReadoutEnabled(),
       );
+    }, {
+      dbPath: options.db,
+      retryReadArgv: (error) => buildReadRangeRetryArgv(error.sessionRef, options),
     });
   });
 
@@ -238,6 +242,9 @@ program
         elapsedMs,
         statsReadoutEnabled(),
       );
+    }, {
+      dbPath: options.db,
+      retryReadArgv: (error) => buildReadPageRetryArgv(error.sessionRef, options),
     });
   });
 
@@ -322,7 +329,11 @@ function collectValues(value: string, previous: string[]): string[] {
   return previous;
 }
 
-function runReadCommand(jsonMode: boolean, action: () => void): void {
+function runReadCommand(
+  jsonMode: boolean,
+  action: () => void,
+  sessionNotFoundContext: { dbPath?: string; retryReadArgv?: (error: SessionNotFoundError) => string[] } = {},
+): void {
   try {
     action();
   } catch (error) {
@@ -336,6 +347,10 @@ function runReadCommand(jsonMode: boolean, action: () => void): void {
     }
     if (error instanceof IndexSchemaUpgradeRequiredError) {
       emitIndexSchemaUpgradeRequiredError(error, jsonMode);
+      return;
+    }
+    if (error instanceof SessionNotFoundError) {
+      emitSessionNotFoundError(error, jsonMode, sessionNotFoundContext);
       return;
     }
     if (error instanceof SelectorParseError) {
@@ -621,6 +636,97 @@ function emitIndexSchemaUpgradeRequiredError(error: IndexSchemaUpgradeRequiredEr
     console.error(`${error.message}\n${hint}`);
   }
   process.exitCode = 1;
+}
+
+function emitSessionNotFoundError(
+  error: SessionNotFoundError,
+  jsonMode: boolean,
+  context: { dbPath?: string; retryReadArgv?: (error: SessionNotFoundError) => string[] } = {},
+): void {
+  const nextAction = buildSessionNotFoundNextAction(error, context);
+  const hint =
+    `Sherlog only reads indexed sessions. The raw session may exist but not be synced yet, ` +
+    `or the id/source may not match this index. Run \`${PROGRAM_NAME} status --source ${error.sourceId} --json\`; ` +
+    `if coverage is missing or stale, run \`${PROGRAM_NAME} sync --source ${error.sourceId}\`, then retry.`;
+  if (jsonMode) {
+    console.log(
+      JSON.stringify(
+        {
+          error: {
+            code: "session_not_found",
+            message: error.message,
+            sessionRef: error.sessionRef,
+            sourceId: error.sourceId,
+            nativeSessionId: error.nativeSessionId,
+            hint,
+            nextAction,
+          },
+        },
+        null,
+        2,
+      ),
+    );
+  } else {
+    console.error(`${error.message}\n${hint}`);
+  }
+  process.exitCode = 1;
+}
+
+function buildSessionNotFoundNextAction(
+  error: SessionNotFoundError,
+  context: { dbPath?: string; retryReadArgv?: (error: SessionNotFoundError) => string[] } = {},
+) {
+  const dbArgv = context.dbPath ? ["--db", context.dbPath] : [];
+  return {
+    kind: "check_coverage_then_retry_read",
+    reason: "session_not_found",
+    steps: [
+      `Verify that ${error.sessionRef} is the right sessionRef and source. If needed, use a source-qualified ref such as ${error.sourceId}:${error.nativeSessionId}.`,
+      `Run ${PROGRAM_NAME} status --source ${error.sourceId} --json to check index freshness.`,
+      `If status reports missing or stale coverage, run ${PROGRAM_NAME} sync --source ${error.sourceId} and retry the read command.`,
+    ],
+    commands: [
+      {
+        label: "check source coverage",
+        recommended: true,
+        argv: [PROGRAM_NAME, "status", "--source", error.sourceId, ...dbArgv, "--json"],
+      },
+      {
+        label: "refresh default source index",
+        recommended: false,
+        argv: [PROGRAM_NAME, "sync", "--source", error.sourceId, ...dbArgv],
+      },
+      {
+        label: "retry read command",
+        recommended: false,
+        argv: context.retryReadArgv?.(error) ?? [PROGRAM_NAME, "read-page", error.sessionRef, ...dbArgv],
+      },
+    ],
+  };
+}
+
+function buildReadRangeRetryArgv(
+  sessionRef: string,
+  options: { seq?: string; query?: string; before?: string; after?: string; db?: string },
+): string[] {
+  const argv = [PROGRAM_NAME, "read-range", sessionRef];
+  if (options.seq !== undefined) argv.push("--seq", options.seq);
+  if (options.query !== undefined) argv.push("--query", options.query);
+  if (options.before !== undefined) argv.push("--before", options.before);
+  if (options.after !== undefined) argv.push("--after", options.after);
+  if (options.db) argv.push("--db", options.db);
+  return argv;
+}
+
+function buildReadPageRetryArgv(
+  sessionRef: string,
+  options: { offset?: string; limit?: string; db?: string },
+): string[] {
+  const argv = [PROGRAM_NAME, "read-page", sessionRef];
+  if (options.offset !== undefined) argv.push("--offset", options.offset);
+  if (options.limit !== undefined) argv.push("--limit", options.limit);
+  if (options.db) argv.push("--db", options.db);
+  return argv;
 }
 
 function emitSelectorError(error: SelectorParseError, jsonMode: boolean): void {
