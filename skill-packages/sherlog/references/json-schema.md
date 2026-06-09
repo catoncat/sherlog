@@ -131,7 +131,7 @@ Treat it as a retry gate: choose/check the same selector, run `sync` only if `st
 ## Read Command Errors
 
 `find` / `read-range` / `read-page` / `list` / `stats` return structured
-errors in `--json` mode for expected index setup failures:
+errors in `--json` mode for expected index setup and read failures:
 
 ```ts
 {
@@ -153,7 +153,25 @@ errors in `--json` mode for expected index setup failures:
           }>;
         };
       }
-    | { code: "index_schema_upgrade_required"; message: string; dbPath: string; missingColumns: string[]; hint: string };
+    | { code: "index_schema_upgrade_required"; message: string; dbPath: string; missingColumns: string[]; hint: string }
+    | {
+        code: "session_not_found";
+        message: string;
+        sessionRef: string;
+        sourceId: SessionSourceId;
+        nativeSessionId: string;
+        hint: string;
+        nextAction: {
+          kind: "check_coverage_then_retry_read";
+          reason: "session_not_found";
+          steps: string[];
+          commands: Array<{
+            label: string;
+            recommended: boolean;
+            argv: string[];
+          }>;
+        };
+      };
 }
 ```
 
