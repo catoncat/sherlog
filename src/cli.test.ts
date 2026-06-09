@@ -485,6 +485,91 @@ describe("shlog cli", { timeout: 20_000 }, () => {
     expect(pagePayload.totalCount).toBe(2);
   });
 
+  test("fixed commands accept explicit --source pi", async () => {
+    const base = mkdtempSync(join(tmpdir(), "shlog-cli-source-pi-"));
+    tempDirs.push(base);
+    const root = join(base, "sessions");
+    const projectDir = join(root, "--tmp-source-pi--");
+    mkdirSync(projectDir, { recursive: true });
+    writeFileSync(
+      join(projectDir, "conversation.jsonl"),
+      [
+        piLine({ type: "session", id: "cli-pi-session", cwd: "/tmp/source-pi", timestamp: "2026-06-07T00:00:00.000Z" }),
+        piLine({
+          type: "message",
+          id: "u1",
+          parentId: null,
+          timestamp: "2026-06-07T00:00:01.000Z",
+          message: { role: "user", content: [{ type: "text", text: "source pi needle" }], timestamp: "2026-06-07T00:00:01.000Z" },
+        }),
+        piLine({
+          type: "message",
+          id: "a1",
+          parentId: "u1",
+          timestamp: "2026-06-07T00:00:02.000Z",
+          message: { role: "assistant", content: [{ type: "text", text: "source pi reply" }], timestamp: "2026-06-07T00:00:02.000Z" },
+        }),
+      ].join("\n"),
+    );
+
+    const dbPath = join(base, "index.sqlite");
+    const synced = await runCli(["sync", "--source", "pi", "--root", root, "--db", dbPath, "--json"]);
+    expect(synced.exitCode).toBe(0);
+    const syncPayload = JSON.parse(synced.stdout) as { coverage: { selector: { source: string; kind: string; root: string } } };
+    expect(syncPayload.coverage.selector).toEqual({ source: "pi", kind: "all", root });
+
+    const status = await runCli(["status", "--source", "pi", "--root", root, "--db", dbPath, "--json"]);
+    expect(status.exitCode).toBe(0);
+    const statusPayload = JSON.parse(status.stdout) as { context: { root: string }; sourceInventory: { totalFiles: number } };
+    expect(statusPayload.context.root).toBe(root);
+    expect(statusPayload.sourceInventory.totalFiles).toBe(1);
+
+    const found = await runCli(["find", "source pi needle", "--source", "pi", "--db", dbPath, "--json"]);
+    expect(found.exitCode).toBe(0);
+    const findPayload = JSON.parse(found.stdout) as { results: Array<{ sessionUuid: string; cwd: string }> };
+    expect(findPayload.results[0]?.sessionUuid).toBe("pi:cli-pi-session");
+    expect(findPayload.results[0]?.cwd).toBe("/tmp/source-pi");
+
+    const listed = await runCli(["list", "--source", "pi", "--db", dbPath, "--json"]);
+    expect(listed.exitCode).toBe(0);
+    const listPayload = JSON.parse(listed.stdout) as { query: { sourceId?: string }; results: Array<{ sessionUuid: string }> };
+    expect(listPayload.query.sourceId).toBe("pi");
+    expect(listPayload.results[0]?.sessionUuid).toBe("pi:cli-pi-session");
+
+    const stats = await runCli(["stats", "--source", "pi", "--db", dbPath, "--json"]);
+    expect(stats.exitCode).toBe(0);
+    const statsPayload = JSON.parse(stats.stdout) as { sessionCount: number; messageCount: number };
+    expect(statsPayload.sessionCount).toBe(1);
+    expect(statsPayload.messageCount).toBe(2);
+
+    const range = await runCli([
+      "read-range",
+      "cli-pi-session",
+      "--source",
+      "pi",
+      "--seq",
+      "0",
+      "--before",
+      "0",
+      "--after",
+      "0",
+      "--db",
+      dbPath,
+      "--json",
+    ]);
+    expect(range.exitCode).toBe(0);
+    const rangePayload = JSON.parse(range.stdout) as { session: { sourceId: string; sessionUuid: string }; messages: Array<{ contentText: string }> };
+    expect(rangePayload.session.sourceId).toBe("pi");
+    expect(rangePayload.session.sessionUuid).toBe("pi:cli-pi-session");
+    expect(rangePayload.messages[0]?.contentText).toBe("source pi needle");
+
+    const page = await runCli(["read-page", "cli-pi-session", "--source", "pi", "--limit", "1", "--db", dbPath, "--json"]);
+    expect(page.exitCode).toBe(0);
+    const pagePayload = JSON.parse(page.stdout) as { session: { sourceId: string }; totalCount: number };
+    expect(pagePayload.session.sourceId).toBe("pi");
+    expect(pagePayload.totalCount).toBe(2);
+  });
+
   test("find defaults to public cross-source search and returned session refs are directly readable", async () => {
     const base = mkdtempSync(join(tmpdir(), "cxs-cli-cross-source-find-"));
     tempDirs.push(base);
@@ -535,7 +620,7 @@ describe("shlog cli", { timeout: 20_000 }, () => {
       sourceIds: string[];
       results: Array<{ sourceId: string; sessionUuid: string; sessionRef: string; matchSeq: number | null }>;
     };
-    expect(findPayload.sourceIds).toEqual(["codex", "claude-code"]);
+    expect(findPayload.sourceIds).toEqual(["codex", "claude-code", "pi"]);
     expect(findPayload.results.map((result) => result.sourceId).sort()).toEqual(["claude-code", "codex"]);
     const claudeHit = findPayload.results.find((result) => result.sourceId === "claude-code");
     expect(claudeHit?.sessionRef).toBe("claude-code:cli-cross-claude");
@@ -1328,5 +1413,9 @@ async function runExecutable(
 }
 
 function claudeLine(record: Record<string, unknown>): string {
+  return JSON.stringify(record);
+}
+
+function piLine(record: Record<string, unknown>): string {
   return JSON.stringify(record);
 }

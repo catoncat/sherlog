@@ -25,9 +25,14 @@ describe("selector", () => {
       source: "claude-code",
       root: "/tmp/cxs-root",
     });
+    expect(canonicalizeSelector({ source: "pi", kind: "all", root: "/tmp/cxs-root" })).toEqual({
+      kind: "all",
+      source: "pi",
+      root: "/tmp/cxs-root",
+    });
     expect(() =>
       canonicalizeSelector({ source: "unknown", kind: "all", root: "/tmp/cxs-root" })
-    ).toThrow("selector.source must be codex or claude-code");
+    ).toThrow("selector.source must be codex, claude-code, or pi");
   });
 
   test("rejects date ranges with fromDate after toDate", () => {

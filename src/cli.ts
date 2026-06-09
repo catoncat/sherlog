@@ -77,7 +77,7 @@ program
 
 program
   .command("sync")
-  .description("扫描并同步本地 Codex sessions 到 SQLite 索引")
+  .description("扫描并同步本地 agent sessions 到 SQLite 索引")
   .option("--source <id>", `session source (public: ${publicSourceLabel()})`)
   .option("--root <dir>", "同步指定 sessions 根目录；也作为 selector 默认 root")
   .option("--selector <json>", "结构化同步范围 JSON")

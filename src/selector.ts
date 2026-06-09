@@ -119,8 +119,8 @@ function requireDate(value: unknown, field: string): string {
 
 function requireSource(value: unknown): SessionSourceId {
   const source = requireString(value, "source");
-  if (source === "codex" || source === "claude-code") return source;
-  throw new SelectorParseError("selector.source must be codex or claude-code");
+  if (source === "codex" || source === "claude-code" || source === "pi") return source;
+  throw new SelectorParseError("selector.source must be codex, claude-code, or pi");
 }
 
 function assertDateOrder(fromDate: string, toDate: string): void {

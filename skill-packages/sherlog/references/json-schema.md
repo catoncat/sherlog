@@ -7,13 +7,13 @@ Top-level shape:
 ```ts
 {
   query: string;
-  sourceIds: Array<"codex" | "claude-code">;
+  sourceIds: Array<"codex" | "claude-code" | "pi">;
   sort: "relevance" | "ended" | "started";
   excludedSessions: string[];
   results: FindResult[];
   scannedMessageCount: number; // 检索覆盖范围(selector 限定后)内的消息总数,做诚实分母
   coverage: CoverageStatus;
-  coverageBySource?: Array<{ sourceId: "codex" | "claude-code"; coverage: CoverageStatus }>;
+  coverageBySource?: Array<{ sourceId: "codex" | "claude-code" | "pi"; coverage: CoverageStatus }>;
   nextAction?: QueryNextAction;
   elapsedMs: number; // 端到端耗时(进程启动到输出),仅 CLI 输出注入,非 query 层字段
 }
@@ -26,7 +26,7 @@ Top-level shape:
 ```ts
 {
   rank: number;
-  sourceId: "codex" | "claude-code";
+  sourceId: "codex" | "claude-code" | "pi";
   sessionUuid: string;
   sessionRef: string;
   title: string;
@@ -46,8 +46,8 @@ Top-level shape:
 
 `find` defaults to cross-source recall across public indexed sources. Use
 `sourceIds` to see which sources participated. Use each result's `sessionRef`
-as the read command input; for Codex it is usually the bare UUID, and for
-Claude Code it is source-qualified such as `claude-code:<id>`.
+as the read command input; for Codex it is usually the bare UUID, while
+Claude Code and Pi refs are source-qualified such as `claude-code:<id>` or `pi:<id>`.
 
 `matchSource = "session"` means the hit came from session-level fields such as title, derived summary, compact handoff, or reasoning summary rather than a concrete message. In that case `matchSeq` is `null`; use `read-page` first instead of fabricating a `read-range --seq` anchor.
 
@@ -98,7 +98,7 @@ Treat it as a retry gate: choose/check the same selector, run `sync` only if `st
 ```ts
 {
   query: {
-    sourceId?: "codex" | "claude-code";
+    sourceId?: "codex" | "claude-code" | "pi";
     cwd?: string;
     since?: string;
     selector?: Selector;
@@ -216,7 +216,7 @@ errors in `--json` mode for expected index setup failures:
 ```ts
 {
   id: number;
-  sourceId: "codex" | "claude-code";
+  sourceId: "codex" | "claude-code" | "pi";
   nativeSessionId: string;
   sessionKey: string;
   sessionUuid: string;
@@ -250,13 +250,13 @@ errors in `--json` mode for expected index setup failures:
 
 ```ts
 type Selector =
-  | { source?: "codex" | "claude-code"; kind: "all"; root: string }
-  | { source?: "codex" | "claude-code"; kind: "date_range"; root: string; fromDate: string; toDate: string }
-  | { source?: "codex" | "claude-code"; kind: "cwd"; root: string; cwd: string }
-  | { source?: "codex" | "claude-code"; kind: "cwd_date_range"; root: string; cwd: string; fromDate: string; toDate: string };
+  | { source?: "codex" | "claude-code" | "pi"; kind: "all"; root: string }
+  | { source?: "codex" | "claude-code" | "pi"; kind: "date_range"; root: string; fromDate: string; toDate: string }
+  | { source?: "codex" | "claude-code" | "pi"; kind: "cwd"; root: string; cwd: string }
+  | { source?: "codex" | "claude-code" | "pi"; kind: "cwd_date_range"; root: string; cwd: string; fromDate: string; toDate: string };
 ```
 
-Input selector JSON may omit `source`; canonical selectors returned by public CLI commands include the resolved source id. `claude-code` is now a public but experimental CLI source. These public CLI schemas still should not be read as a stable raw-format promise; Claude support may move toward a different SDK/session contract in later releases.
+Input selector JSON may omit `source`; canonical selectors returned by public CLI commands include the resolved source id. `claude-code` and `pi` are public but experimental CLI sources. These public CLI schemas still should not be read as stable raw-format promises; non-Codex support may move toward different SDK/session contracts in later releases.
 
 `CoverageStatus`:
 

@@ -271,7 +271,7 @@ function parseSessionRef(sessionRef: string): { sourceId: SessionSourceId; nativ
   if (separator > 0) {
     const sourceId = sessionRef.slice(0, separator);
     const nativeSessionId = sessionRef.slice(separator + 1);
-    if (sourceId === "codex" || sourceId === "claude-code") return { sourceId, nativeSessionId };
+    if (sourceId === "codex" || sourceId === "claude-code" || sourceId === "pi") return { sourceId, nativeSessionId };
   }
   return { sourceId: DEFAULT_SESSION_SOURCE_ID, nativeSessionId: sessionRef };
 }

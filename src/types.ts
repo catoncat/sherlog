@@ -1,7 +1,7 @@
 export type MessageRole = "user" | "assistant";
 export type MatchSource = "message" | "session";
 export type FindMatchRole = MessageRole | "session";
-export type SessionSourceId = "codex" | "claude-code";
+export type SessionSourceId = "codex" | "claude-code" | "pi";
 
 export const DEFAULT_SESSION_SOURCE_ID: SessionSourceId = "codex";
 
