@@ -83,8 +83,8 @@ function processRecord(record: Record<string, unknown>, state: ParseState): void
     return;
   }
 
-  if (record.type === "model_change" && typeof record.modelId === "string" && !state.model) {
-    state.model = record.modelId;
+  if (record.type === "model_change" && typeof record.modelId === "string" && record.modelId.trim()) {
+    state.model = record.modelId.trim();
     return;
   }
 

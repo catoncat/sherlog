@@ -1,10 +1,11 @@
 import { afterEach, describe, expect, test } from "vitest";
-import { existsSync, mkdtempSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
+import { appendFileSync, existsSync, mkdtempSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { syncSessions } from "../indexer";
 import { findSessions } from "../query/find";
 import { getMessagePage } from "../query/read";
+import { collectStatus } from "../status";
 import { getSessionSourceAdapter, listSessionSourceAdapters } from ".";
 import { acceptedPiSessionRecord } from "./pi-policy";
 
@@ -58,10 +59,14 @@ describe("pi source adapter", () => {
     expect(existsSync(dbPath)).toBe(false);
   });
 
-  test("rejects malformed Pi session metadata instead of normalizing it to empty fields", () => {
-    expect(acceptedPiSessionRecord({ type: "session", id: "", cwd: "/tmp/pi", timestamp: "2026-06-06T00:00:00.000Z" })).toBeNull();
+  test("accepts Pi session metadata with optional id for fallback sessions", () => {
     expect(acceptedPiSessionRecord({ type: "session", id: "pi-session", cwd: "", timestamp: "2026-06-06T00:00:00.000Z" })).toBeNull();
     expect(acceptedPiSessionRecord({ type: "session", id: "pi-session", cwd: "/tmp/pi" })).toBeNull();
+    expect(acceptedPiSessionRecord({ type: "session", cwd: "/tmp/pi-fallback", timestamp: "2026-06-06T00:00:00.000Z" })).toEqual({
+      sessionId: "",
+      cwd: "/tmp/pi-fallback",
+      timestamp: "2026-06-06T00:00:00.000Z",
+    });
     expect(acceptedPiSessionRecord({ type: "session", id: " pi-session ", cwd: " /tmp/pi ", timestamp: " 2026-06-06T00:00:00.000Z " })).toEqual({
       sessionId: "pi-session",
       cwd: "/tmp/pi",
@@ -134,6 +139,32 @@ describe("pi source adapter", () => {
     expect(searchableProjection).not.toContain("tool result must not leak");
     expect(searchableProjection).not.toContain("thinking must not leak");
     expect(searchableProjection).not.toContain("tool call must not leak");
+  });
+
+  test("uses the latest Pi model_change as session model", async () => {
+    const { filePath } = writePiFixture("latest-model", [
+      piLine({ type: "session", id: "pi-model-session", cwd: "/tmp/pi-model-cwd", timestamp: "2026-06-06T00:00:00.000Z" }),
+      piLine({ type: "model_change", id: "m1", parentId: null, timestamp: "2026-06-06T00:00:00.100Z", provider: "local", modelId: "local-default" }),
+      piLine({ type: "model_change", id: "m2", parentId: "m1", timestamp: "2026-06-06T00:00:00.200Z", provider: "rs", modelId: "actual-remote" }),
+      piLine({
+        type: "message",
+        timestamp: "2026-06-06T00:00:01.000Z",
+        message: { role: "user", content: [{ type: "text", text: "latest model needle" }] },
+      }),
+    ]);
+    const adapter = getSessionSourceAdapter("pi");
+
+    const parsed = await adapter.parseFile({
+      filePath,
+      cwd: "/tmp/file-cwd-fallback",
+      pathDate: "2026-06-06",
+      mtimeMs: 0,
+      size: 0,
+    });
+
+    expect(parsed.kind).toBe("parsed");
+    if (parsed.kind !== "parsed") return;
+    expect(parsed.session.model).toBe("actual-remote");
   });
 
   test("inventories and snapshots Pi sessions by cwd and path date", async () => {
@@ -260,6 +291,48 @@ describe("pi source adapter", () => {
     ]);
   });
 
+  test("marks Pi coverage stale when a large session file grows after sync", async () => {
+    const filler = "x".repeat(80_000);
+    const { root, filePath } = writePiFixture("freshness-after-append", [
+      piLine({ type: "session", id: "pi-freshness-session", cwd: "/tmp/pi-freshness-cwd", timestamp: "2026-06-09T00:00:00.000Z" }),
+      piLine({
+        type: "message",
+        timestamp: "2026-06-09T00:00:01.000Z",
+        message: { role: "user", content: [{ type: "text", text: "initial pi freshness needle" }] },
+      }),
+      piLine({
+        type: "message",
+        timestamp: "2026-06-09T00:00:01.500Z",
+        message: { role: "assistant", content: [{ type: "thinking", thinking: filler }] },
+      }),
+    ]);
+    const dbPath = join(root, "index.sqlite");
+    const adapter = getSessionSourceAdapter("pi");
+    const selector = { source: "pi" as const, kind: "all" as const, root };
+
+    const synced = await syncSessions({ dbPath, sourceId: "pi", selector });
+    const beforeSnapshot = await adapter.collectSnapshot(selector);
+
+    appendFileSync(
+      filePath,
+      `${piLine({
+        type: "message",
+        timestamp: "2026-06-09T00:00:02.000Z",
+        message: { role: "assistant", content: [{ type: "text", text: "late appended pi freshness needle" }] },
+      })}\n`,
+    );
+
+    const afterSnapshot = await adapter.collectSnapshot(selector);
+    const foundBeforeResync = findSessions(dbPath, "late appended pi freshness needle", 10, selector, { sourceId: "pi" });
+    const status = await collectStatus({ sourceId: "pi", rootDir: root, dbPath, selector });
+
+    expect(synced.coverage.sourceFingerprint).toBe(beforeSnapshot.fingerprint);
+    expect(afterSnapshot.fingerprint).not.toBe(beforeSnapshot.fingerprint);
+    expect(status.requestedCoverage?.freshness).toBe("stale");
+    expect(status.requestedCoverage?.recommendedAction).toBe("sync");
+    expect(foundBeforeResync.results).toEqual([]);
+  });
+
   test("fallback session ids stay unique when different directories share the same file name", async () => {
     const { root } = writePiFixtureTree("fallback-session-id", [
       {
@@ -294,6 +367,8 @@ describe("pi source adapter", () => {
     expect(foundAlpha.results).toHaveLength(1);
     expect(foundBeta.results).toHaveLength(1);
     expect(foundAlpha.results[0]?.sessionUuid).not.toBe(foundBeta.results[0]?.sessionUuid);
+    expect(foundAlpha.results[0]?.cwd).toBe("/tmp/alpha-cwd");
+    expect(foundBeta.results[0]?.cwd).toBe("/tmp/beta-cwd");
     expect(foundAlpha.results[0]?.sessionUuid).toMatch(/^pi:conversation-[0-9a-f]{64}$/);
     expect(foundBeta.results[0]?.sessionUuid).toMatch(/^pi:conversation-[0-9a-f]{64}$/);
   });

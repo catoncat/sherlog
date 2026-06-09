@@ -214,6 +214,10 @@ function fingerprintFiles(root: string, files: PiSourceFileMeta[]): string {
     hash.update("\0");
     hash.update(file.filePath.slice(rootPrefix.length));
     hash.update("\0");
+    hash.update(String(file.mtimeMs));
+    hash.update("\0");
+    hash.update(String(file.size));
+    hash.update("\0");
     hash.update(file.pathDate ?? "");
     hash.update("\0");
     hash.update(file.cwd);

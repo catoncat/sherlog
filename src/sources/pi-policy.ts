@@ -20,7 +20,7 @@ export function acceptedPiSessionRecord(record: Record<string, unknown>): PiAcce
   const sessionId = typeof record.id === "string" ? record.id.trim() : "";
   const cwd = typeof record.cwd === "string" ? record.cwd.trim() : "";
   const timestamp = timestampFrom(record.timestamp);
-  if (!sessionId || !cwd || !timestamp) return null;
+  if (!cwd || !timestamp) return null;
   return { sessionId, cwd, timestamp };
 }
 
