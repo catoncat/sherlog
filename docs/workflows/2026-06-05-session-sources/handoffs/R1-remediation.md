@@ -34,6 +34,7 @@ Mainline intent: `int_462a342b` sealed and published as proposed
 - `npm run shlog -- status --source codex --json`: passed against default local index, preserving old-schema status fallback.
 - `npm run shlog -- list --source codex --json -n 1`: returned structured `index_schema_upgrade_required` against the old default local index.
 - `npm run shlog -- stats --source codex --json`: returned structured `index_schema_upgrade_required` against the old default local index.
+- The fresh-db commands below used the generated E1 smoke database from that remediation run. The SQLite database and sidecars are no longer retained in git; regenerate them from the retained synthetic JSONL fixture when replaying this evidence.
 - `npm run shlog -- list --source codex --json --db docs/workflows/2026-06-05-session-sources/handoffs/E1-artifacts/e1-smoke.sqlite -n 1`: passed.
 - `npm run shlog -- read-page e1e10000-e1e1-41e1-81e1-e1e1e1e1e1e1 --source codex --json --db docs/workflows/2026-06-05-session-sources/handoffs/E1-artifacts/e1-smoke.sqlite --limit 1`: passed.
 - `npm run shlog -- find needle --source codex --json --db docs/workflows/2026-06-05-session-sources/handoffs/E1-artifacts/e1-smoke.sqlite`: passed.
