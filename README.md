@@ -16,7 +16,7 @@ shlog --help
 Install the agent skill separately:
 
 ```bash
-npx skills add catoncat/sherlog --full-depth --skill sherlog -g -a codex -y
+npx skills add -g catoncat/sherlog
 ```
 
 ## Quick Start

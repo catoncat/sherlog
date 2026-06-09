@@ -111,7 +111,7 @@ skill-packages/sherlog
 Install or update it with:
 
 ```bash
-npx skills add catoncat/sherlog --full-depth --skill sherlog -g -a codex -y
+npx skills add -g catoncat/sherlog
 ```
 
 List available skills in the repository:

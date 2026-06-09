@@ -28,13 +28,10 @@ description: "Use proactively for local Codex history and personal setup archaeo
 **2. 装 skill**:
 
 ```bash
-# Codex agent runtime
-npx skills add catoncat/sherlog --full-depth --skill sherlog -g -a codex -y
-
-# 其他 agent runtime — 把 -a codex 换成对应 runtime,或省略
+npx skills add -g catoncat/sherlog
 ```
 
-`-a` 取值依赖目标 agent runtime,**装错 slot 会看不到 skill**。这只是在对应 agent runtime 安装 skill，不代表 `Sherlog` 支持该 runtime 的 session source。装完通常需要重启 agent / 开新 session。
+这只是在全局安装 agent skill，不代表 `Sherlog` 支持该 runtime 的 session source。装完通常需要重启 agent / 开新 session。
 
 ## 先选 retrieval primitive
 
