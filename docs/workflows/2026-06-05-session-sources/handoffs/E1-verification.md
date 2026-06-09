@@ -30,9 +30,8 @@ Do not inflate this to release/install completion. The npm registry and installe
 
 - `docs/workflows/2026-06-05-session-sources/handoffs/E1-verification.md`
 - `docs/workflows/2026-06-05-session-sources/handoffs/E1-artifacts/codex-root/2026/06/05/rollout-2026-06-05T10-00-00-e1e10000-e1e1-41e1-81e1-e1e1e1e1e1e1.jsonl`
-- `docs/workflows/2026-06-05-session-sources/handoffs/E1-artifacts/e1-smoke.sqlite`
 
-SQLite sidecar files `e1-smoke.sqlite-shm` and `e1-smoke.sqlite-wal` were also produced by the smoke run.
+The fresh-db smoke used a generated `e1-smoke.sqlite` database and SQLite sidecars during verification. Those binary outputs are not retained in the repository; regenerate them from the retained synthetic JSONL fixture if this evidence needs to be replayed.
 
 ## Requirement-To-Proof Matrix
 
@@ -70,6 +69,7 @@ SQLite sidecar files `e1-smoke.sqlite-shm` and `e1-smoke.sqlite-wal` were also p
 - `npm run shlog -- status --source claude-code --json` -> exit 1 expected; JSON `unsupported_source`.
 - `npm run shlog -- list --source codex --limit 1 --json` against the default local db -> exit 1, `SqliteError: no such column: source_id`; this is a default-index compatibility boundary, not the fresh checkout smoke result.
 - Artifact fresh-db smoke:
+  - The commands below used the generated `e1-smoke.sqlite` database from that verification run; the database itself is intentionally not retained in git.
   - `sync --source codex --root docs/.../E1-artifacts/codex-root --db docs/.../e1-smoke.sqlite --json` -> exit 0; `added=1`, `errors=0`, source-aware coverage written.
   - first parallel `find/list` attempt -> exit 1 `index_unavailable` because it raced before sync completed.
   - rerun `find "e1 source codex smoke needle" --source codex --db docs/.../e1-smoke.sqlite --json` -> exit 0; one expected result.
