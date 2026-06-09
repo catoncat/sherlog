@@ -2,7 +2,7 @@
   "name": "@act0r/sherlog",
   "version": "0.3.10",
   "type": "module",
-  "description": "Progressive search CLI for local Codex and Claude Code session logs",
+  "description": "Progressive search CLI for local Codex, Claude Code, and Pi session logs",
   "license": "MIT",
   "homepage": "https://github.com/catoncat/sherlog",
   "repository": {
@@ -26,6 +26,7 @@
   "keywords": [
     "codex",
     "claude-code",
+    "pi",
     "cli",
     "fts",
     "search",

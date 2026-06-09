@@ -2,7 +2,7 @@
 
 [https://sherlog.net](https://sherlog.net)
 
-`Sherlog` is a local-first CLI for searching local Codex and Claude Code session logs. It is built for agents that know how to investigate: find the right session first, then read only the relevant range or page.
+`Sherlog` is a local-first CLI for searching local Codex, Claude Code, and Pi session logs. It is built for agents that know how to investigate: find the right session first, then read only the relevant range or page.
 
 ## Quick Install
 

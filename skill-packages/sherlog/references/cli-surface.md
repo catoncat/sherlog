@@ -16,7 +16,7 @@ export SHLOG_BIN=/absolute/path/to/bin/shlog
 
 metadata-only 问题可以直接对 Sherlog SQLite index 做只读 projection,例如时间排序、数量、cwd 分布；内容判断仍必须回到 `read-page` / `read-range`。
 
-支持 source-aware CLI 的版本里,所有固定命令都接受 `--source <id>`。当前公开 source 是 `codex` 和 experimental `claude-code`。`find` 省略 `--source` 时默认跨 public sources 搜索，`--source all` 是显式同义写法；`--source codex` / `--source claude-code` 用于缩小范围或诊断。`status`、`sync`、`list`、`stats` 和裸 `read-*` 省略 source 时仍按 Codex 兼容默认处理；read 命令也可以直接消费 `find` 返回的 `sessionRef`。未知 source 会返回 `unsupported_source`。Claude Code 已是 public CLI 可用 adapter，但仍是 experimental transcript-reader support；不要把它理解成稳定 raw transcript 格式承诺。如果安装版直接报 unknown option `--source`,它是旧 CLI；省略 source flags 或更新 CLI。
+支持 source-aware CLI 的版本里,所有固定命令都接受 `--source <id>`。当前公开 source 是 `codex`、experimental `claude-code` 和 experimental `pi`。`find` 省略 `--source` 时默认跨 public sources 搜索，`--source all` 是显式同义写法；`--source codex` / `--source claude-code` / `--source pi` 用于缩小范围或诊断。`status`、`sync`、`list`、`stats` 和裸 `read-*` 省略 source 时仍按 Codex 兼容默认处理；read 命令也可以直接消费 `find` 返回的 `sessionRef`。未知 source 会返回 `unsupported_source`。Claude Code 和 Pi 已是 public CLI 可用 adapter，但仍是 experimental transcript-reader support；不要把它们理解成稳定 raw transcript 格式承诺。如果安装版直接报 unknown option `--source`,它是旧 CLI；省略 source flags 或更新 CLI。
 
 缺少 Sherlog 索引时,`find` / `read-range` / `read-page` / `list` / `stats --json` 返回:
 
@@ -44,7 +44,7 @@ Example:
 "${SHLOG_BIN:-${CXS_BIN:-shlog}}" status --root /Users/me/.codex/sessions --selector '{"kind":"all"}' --json
 ```
 
-常用 options: `--source <id>`(public: `codex|claude-code`)、`--root`、`--selector`、`--cwd`、`--db`、`--json`。
+常用 options: `--source <id>`(public: `codex|claude-code|pi`)、`--root`、`--selector`、`--cwd`、`--db`、`--json`。
 
 `status --selector` 是只读 coverage check。看 `requestedCoverage`:
 
@@ -71,7 +71,7 @@ Options:
 
 | option | 说明 |
 | --- | --- |
-| `--source <id>` | 公开值是 `codex` 和 experimental `claude-code`;省略等价于 `codex` |
+| `--source <id>` | 公开值是 `codex`、experimental `claude-code` 和 experimental `pi`;省略等价于 `codex` |
 | `--root <dir>` | 同步整个 sessions 根目录；也作为 selector 默认 root |
 | `--cwd <path>` | 同步指定 cwd selector；不必手写 selector JSON |
 | `--selector <json>` | 结构化同步范围；日期范围等高级范围用这个 |
@@ -97,7 +97,7 @@ Example:
 
 Purpose: 搜索相关 session，返回最小必要命中。用于 semantic recall,不是数量/排序/分布这类 metadata projection 的默认工具。
 
-`find` 默认搜索所有 public indexed sources。结果里的 `sourceId` 告诉你来源，`sessionRef` 是后续 `read-range` / `read-page` 的首选输入。只有用户指定来源、要缩小范围、或在诊断某个 source 的覆盖问题时才加 `--source codex` / `--source claude-code`。
+`find` 默认搜索所有 public indexed sources。结果里的 `sourceId` 告诉你来源，`sessionRef` 是后续 `read-range` / `read-page` 的首选输入。只有用户指定来源、要缩小范围、或在诊断某个 source 的覆盖问题时才加 `--source codex` / `--source claude-code` / `--source pi`。
 
 text header 带效率回述:`shlog find "q" · 检索 ~N 条 · 结果 R · Xms`(`检索 ~N` = 范围内语料规模诚实分母,`--json` 里是 `scannedMessageCount` / `elapsedMs`)。`read-range` / `read-page` 的 header 带「读取 K 条 / 本 session 共 T 条 · Xms」和 `total=… · hasMore=… · Xms`。这些数字用于「结果回述」那段克制地告诉用户省了多少,**不要据此编造「省 X%」**。
 
@@ -118,7 +118,7 @@ Options:
 
 | option | 说明 |
 | --- | --- |
-| `--source <id>` | 公开值是 `codex`、experimental `claude-code` 或 `all`;省略等价于 `all` |
+| `--source <id>` | 公开值是 `codex`、experimental `claude-code`、experimental `pi` 或 `all`;省略等价于 `all` |
 | `--root <dir>` | 限定到整个 sessions 根目录；也作为 selector 默认 root |
 | `--cwd <path>` | 限定到指定 cwd selector |
 | `--selector <json>` | 结构化查询范围；可省略 `root` |
@@ -134,7 +134,7 @@ Notes:
 
 - 必须显式传 `<sessionUuid>` 或 `find` 返回的 `<sessionRef>`
 - 必须二选一提供 `--seq` 或 `--query`
-- 可选 `--source codex|claude-code`;省略等价于 Codex。`<source>:<uuid>` qualifier 会直接决定读取 source；若同时传 `--source`,两者必须匹配。
+- 可选 `--source codex|claude-code|pi`;省略等价于 Codex。`<source>:<uuid>` qualifier 会直接决定读取 source；若同时传 `--source`,两者必须匹配。
 
 Example:
 
@@ -147,8 +147,8 @@ Example:
 
 Purpose: 顺序分页读取某个 session 的消息。metadata projection 只能给候选;要确认"当时说了什么/是否有意义",用 `read-page` 或 `read-range`。
 
-可选 `--source codex|claude-code`;省略等价于 Codex。
-如果传入 `claude-code:<uuid>` 这类 `sessionRef`,无需再传 `--source claude-code`。
+可选 `--source codex|claude-code|pi`;省略等价于 Codex。
+如果传入 `claude-code:<uuid>` 或 `pi:<uuid>` 这类 `sessionRef`,无需再传对应 `--source`。
 
 Example:
 
@@ -160,7 +160,7 @@ Example:
 
 Purpose: 列出已索引 session，不做全文检索。适合简单 session listing；更复杂的 metadata projection 可以用只读 SQLite 查询 Sherlog index。
 
-常用 options: `--source <id>`(public: `codex|claude-code`)、`--cwd`、`--since`、`--root`、`--selector`、`--sort ended|started|messages`、`-n/--limit`、`--db`、`--json`。
+常用 options: `--source <id>`(public: `codex|claude-code|pi`)、`--cwd`、`--since`、`--root`、`--selector`、`--sort ended|started|messages`、`-n/--limit`、`--db`、`--json`。
 
 Example:
 
@@ -174,7 +174,7 @@ Example:
 
 Purpose: 展示索引状态统计。
 
-可选 `--source codex|claude-code`;省略等价于 Codex。
+可选 `--source codex|claude-code|pi`;省略等价于 Codex。
 
 Example:
 

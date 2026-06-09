@@ -131,7 +131,7 @@ sqlite3 -readonly "$DB_PATH" \
 "${SHLOG_BIN:-${CXS_BIN:-shlog}}" read-range <sessionUuid> --query "关键词" --before 4 --after 8 --json
 ```
 
-不要在 metadata projection 里查询 raw Codex JSONL;正常历史检索的 metadata 和内容都应回到 Sherlog index / Sherlog read commands。
+不要在 metadata projection 里查询 raw source JSONL;正常历史检索的 metadata 和内容都应回到 Sherlog index / Sherlog read commands。
 
 ## 同 title 的多变体 session
 

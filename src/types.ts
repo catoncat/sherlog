@@ -1,9 +1,14 @@
 export type MessageRole = "user" | "assistant";
 export type MatchSource = "message" | "session";
 export type FindMatchRole = MessageRole | "session";
-export type SessionSourceId = "codex" | "claude-code";
+export type SessionSourceId = "codex" | "claude-code" | "pi";
 
 export const DEFAULT_SESSION_SOURCE_ID: SessionSourceId = "codex";
+export const SESSION_SOURCE_IDS = ["codex", "claude-code", "pi"] as const satisfies readonly SessionSourceId[];
+
+export function isSessionSourceId(value: string): value is SessionSourceId {
+  return (SESSION_SOURCE_IDS as readonly string[]).includes(value);
+}
 
 export interface ParsedMessage {
   role: MessageRole;

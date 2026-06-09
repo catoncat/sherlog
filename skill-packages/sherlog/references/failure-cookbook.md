@@ -19,7 +19,7 @@
 | 用户问“最近本项目讨论了什么” | `list --cwd <abs_cwd> --sort ended --json` | 这是 metadata/listing 问题；索引不可用或 coverage 不明时再 `status --cwd` |
 | 用户说“在 X 项目里” | `status --json` | 从 `sourceInventory.cwdGroups` 选择 cwd selector |
 | 从其他 cwd 调用找不到 db | `stats --json` | 看 `dbPath`；必要时显式传 `--db` |
-| `unsupported_source` | 检查 source id 拼写；`find` 可省略 `--source` 或用 `--source all`，窄化时用 `--source codex` / `--source claude-code` | 当前公开 source 是 `codex` 和 experimental `claude-code`；不要因为 source id 写错就跳回 raw source root |
+| `unsupported_source` | 检查 source id 拼写；`find` 可省略 `--source` 或用 `--source all`，窄化时用 `--source codex` / `--source claude-code` / `--source pi` | 当前公开 source 是 `codex`、experimental `claude-code` 和 experimental `pi`；不要因为 source id 写错就跳回 raw source root |
 
 ## Find zero results but user insists it exists
 
@@ -188,7 +188,7 @@ sqlite3 -readonly "$DB_PATH" \
 | `find / read-range / read-page / list / stats` 索引不存在 | stdout | `{ "error": { "code": "index_unavailable", "message": "...", "dbPath": "...", "hint": "...", "nextAction": { "kind": "bootstrap_index", "commands": [...] } } }` |
 | `find / read-range / read-page / list / stats` 旧 index schema | stdout | `{ "error": { "code": "index_schema_upgrade_required", "message": "...", "dbPath": "...", "missingColumns": ["..."], "hint": "..." } }` |
 | `read-range / read-page` session 未索引 | stdout | `{ "error": { "code": "session_not_found", "sessionRef": "...", "sourceId": "...", "nativeSessionId": "...", "hint": "...", "nextAction": { "kind": "check_coverage_then_retry_read", "commands": [...] } } }` |
-| 任意命令传未知 source | stdout | `{ "error": { "code": "unsupported_source", "source": "...", "message": "Public sources in this release: codex|claude-code." } }` |
+| 任意命令传未知 source | stdout | `{ "error": { "code": "unsupported_source", "source": "...", "message": "Public sources in this release: codex|claude-code|pi." } }` |
 | `find / read-range / read-page / list / stats` 其他异常 | 进程异常退出 | 直接非零退出 |
 
 ## Schema drift

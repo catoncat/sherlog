@@ -5,7 +5,7 @@ description: "Use proactively for local Codex history and personal setup archaeo
 
 # Sherlog
 
-用 `shlog` / `Sherlog` 在自己的 SQLite index 里检索旧 agent 对话。当前公开 CLI source 有 `codex` 和 experimental `claude-code`；`find` 省略 `--source` 时默认跨 public sources 搜索，agent 正常使用时不要先问用户选来源。`--source codex` / `--source claude-code` 只用于用户指定、缩小范围或诊断。`claude-code` 现在是 public fixed-command support，但仍是 experimental transcript-reader contract；不要把它说成稳定 raw JSONL 承诺，遇到非 text record 语义缺口也不要跳回 raw source root 取证。各 source 的 raw sessions 都只是 ingest source；正常历史检索只读 Sherlog index。心法:**先选 retrieval primitive,再定位候选 session,最后用 shlog read 命令拿内容证据**。
+用 `shlog` / `Sherlog` 在自己的 SQLite index 里检索旧 agent 对话。当前公开 CLI source 有 `codex`、experimental `claude-code` 和 experimental `pi`；`find` 省略 `--source` 时默认跨 public sources 搜索，agent 正常使用时不要先问用户选来源。`--source codex` / `--source claude-code` / `--source pi` 只用于用户指定、缩小范围或诊断。`claude-code` 与 `pi` 现在是 public fixed-command support，但仍是 experimental transcript-reader contract；不要把它们说成稳定 raw JSONL 承诺，遇到非 text record 语义缺口也不要跳回 raw source root 取证。各 source 的 raw sessions 都只是 ingest source；正常历史检索只读 Sherlog index。心法:**先选 retrieval primitive,再定位候选 session,最后用 shlog read 命令拿内容证据**。
 
 ## 安装(两步)
 
@@ -16,7 +16,7 @@ description: "Use proactively for local Codex history and personal setup archaeo
 ```bash
 "${SHLOG_BIN:-${CXS_BIN:-shlog}}" --version       # 应输出 shlog 版本号
 "${SHLOG_BIN:-${CXS_BIN:-shlog}}" --help          # 应列出 status/sync/find/read-range/read-page/list/stats
-"${SHLOG_BIN:-${CXS_BIN:-shlog}}" status --help   # 若显示 --source <id>,应列出 codex|claude-code
+"${SHLOG_BIN:-${CXS_BIN:-shlog}}" status --help   # 若显示 --source <id>,应列出 codex|claude-code|pi
 ```
 
 如果 `shlog` 不在 PATH 里,设 `export SHLOG_BIN=/absolute/path/to/bin/shlog`。`CXS_BIN` 仍兼容。如果安装版
@@ -48,7 +48,7 @@ npx skills add catoncat/sherlog --full-depth --skill sherlog -g -a codex -y
 | coverage/freshness/index availability: 索引缺失、coverage stale、要决定是否同步 | `shlog status --json` / `status --cwd` / `status --selector` | `status` 不回答内容问题,只决定 coverage 和 sync 需求 |
 | mutation: 建索引或更新 coverage | `shlog sync`（first-install 默认 Codex bootstrap）或 `shlog sync --cwd/--root/--selector` | 普通检索不要 `--prune`;Agent 有范围时优先 scoped sync；只有用户明确要求清理已消失 source 的旧索引记录才用 |
 
-在支持 source-aware CLI 的版本里,所有固定命令都可带 `--source <id>`；当前 public CLI 支持 `codex` 和 experimental `claude-code`。`find` 省略 `--source` 等价于跨 public sources 搜索，显式 `--source all` 也可以；其他命令省略 source 仍按 Codex 兼容默认处理。遇到 `unsupported_source`，说明 source id 未知，不要改用 raw source root。Claude Code 支持已公开，但仍是 experimental transcript-reader support；如果安装版直接报 unknown option `--source`,它是旧 CLI；省略 source flags 或更新 CLI。
+在支持 source-aware CLI 的版本里,所有固定命令都可带 `--source <id>`；当前 public CLI 支持 `codex`、experimental `claude-code` 和 experimental `pi`。`find` 省略 `--source` 等价于跨 public sources 搜索，显式 `--source all` 也可以；其他命令省略 source 仍按 Codex 兼容默认处理。遇到 `unsupported_source`，说明 source id 未知，不要改用 raw source root。Claude Code 和 Pi 支持已公开，但仍是 experimental transcript-reader support；如果安装版直接报 unknown option `--source`,它是旧 CLI；省略 source flags 或更新 CLI。
 
 `find` / `list` 返回零结果不是结束条件。遇到零结果、用户说“应该有”、问题涉及最近/当前 repo、或 JSON 里有 `nextAction` 时,必须先按同一范围做 coverage check:
 
@@ -82,7 +82,7 @@ scoped sync，最后重试 read。不要直接跳到 raw source root，也不要
 - `sync` 默认保留已索引历史；raw JSONL 从 source snapshot 中消失后，不要引导用户改查另一个 root。只有用户明确要让 Sherlog 丢弃 source 中已经消失的旧记录时才用 `sync --prune`
 - 用 `status --cwd <path> --json` 或 `status --selector '<json>' --json` 检查目标范围；`requestedCoverage.recommendedAction === "query"` 时直接查，`"sync"` 时才同步
 - `stats.sessionCount` 很多不等于目标范围有 source-aware complete coverage；fresh `{"source":"codex","kind":"all",...}` coverage 可以覆盖同 source/root 下的 cwd/date 子 selector
-- "最新/最近 + 关键词"不要直接把默认 `find` 结果当最新；用 `find <query> --cwd <path> --sort ended` 或 `find <query> --root <dir> --sort ended`，必要时 `--exclude-session <current_uuid>` 排除当前会话/self-hit。若用户明确限定 Codex 或 Claude Code，再加 `--source <id>`。
+- "最新/最近 + 关键词"不要直接把默认 `find` 结果当最新；用 `find <query> --cwd <path> --sort ended` 或 `find <query> --root <dir> --sort ended`，必要时 `--exclude-session <current_uuid>` 排除当前会话/self-hit。若用户明确限定 Codex、Claude Code 或 Pi，再加 `--source <id>`。
 - 混合自然语言 + 英文技术词的问题可以先直接 `find` 原句；新版 CLI 在严格召回为 0 时会保守提取 ASCII 技术词做一次 relaxed recall。仍要用 `read-range` / `read-page` 验证内容，不要只凭命中标题下结论。
 - `find --json` 结果包含 `sourceId` 和 `sessionRef`;后续 read 优先直接用 `sessionRef`。不要自己从 uuid 猜 source。
 - `read-* --json` 返回 `session_not_found` 时看 `nextAction`:这通常是未同步、coverage stale、source/id 不匹配或用户给了另一层 thread/rollout id。先检查 coverage/source 并重试，不要马上下结论。

@@ -1,5 +1,5 @@
 import { resolve } from "node:path";
-import { DEFAULT_SESSION_SOURCE_ID, type Selector, type SessionSourceId } from "./types";
+import { DEFAULT_SESSION_SOURCE_ID, isSessionSourceId, SESSION_SOURCE_IDS, type Selector, type SessionSourceId } from "./types";
 
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 
@@ -119,8 +119,8 @@ function requireDate(value: unknown, field: string): string {
 
 function requireSource(value: unknown): SessionSourceId {
   const source = requireString(value, "source");
-  if (source === "codex" || source === "claude-code") return source;
-  throw new SelectorParseError("selector.source must be codex or claude-code");
+  if (isSessionSourceId(source)) return source;
+  throw new SelectorParseError(`selector.source must be ${formatSourceIds(SESSION_SOURCE_IDS)}`);
 }
 
 function assertDateOrder(fromDate: string, toDate: string): void {
@@ -129,6 +129,12 @@ function assertDateOrder(fromDate: string, toDate: string): void {
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
+}
+
+function formatSourceIds(sourceIds: readonly string[]): string {
+  if (sourceIds.length <= 1) return sourceIds.join("");
+  if (sourceIds.length === 2) return sourceIds.join(" or ");
+  return `${sourceIds.slice(0, -1).join(", ")}, or ${sourceIds[sourceIds.length - 1]}`;
 }
 
 function describeError(error: unknown): string {

@@ -1,6 +1,6 @@
 import { coverageEntriesForSession, getMessagesForPage, getMessagesForRange, getSessionRecord, withSourceAwareReadDb } from "../db";
 import { rerankHits } from "../ranking";
-import { DEFAULT_SESSION_SOURCE_ID, type FindResult, type SessionRecord, type SessionSourceId } from "../types";
+import { DEFAULT_SESSION_SOURCE_ID, isSessionSourceId, type FindResult, type SessionRecord, type SessionSourceId } from "../types";
 import type { Db } from "../db";
 import { searchMessageHits } from "./search";
 
@@ -101,7 +101,7 @@ function resolveAnchorSeq(
 }
 
 function searchTopHitInSession(db: Db, session: SessionRecord, query: string): FindResult | null {
-  const rows = searchMessageHits(db, query, 20, session.id);
+  const rows = searchMessageHits(db, query, 20, session.id, null, { sourceId: session.sourceId });
   const result = rerankHits(rows, query, 1)[0];
   return result ?? null;
 }
@@ -111,7 +111,7 @@ function parseSessionRef(sessionRef: string): { sourceId: SessionSourceId; nativ
   if (separator > 0) {
     const sourceId = sessionRef.slice(0, separator);
     const nativeSessionId = sessionRef.slice(separator + 1);
-    if (sourceId === "codex" || sourceId === "claude-code") return { sourceId, nativeSessionId };
+    if (isSessionSourceId(sourceId)) return { sourceId, nativeSessionId };
   }
   return { sourceId: DEFAULT_SESSION_SOURCE_ID, nativeSessionId: sessionRef };
 }

@@ -2,7 +2,7 @@
 
 ## 项目定位
 
-`Sherlog`（CLI 命令 `shlog`）是一个面向本机 Codex session 日志的渐进式检索 CLI，不是 GUI app，也不是实时同步守护进程。
+`Sherlog`（CLI 命令 `shlog`）是一个面向本机 agent session 日志的渐进式检索 CLI；当前公开 source 包括 `codex`、experimental `claude-code` 和 experimental `pi`。它不是 GUI app，也不是实时同步守护进程。
 
 当前接受的产品边界：
 
@@ -37,7 +37,7 @@
 
 - [cli.ts](/Users/envvar/work/repos/cxs/src/cli.ts): CLI 命令面
 - [indexer.ts](/Users/envvar/work/repos/cxs/src/indexer.ts): sync 与索引更新
-- [parser.ts](/Users/envvar/work/repos/cxs/src/parser.ts): Codex JSONL 解析与 `summary_text` 生成
+- [parser.ts](/Users/envvar/work/repos/cxs/src/parser.ts): Codex JSONL 解析 facade；source-specific parser 在 `src/sources/`
 - [db.ts](/Users/envvar/work/repos/cxs/src/db.ts): SQLite facade；具体 schema / store / coverage 模块在 `src/db/`
 - [query.ts](/Users/envvar/work/repos/cxs/src/query.ts): 查询 facade；find / read / list / stats / search / snippet 模块在 `src/query/`
 - [status.ts](/Users/envvar/work/repos/cxs/src/status.ts): status 输出编排

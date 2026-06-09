@@ -11,7 +11,7 @@ Start by choosing the retrieval primitive, not by running a fixed command chain.
 
 Hard rules:
 
-- Sherlog index is the normal history source of truth; do not query raw Codex JSONL or alternate source roots during normal retrieval.
+- Sherlog index is the normal history source of truth; do not query raw source JSONL or alternate source roots during normal retrieval.
 - Read-only SQLite can shortlist sessions, counts, dates, cwd distributions, and other stable metadata.
 - Stable session metadata fields are `source_id`, `native_session_id`, `session_key`, `session_uuid`, `started_at`, `ended_at`, `cwd`, `title`, `summary_text`, `message_count`, `source_root`, `file_path`.
 - Content claims require `read-range` or `read-page`.
@@ -19,7 +19,7 @@ Hard rules:
 - Do not use `sync --prune` for normal retrieval.
 - `find` default sort is relevance; use `--sort ended` only when the user's question is time-oriented.
 - `matchSource = "session"` means `matchSeq = null`; use `read-page` instead of inventing a seq.
-- Current public sources are `codex` and experimental `claude-code`; `find` omits `--source` to search all public indexed sources by default. Pass `--source codex` or `--source claude-code` only to narrow or diagnose. Other source-scoped commands still omit `--source` as Codex-compatible default. Claude Code is part of the normal CLI surface now, but it is still not a stable raw-format promise.
+- Current public sources are `codex`, experimental `claude-code`, and experimental `pi`; `find` omits `--source` to search all public indexed sources by default. Pass `--source codex`, `--source claude-code`, or `--source pi` only to narrow or diagnose. Other source-scoped commands still omit `--source` as Codex-compatible default. Claude Code and Pi are part of the normal CLI surface now, but they are still not stable raw-format promises.
 
 ## Scenario 1: Metadata Projection
 
