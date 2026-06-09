@@ -30,6 +30,7 @@ import {
   getMessagePage,
   getMessageRange,
   listSessionSummaries,
+  SessionNotFoundError,
 } from "./query";
 import { canonicalizeSelector, parseSelectorJson, SelectorParseError, selectorSource } from "./selector";
 import { collectStatus } from "./status";
@@ -338,6 +339,10 @@ function runReadCommand(jsonMode: boolean, action: () => void): void {
       emitIndexSchemaUpgradeRequiredError(error, jsonMode);
       return;
     }
+    if (error instanceof SessionNotFoundError) {
+      emitSessionNotFoundError(error, jsonMode);
+      return;
+    }
     if (error instanceof SelectorParseError) {
       emitSelectorError(error, jsonMode);
       return;
@@ -621,6 +626,65 @@ function emitIndexSchemaUpgradeRequiredError(error: IndexSchemaUpgradeRequiredEr
     console.error(`${error.message}\n${hint}`);
   }
   process.exitCode = 1;
+}
+
+function emitSessionNotFoundError(error: SessionNotFoundError, jsonMode: boolean): void {
+  const nextAction = buildSessionNotFoundNextAction(error);
+  const hint =
+    `Sherlog only reads indexed sessions. The raw session may exist but not be synced yet, ` +
+    `or the id/source may not match this index. Run \`${PROGRAM_NAME} status --source ${error.sourceId} --json\`; ` +
+    `if coverage is missing or stale, run \`${PROGRAM_NAME} sync --source ${error.sourceId}\`, then retry.`;
+  if (jsonMode) {
+    console.log(
+      JSON.stringify(
+        {
+          error: {
+            code: "session_not_found",
+            message: error.message,
+            sessionRef: error.sessionRef,
+            sourceId: error.sourceId,
+            nativeSessionId: error.nativeSessionId,
+            hint,
+            nextAction,
+          },
+        },
+        null,
+        2,
+      ),
+    );
+  } else {
+    console.error(`${error.message}\n${hint}`);
+  }
+  process.exitCode = 1;
+}
+
+function buildSessionNotFoundNextAction(error: SessionNotFoundError) {
+  return {
+    kind: "check_coverage_then_retry_read",
+    reason: "session_not_found",
+    steps: [
+      `Verify that ${error.sessionRef} is the right sessionRef and source. If needed, use a source-qualified ref such as ${error.sourceId}:${error.nativeSessionId}.`,
+      `Run ${PROGRAM_NAME} status --source ${error.sourceId} --json to check index freshness.`,
+      `If status reports missing or stale coverage, run ${PROGRAM_NAME} sync --source ${error.sourceId} and retry the read command.`,
+    ],
+    commands: [
+      {
+        label: "check source coverage",
+        recommended: true,
+        argv: [PROGRAM_NAME, "status", "--source", error.sourceId, "--json"],
+      },
+      {
+        label: "refresh default source index",
+        recommended: false,
+        argv: [PROGRAM_NAME, "sync", "--source", error.sourceId],
+      },
+      {
+        label: "retry read-page",
+        recommended: false,
+        argv: [PROGRAM_NAME, "read-page", error.sessionRef],
+      },
+    ],
+  };
 }
 
 function emitSelectorError(error: SelectorParseError, jsonMode: boolean): void {

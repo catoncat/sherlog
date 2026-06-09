@@ -1,8 +1,23 @@
 import { coverageEntriesForSession, getMessagesForPage, getMessagesForRange, getSessionRecord, withSourceAwareReadDb } from "../db";
 import { rerankHits } from "../ranking";
-import type { FindResult, SessionRecord } from "../types";
+import { DEFAULT_SESSION_SOURCE_ID, type FindResult, type SessionRecord, type SessionSourceId } from "../types";
 import type { Db } from "../db";
 import { searchMessageHits } from "./search";
+
+export class SessionNotFoundError extends Error {
+  sessionRef: string;
+  sourceId: SessionSourceId;
+  nativeSessionId: string;
+
+  constructor(sessionRef: string) {
+    const identity = parseSessionRef(sessionRef);
+    super(`session not found in Sherlog index: ${sessionRef}`);
+    this.name = "SessionNotFoundError";
+    this.sessionRef = sessionRef;
+    this.sourceId = identity.sourceId;
+    this.nativeSessionId = identity.nativeSessionId;
+  }
+}
 
 export function getMessageRange(
   dbPath: string,
@@ -18,7 +33,7 @@ export function getMessageRange(
 } {
   return withSourceAwareReadDb(dbPath, (db) => {
     const session = getSessionRecord(db, sessionUuid);
-    if (!session) throw new Error(`session not found: ${sessionUuid}`);
+    if (!session) throw new SessionNotFoundError(sessionUuid);
     const anchorSeq = resolveAnchorSeq(db, session, options.seq, options.query);
 
     const rangeStartSeq = Math.max(0, anchorSeq - options.before);
@@ -51,7 +66,7 @@ export function getMessagePage(
 } {
   return withSourceAwareReadDb(dbPath, (db) => {
     const session = getSessionRecord(db, sessionUuid);
-    if (!session) throw new Error(`session not found: ${sessionUuid}`);
+    if (!session) throw new SessionNotFoundError(sessionUuid);
     const messages = getMessagesForPage(db, session.id, offset, limit);
     const totalCount = session.messageCount;
     const hasMore = offset + messages.length < totalCount;
@@ -89,4 +104,14 @@ function searchTopHitInSession(db: Db, session: SessionRecord, query: string): F
   const rows = searchMessageHits(db, query, 20, session.id);
   const result = rerankHits(rows, query, 1)[0];
   return result ?? null;
+}
+
+function parseSessionRef(sessionRef: string): { sourceId: SessionSourceId; nativeSessionId: string } {
+  const separator = sessionRef.indexOf(":");
+  if (separator > 0) {
+    const sourceId = sessionRef.slice(0, separator);
+    const nativeSessionId = sessionRef.slice(separator + 1);
+    if (sourceId === "codex" || sourceId === "claude-code") return { sourceId, nativeSessionId };
+  }
+  return { sourceId: DEFAULT_SESSION_SOURCE_ID, nativeSessionId: sessionRef };
 }
