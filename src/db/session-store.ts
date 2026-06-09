@@ -1,5 +1,5 @@
 import { tokenizedText } from "../tokenize";
-import { DEFAULT_SESSION_SOURCE_ID, type ParsedSession, type SessionRecord, type SessionSourceId } from "../types";
+import { DEFAULT_SESSION_SOURCE_ID, isSessionSourceId, type ParsedSession, type SessionRecord, type SessionSourceId } from "../types";
 import type { Db } from "./shared";
 import { sessionRootFromFile } from "./sql";
 
@@ -271,7 +271,7 @@ function parseSessionRef(sessionRef: string): { sourceId: SessionSourceId; nativ
   if (separator > 0) {
     const sourceId = sessionRef.slice(0, separator);
     const nativeSessionId = sessionRef.slice(separator + 1);
-    if (sourceId === "codex" || sourceId === "claude-code" || sourceId === "pi") return { sourceId, nativeSessionId };
+    if (isSessionSourceId(sourceId)) return { sourceId, nativeSessionId };
   }
   return { sourceId: DEFAULT_SESSION_SOURCE_ID, nativeSessionId: sessionRef };
 }
