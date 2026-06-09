@@ -1,6 +1,8 @@
 import { createHash } from "node:crypto";
-import { opendir, open, stat } from "node:fs/promises";
+import { createReadStream } from "node:fs";
+import { opendir, stat } from "node:fs/promises";
 import { resolve, sep } from "node:path";
+import { createInterface } from "node:readline";
 import { canonicalizeSelector, selectorContainsFile, selectorSource } from "../selector";
 import type {
   DateRange,
@@ -13,7 +15,7 @@ import type {
 import { SourceInventoryError } from "./codex-inventory";
 import { acceptedPiCompactionRecord, acceptedPiMessageRecord, acceptedPiSessionRecord, timestampDate } from "./pi-policy";
 
-const METADATA_SCAN_BYTES = 64 * 1024;
+const ACCEPTED_METADATA_RECORD_LIMIT = 2;
 
 interface PiSourceFileMeta extends SourceFileMeta {
   acceptedFingerprint: string;
@@ -101,20 +103,16 @@ async function readAcceptedMetadataAsync(filePath: string): Promise<{ cwd: strin
   let pathDate: string | null = null;
   let acceptedCount = 0;
   const hash = createHash("sha256");
-  let fh = null;
+  const input = createReadStream(filePath, { encoding: "utf8" });
 
   try {
-    fh = await open(filePath, "r");
-    const buffer = Buffer.allocUnsafe(METADATA_SCAN_BYTES);
-    const { bytesRead } = await fh.read(buffer, 0, METADATA_SCAN_BYTES, 0);
-    const prefix = buffer.subarray(0, bytesRead).toString("utf8");
-    let cursor = 0;
-    while (cursor < prefix.length) {
-      let end = prefix.indexOf("\n", cursor);
-      if (end === -1) end = prefix.length;
+    const lineReader = createInterface({
+      input,
+      crlfDelay: Infinity,
+    });
 
-      const line = prefix.slice(cursor, end).trim();
-      cursor = end + 1;
+    for await (const rawLine of lineReader) {
+      const line = rawLine.trim();
       if (!line) continue;
 
       let record: Record<string, unknown>;
@@ -147,6 +145,7 @@ async function readAcceptedMetadataAsync(filePath: string): Promise<{ cwd: strin
         hash.update(message.timestamp);
         hash.update("\0");
         hash.update(message.contentText);
+        if (acceptedCount >= ACCEPTED_METADATA_RECORD_LIMIT) break;
         continue;
       }
 
@@ -158,18 +157,13 @@ async function readAcceptedMetadataAsync(filePath: string): Promise<{ cwd: strin
         hash.update(compaction.timestamp);
         hash.update("\0");
         hash.update(compaction.summaryText);
+        if (acceptedCount >= ACCEPTED_METADATA_RECORD_LIMIT) break;
       }
     }
   } catch {
     return null;
   } finally {
-    if (fh !== null) {
-      try {
-        await fh.close();
-      } catch {
-        // Best-effort metadata scan; parser/sync handles real file errors.
-      }
-    }
+    input.destroy();
   }
 
   if (acceptedCount === 0) return null;

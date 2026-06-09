@@ -333,6 +333,33 @@ describe("pi source adapter", () => {
     expect(foundBeforeResync.results).toEqual([]);
   });
 
+  test("syncs Pi sessions whose first accepted message line exceeds the metadata scan window", async () => {
+    const longNeedle = `first accepted pi long needle ${"x".repeat(70_000)} tail`;
+    const { root } = writePiFixture("long-first-message", [
+      piLine({ type: "session", id: "pi-long-first-session", cwd: "/tmp/pi-long-first-cwd", timestamp: "2026-06-09T00:00:00.000Z" }),
+      piLine({
+        type: "message",
+        timestamp: "2026-06-09T00:00:01.000Z",
+        message: { role: "user", content: [{ type: "text", text: longNeedle }] },
+      }),
+    ]);
+    const dbPath = join(root, "index.sqlite");
+
+    const summary = await syncSessions({
+      dbPath,
+      sourceId: "pi",
+      selector: { source: "pi", kind: "all", root },
+    });
+
+    expect(summary.errors).toBe(0);
+    expect(summary.added).toBe(1);
+    expect(summary.coverage.sourceFileCount).toBe(1);
+    expect(summary.coverage.indexedSessionCount).toBe(1);
+
+    const found = findSessions(dbPath, "first accepted pi long needle", 10, { source: "pi", kind: "all", root }, { sourceId: "pi" });
+    expect(found.results.map((result) => result.sessionUuid)).toEqual(["pi:pi-long-first-session"]);
+  });
+
   test("fallback session ids stay unique when different directories share the same file name", async () => {
     const { root } = writePiFixtureTree("fallback-session-id", [
       {
