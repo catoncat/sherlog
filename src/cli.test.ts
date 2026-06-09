@@ -1133,9 +1133,76 @@ describe("shlog cli", { timeout: 20_000 }, () => {
     expect(payload.error.hint).toContain("shlog sync --source codex");
     expect(payload.error.nextAction.kind).toBe("check_coverage_then_retry_read");
     expect(payload.error.nextAction.reason).toBe("session_not_found");
-    expect(payload.error.nextAction.commands[0]?.argv).toEqual(["shlog", "status", "--source", "codex", "--json"]);
-    expect(payload.error.nextAction.commands[1]?.argv).toEqual(["shlog", "sync", "--source", "codex"]);
-    expect(payload.error.nextAction.commands[2]?.argv).toEqual(["shlog", "read-page", "codex:34343434-3434-4343-8434-343434343434"]);
+    expect(payload.error.nextAction.commands[0]?.argv).toEqual(["shlog", "status", "--source", "codex", "--db", dbPath, "--json"]);
+    expect(payload.error.nextAction.commands[1]?.argv).toEqual(["shlog", "sync", "--source", "codex", "--db", dbPath]);
+    expect(payload.error.nextAction.commands[2]?.argv).toEqual([
+      "shlog",
+      "read-page",
+      "codex:34343434-3434-4343-8434-343434343434",
+      "--offset",
+      "0",
+      "--limit",
+      "20",
+      "--db",
+      dbPath,
+    ]);
+  });
+
+  test("read-range --json retry guidance preserves the read-range invocation", async () => {
+    const base = mkdtempSync(join(tmpdir(), "cxs-cli-missing-range-session-"));
+    tempDirs.push(base);
+    const sessionsRoot = join(base, "sessions", "2026", "04", "21");
+    mkdirSync(sessionsRoot, { recursive: true });
+
+    writeFileSync(
+      join(sessionsRoot, "rollout-2026-04-21T10-00-00-12121212-1212-4121-8121-121212121212.jsonl"),
+      [
+        line("session_meta", { id: "12121212-1212-4121-8121-121212121212", cwd: "/tmp/indexed" }),
+        line("event_msg", { type: "user_message", message: "already indexed" }),
+      ].join("\n"),
+    );
+
+    const dbPath = join(base, "index.sqlite");
+    await syncSessions({ dbPath, rootDir: join(base, "sessions") });
+
+    const result = await runCli([
+      "read-range",
+      "34343434-3434-4343-8434-343434343434",
+      "--seq",
+      "7",
+      "--before",
+      "1",
+      "--after",
+      "3",
+      "--json",
+      "--db",
+      dbPath,
+    ]);
+
+    expect(result.exitCode).toBe(1);
+    expect(result.stderr).toBe("");
+    const payload = JSON.parse(result.stdout) as {
+      error: {
+        code: string;
+        nextAction: {
+          commands: Array<{ label: string; recommended: boolean; argv: string[] }>;
+        };
+      };
+    };
+    expect(payload.error.code).toBe("session_not_found");
+    expect(payload.error.nextAction.commands[2]?.argv).toEqual([
+      "shlog",
+      "read-range",
+      "codex:34343434-3434-4343-8434-343434343434",
+      "--seq",
+      "7",
+      "--before",
+      "1",
+      "--after",
+      "3",
+      "--db",
+      dbPath,
+    ]);
   });
 
   test("list filters by cwd substring and respects sort", async () => {
