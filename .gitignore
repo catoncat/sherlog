@@ -13,3 +13,9 @@ data/
 research/
 .ml-cache/
 .mainline/local.toml
+.antigravitycli/
+.playwright-mcp/
+skills-lock.json
+/dark.png
+/light.png
+/zh.png
