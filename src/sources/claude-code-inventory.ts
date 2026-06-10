@@ -26,6 +26,11 @@ interface CollectSourceFilesOptions {
 export async function collectClaudeCodeSourceInventory(root: string): Promise<SourceInventory> {
   const resolvedRoot = resolve(root);
   const files = await collectClaudeCodeSourceFiles(resolvedRoot);
+  return claudeCodeSourceInventoryFromFiles(resolvedRoot, files);
+}
+
+export function claudeCodeSourceInventoryFromFiles(root: string, files: SourceFileMeta[]): SourceInventory {
+  const resolvedRoot = resolve(root);
   return {
     root: resolvedRoot,
     totalFiles: files.length,
@@ -38,7 +43,13 @@ export async function collectClaudeCodeSourceSnapshot(selector: Selector, option
   const canonical = canonicalizeSelector(selector, { defaultSource: "claude-code" });
   assertClaudeSelector(canonical);
   const allFiles = await collectClaudeCodeSourceFiles(canonical.root, options);
-  const files = allFiles.filter((file) => selectorContainsFile(canonical, file));
+  return claudeCodeSourceSnapshotFromFiles(canonical, allFiles);
+}
+
+export function claudeCodeSourceSnapshotFromFiles(selector: Selector, allFiles: SourceFileMeta[]): SourceSnapshot {
+  const canonical = canonicalizeSelector(selector, { defaultSource: "claude-code" });
+  assertClaudeSelector(canonical);
+  const files = allFiles.filter((file) => selectorContainsFile(canonical, file)) as ClaudeSourceFileMeta[];
   return {
     selector: canonical,
     fingerprint: fingerprintFiles(canonical.root, files),

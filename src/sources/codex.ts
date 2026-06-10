@@ -1,6 +1,12 @@
 import { DEFAULT_CODEX_DIR, resolveCodexDir } from "../env";
 import type { Selector, SourceFileMeta } from "../types";
-import { collectCodexSourceInventory, collectCodexSourceSnapshot } from "./codex-inventory";
+import {
+  codexSourceInventoryFromFiles,
+  codexSourceSnapshotFromFiles,
+  collectCodexSourceFiles,
+  collectCodexSourceInventory,
+  collectCodexSourceSnapshot,
+} from "./codex-inventory";
 import { parseCodexSession } from "./codex-parser";
 import type { SessionSourceAdapter, SourceSnapshotOptions } from "./types";
 
@@ -13,6 +19,15 @@ export const codexSourceAdapter: SessionSourceAdapter = {
   },
   resolveRoot(override?: string) {
     return resolveCodexDir(override);
+  },
+  collectFiles(root: string) {
+    return collectCodexSourceFiles(root);
+  },
+  inventoryFromFiles(root: string, files: SourceFileMeta[]) {
+    return codexSourceInventoryFromFiles(root, files);
+  },
+  snapshotFromFiles(selector: Selector, files: SourceFileMeta[]) {
+    return codexSourceSnapshotFromFiles(selector, files);
   },
   collectInventory(root: string) {
     return collectCodexSourceInventory(root);

@@ -13,6 +13,18 @@ export const claudeCodeSourceAdapter: SessionSourceAdapter = {
   resolveRoot(override?: string) {
     return resolve(override ?? this.defaultRoot());
   },
+  async collectFiles(root: string) {
+    const { collectClaudeCodeSourceFiles } = await import("./claude-code-inventory");
+    return collectClaudeCodeSourceFiles(root);
+  },
+  async inventoryFromFiles(root: string, files: SourceFileMeta[]) {
+    const { claudeCodeSourceInventoryFromFiles } = await import("./claude-code-inventory");
+    return claudeCodeSourceInventoryFromFiles(root, files);
+  },
+  async snapshotFromFiles(selector: Selector, files: SourceFileMeta[]) {
+    const { claudeCodeSourceSnapshotFromFiles } = await import("./claude-code-inventory");
+    return claudeCodeSourceSnapshotFromFiles(selector, files);
+  },
   async collectInventory(root: string) {
     const { collectClaudeCodeSourceInventory } = await import("./claude-code-inventory");
     return collectClaudeCodeSourceInventory(root);

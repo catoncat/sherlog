@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, afterEach } from "vitest";
+import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { existsSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
@@ -6,6 +6,7 @@ import { collectStatus } from "./status";
 import { openWriteDb, replaceCoverage } from "./db";
 import { INDEX_VERSION } from "./env";
 import { collectSourceSnapshot } from "./source-inventory";
+import { getSessionSourceAdapter } from "./sources";
 import type { Selector } from "./types";
 
 describe("collectStatus", () => {
@@ -27,6 +28,7 @@ describe("collectStatus", () => {
   });
 
   afterEach(() => {
+    vi.restoreAllMocks();
     if (existsSync(tempDir)) {
       rmSync(tempDir, { recursive: true, force: true });
     }
@@ -74,6 +76,39 @@ describe("collectStatus", () => {
     const status = await collectStatus({ rootDir: tempDir, dbPath });
     expect(status.coverage.length).toBe(1);
     expect(status.coverage[0].freshness).toBe("stale");
+  });
+
+  it("reuses one source file scan for multiple coverage freshness checks on the same root", async () => {
+    const db = openWriteDb(dbPath);
+    const allSelector: Selector = { kind: "all", root: tempDir };
+    const cwdSelector: Selector = { kind: "cwd", root: tempDir, cwd: "/test/project" };
+    const dateSelector: Selector = {
+      kind: "date_range",
+      root: tempDir,
+      fromDate: "2023-10-01",
+      toDate: "2023-10-01",
+    };
+
+    for (const selector of [allSelector, cwdSelector, dateSelector]) {
+      const snapshot = await collectSourceSnapshot(selector);
+      replaceCoverage(db, selector, snapshot.fingerprint, snapshot.fileCount, 1, INDEX_VERSION);
+    }
+    db.close();
+
+    const adapter = getSessionSourceAdapter("codex") as ReturnType<typeof getSessionSourceAdapter> & {
+      collectFiles?: (root: string) => Promise<unknown[]>;
+    };
+    expect(adapter.collectFiles).toBeDefined();
+    const collectFilesSpy = vi.spyOn(adapter as ReturnType<typeof getSessionSourceAdapter> & {
+      collectFiles: (root: string) => Promise<unknown[]>;
+    }, "collectFiles");
+
+    const status = await collectStatus({ rootDir: tempDir, dbPath, selector: cwdSelector });
+
+    expect(status.coverage).toHaveLength(3);
+    expect(status.coverage.map((entry) => entry.freshness)).toEqual(["fresh", "fresh", "fresh"]);
+    expect(status.requestedCoverage?.freshness).toBe("fresh");
+    expect(collectFilesSpy).toHaveBeenCalledTimes(1);
   });
 
   it("calculates requestedCoverage correctly when requested selector has fresh coverage", async () => {

@@ -3,18 +3,31 @@ import { INDEX_VERSION, DEFAULT_DB_PATH, isCurrentIndexVersion } from "./env";
 import { getStatsCounts, listCoverageRecords, withReadDb, type Db } from "./db";
 import { selectorImplies, selectorSource } from "./selector";
 import { getSessionSourceAdapter } from "./sources";
-import type { CoverageInventoryStatus, CoverageRecord, RequestedCoverageStatus, Selector, SessionSourceId, StatusSummary } from "./types";
+import type { SessionSourceAdapter } from "./sources/types";
+import type {
+  CoverageInventoryStatus,
+  CoverageRecord,
+  RequestedCoverageStatus,
+  Selector,
+  SessionSourceId,
+  SourceFileMeta,
+  SourceInventory,
+  StatusSummary,
+} from "./types";
 
 export async function collectStatus(options: { sourceId?: SessionSourceId; rootDir?: string; dbPath?: string; cwd?: string; selector?: Selector } = {}): Promise<StatusSummary> {
   const source = getSessionSourceAdapter(options.sourceId ?? "codex");
   const root = source.resolveRoot(options.rootDir);
   const dbPath = options.dbPath ?? DEFAULT_DB_PATH;
-  const sourceInventory = await source.collectInventory(root);
+  const contextCache = new Map<string, Promise<StatusSourceContext>>();
+  const getContext = (sourceId: SessionSourceId, rootDir: string) =>
+    getStatusSourceContext(contextCache, sourceId, rootDir);
+  const sourceInventory = (await getContext(source.id, root)).inventory;
   const index = collectIndexStatus(dbPath);
   const coverage = existsSync(dbPath) ? withReadDb(dbPath, (db) => listCoverageRecordsForStatus(db, source.id)) : [];
   const coverageStatus: CoverageInventoryStatus[] = [];
   for (const record of coverage) {
-    coverageStatus.push(await toCoverageInventoryStatus(record));
+    coverageStatus.push(await toCoverageInventoryStatus(record, getContext));
   }
   const summary: StatusSummary = {
     context: {
@@ -28,9 +41,42 @@ export async function collectStatus(options: { sourceId?: SessionSourceId; rootD
     coverage: coverageStatus,
   };
   if (options.selector) {
-    summary.requestedCoverage = await requestedCoverageStatus(options.selector, coverageStatus);
+    summary.requestedCoverage = await requestedCoverageStatus(options.selector, coverageStatus, getContext);
   }
   return summary;
+}
+
+interface StatusSourceContext {
+  source: SessionSourceAdapter;
+  files: SourceFileMeta[];
+  inventory: SourceInventory;
+}
+
+function statusSourceCacheKey(sourceId: SessionSourceId, root: string): string {
+  return `${sourceId}\0${root}`;
+}
+
+function getStatusSourceContext(
+  cache: Map<string, Promise<StatusSourceContext>>,
+  sourceId: SessionSourceId,
+  rootDir: string,
+): Promise<StatusSourceContext> {
+  const source = getSessionSourceAdapter(sourceId);
+  const root = source.resolveRoot(rootDir);
+  const key = statusSourceCacheKey(source.id, root);
+  let context = cache.get(key);
+  if (!context) {
+    context = (async () => {
+      const files = await source.collectFiles(root);
+      return {
+        source,
+        files,
+        inventory: await source.inventoryFromFiles(root, files),
+      };
+    })();
+    cache.set(key, context);
+  }
+  return context;
 }
 
 function collectIndexStatus(dbPath: string): StatusSummary["index"] {
@@ -116,9 +162,12 @@ function tableExists(db: Db, tableName: string): boolean {
     .get(tableName) !== undefined;
 }
 
-async function toCoverageInventoryStatus(record: CoverageRecord): Promise<CoverageInventoryStatus> {
-  const source = getSessionSourceAdapter(selectorSource(record.selector));
-  const snapshot = await source.collectSnapshot(record.selector);
+async function toCoverageInventoryStatus(
+  record: CoverageRecord,
+  getContext: (sourceId: SessionSourceId, root: string) => Promise<StatusSourceContext>,
+): Promise<CoverageInventoryStatus> {
+  const context = await getContext(selectorSource(record.selector), record.selector.root);
+  const snapshot = await context.source.snapshotFromFiles(record.selector, context.files);
   const fresh = snapshot.fingerprint === record.sourceFingerprint
     && snapshot.fileCount === record.sourceFileCount
     && isCurrentIndexVersion(record.indexVersion);
@@ -133,9 +182,10 @@ async function toCoverageInventoryStatus(record: CoverageRecord): Promise<Covera
 async function requestedCoverageStatus(
   selector: Selector,
   coverage: CoverageInventoryStatus[],
+  getContext: (sourceId: SessionSourceId, root: string) => Promise<StatusSourceContext>,
 ): Promise<RequestedCoverageStatus> {
-  const source = getSessionSourceAdapter(selectorSource(selector));
-  const snapshot = await source.collectSnapshot(selector);
+  const context = await getContext(selectorSource(selector), selector.root);
+  const snapshot = await context.source.snapshotFromFiles(selector, context.files);
   const coveringSelectors = coverage.filter((entry) =>
     isCurrentIndexVersion(entry.indexVersion) && selectorImplies(entry.selector, selector)
   );

@@ -31,6 +31,11 @@ export class SourceInventoryError extends Error {
 export async function collectCodexSourceInventory(root: string): Promise<SourceInventory> {
   const resolvedRoot = resolve(root);
   const files = await collectCodexSourceFiles(resolvedRoot);
+  return codexSourceInventoryFromFiles(resolvedRoot, files);
+}
+
+export function codexSourceInventoryFromFiles(root: string, files: SourceFileMeta[]): SourceInventory {
+  const resolvedRoot = resolve(root);
   return {
     root: resolvedRoot,
     totalFiles: files.length,
@@ -45,6 +50,11 @@ export async function collectCodexSourceSnapshot(selector: Selector, options: Co
     ...options,
     requireCwdMetadata: options.requireCwdMetadata ?? (canonical.kind === "cwd" || canonical.kind === "cwd_date_range"),
   });
+  return codexSourceSnapshotFromFiles(canonical, allFiles);
+}
+
+export function codexSourceSnapshotFromFiles(selector: Selector, allFiles: SourceFileMeta[]): SourceSnapshot {
+  const canonical = canonicalizeSelector(selector);
   const files = allFiles.filter((file) => selectorContainsFile(canonical, file));
   return {
     selector: canonical,

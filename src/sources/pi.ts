@@ -13,6 +13,18 @@ export const piSourceAdapter: SessionSourceAdapter = {
   resolveRoot(override?: string) {
     return resolve(override ?? this.defaultRoot());
   },
+  async collectFiles(root: string) {
+    const { collectPiSourceFiles } = await import("./pi-inventory");
+    return collectPiSourceFiles(root);
+  },
+  async inventoryFromFiles(root: string, files: SourceFileMeta[]) {
+    const { piSourceInventoryFromFiles } = await import("./pi-inventory");
+    return piSourceInventoryFromFiles(root, files);
+  },
+  async snapshotFromFiles(selector: Selector, files: SourceFileMeta[]) {
+    const { piSourceSnapshotFromFiles } = await import("./pi-inventory");
+    return piSourceSnapshotFromFiles(selector, files);
+  },
   async collectInventory(root: string) {
     const { collectPiSourceInventory } = await import("./pi-inventory");
     return collectPiSourceInventory(root);

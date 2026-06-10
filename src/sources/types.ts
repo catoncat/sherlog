@@ -13,6 +13,9 @@ export interface SessionSourceAdapter {
   displayName: string;
   defaultRoot(): string;
   resolveRoot(override?: string): string;
+  collectFiles(root: string): Promise<SourceFileMeta[]>;
+  inventoryFromFiles(root: string, files: SourceFileMeta[]): SourceInventory | Promise<SourceInventory>;
+  snapshotFromFiles(selector: Selector, files: SourceFileMeta[]): SourceSnapshot | Promise<SourceSnapshot>;
   collectInventory(root: string): Promise<SourceInventory>;
   collectSnapshot(selector: Selector, options?: SourceSnapshotOptions): Promise<SourceSnapshot>;
   parseFile(file: SourceFileMeta): Promise<ParseSessionResult>;

@@ -28,6 +28,11 @@ interface CollectSourceFilesOptions {
 export async function collectPiSourceInventory(root: string): Promise<SourceInventory> {
   const resolvedRoot = resolve(root);
   const files = await collectPiSourceFiles(resolvedRoot);
+  return piSourceInventoryFromFiles(resolvedRoot, files);
+}
+
+export function piSourceInventoryFromFiles(root: string, files: SourceFileMeta[]): SourceInventory {
+  const resolvedRoot = resolve(root);
   return {
     root: resolvedRoot,
     totalFiles: files.length,
@@ -40,7 +45,13 @@ export async function collectPiSourceSnapshot(selector: Selector, options: Colle
   const canonical = canonicalizeSelector(selector, { defaultSource: "pi" });
   assertPiSelector(canonical);
   const allFiles = await collectPiSourceFiles(canonical.root, options);
-  const files = allFiles.filter((file) => selectorContainsFile(canonical, file));
+  return piSourceSnapshotFromFiles(canonical, allFiles);
+}
+
+export function piSourceSnapshotFromFiles(selector: Selector, allFiles: SourceFileMeta[]): SourceSnapshot {
+  const canonical = canonicalizeSelector(selector, { defaultSource: "pi" });
+  assertPiSelector(canonical);
+  const files = allFiles.filter((file) => selectorContainsFile(canonical, file)) as PiSourceFileMeta[];
   return {
     selector: canonical,
     fingerprint: fingerprintFiles(canonical.root, files),
