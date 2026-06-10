@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 import { opendir, open, stat } from "node:fs/promises";
 import { resolve, sep } from "node:path";
 import { canonicalizeSelector, selectorContainsFile } from "../selector";
+import { mapWithConcurrency } from "./concurrency";
 import type {
   DateRange,
   Selector,
@@ -12,6 +13,7 @@ import type {
 } from "../types";
 
 const CWD_SCAN_BYTES = 64 * 1024;
+const SOURCE_FILE_METADATA_CONCURRENCY = 32;
 
 interface CollectSourceFilesOptions {
   strict?: boolean;
@@ -65,10 +67,12 @@ export function codexSourceSnapshotFromFiles(selector: Selector, allFiles: Sourc
 }
 
 export async function collectCodexSourceFiles(root: string, options: CollectSourceFilesOptions = {}): Promise<SourceFileMeta[]> {
-  const files: SourceFileMeta[] = [];
-  await walkAsync(resolve(root), files, options);
-  files.sort((a, b) => a.filePath.localeCompare(b.filePath));
-  return files;
+  const filePaths: string[] = [];
+  await collectSourceFilePaths(resolve(root), filePaths, options);
+  const files = await mapWithConcurrency(filePaths, SOURCE_FILE_METADATA_CONCURRENCY, (filePath) =>
+    readSourceFileMeta(filePath, options)
+  );
+  return files.filter((file): file is SourceFileMeta => file !== null).sort((a, b) => a.filePath.localeCompare(b.filePath));
 }
 
 export function extractCodexPathDate(filePath: string): string | null {
@@ -79,7 +83,7 @@ export function extractCodexPathDate(filePath: string): string | null {
   return null;
 }
 
-async function walkAsync(currentDir: string, files: SourceFileMeta[], options: CollectSourceFilesOptions): Promise<void> {
+async function collectSourceFilePaths(currentDir: string, filePaths: string[], options: CollectSourceFilesOptions): Promise<void> {
   let dirHandle;
   try {
     dirHandle = await opendir(currentDir);
@@ -95,25 +99,29 @@ async function walkAsync(currentDir: string, files: SourceFileMeta[], options: C
   for await (const entry of dirHandle) {
     const fullPath = `${currentDir}/${entry.name}`;
     if (entry.isDirectory()) {
-      await walkAsync(fullPath, files, options);
+      await collectSourceFilePaths(fullPath, filePaths, options);
       continue;
     }
     if (!entry.isFile() || !entry.name.endsWith(".jsonl")) continue;
 
-    try {
-      const stats = await stat(fullPath);
-      const cwd = await readCwdMetadataAsync(fullPath, options);
-      files.push({
-        filePath: fullPath,
-        pathDate: extractCodexPathDate(fullPath),
-        cwd,
-        mtimeMs: stats.mtimeMs,
-        size: stats.size,
-      });
-    } catch (error) {
-      if (options.strict) throw error instanceof SourceInventoryError ? error : new SourceInventoryError(fullPath, "stat file", error);
-      continue;
-    }
+    filePaths.push(fullPath);
+  }
+}
+
+async function readSourceFileMeta(filePath: string, options: CollectSourceFilesOptions): Promise<SourceFileMeta | null> {
+  try {
+    const stats = await stat(filePath);
+    const cwd = await readCwdMetadataAsync(filePath, options);
+    return {
+      filePath,
+      pathDate: extractCodexPathDate(filePath),
+      cwd,
+      mtimeMs: stats.mtimeMs,
+      size: stats.size,
+    };
+  } catch (error) {
+    if (options.strict) throw error instanceof SourceInventoryError ? error : new SourceInventoryError(filePath, "stat file", error);
+    return null;
   }
 }
 

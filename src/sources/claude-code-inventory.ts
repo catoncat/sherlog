@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 import { opendir, open, stat } from "node:fs/promises";
 import { resolve, sep } from "node:path";
 import { canonicalizeSelector, selectorContainsFile, selectorSource } from "../selector";
+import { mapWithConcurrency } from "./concurrency";
 import type {
   DateRange,
   Selector,
@@ -14,6 +15,7 @@ import { acceptedClaudeRecord, timestampDate } from "./claude-code-policy";
 import { SourceInventoryError } from "./codex-inventory";
 
 const METADATA_SCAN_BYTES = 64 * 1024;
+const SOURCE_FILE_METADATA_CONCURRENCY = 32;
 
 interface ClaudeSourceFileMeta extends SourceFileMeta {
   acceptedFingerprint: string;
@@ -59,10 +61,12 @@ export function claudeCodeSourceSnapshotFromFiles(selector: Selector, allFiles: 
 }
 
 export async function collectClaudeCodeSourceFiles(root: string, options: CollectSourceFilesOptions = {}): Promise<ClaudeSourceFileMeta[]> {
-  const files: ClaudeSourceFileMeta[] = [];
-  await walkAsync(resolve(root), files, options);
-  files.sort((a, b) => a.filePath.localeCompare(b.filePath));
-  return files;
+  const filePaths: string[] = [];
+  await collectSourceFilePaths(resolve(root), filePaths, options);
+  const files = await mapWithConcurrency(filePaths, SOURCE_FILE_METADATA_CONCURRENCY, (filePath) =>
+    readSourceFileMeta(filePath, options)
+  );
+  return files.filter((file): file is ClaudeSourceFileMeta => file !== null).sort((a, b) => a.filePath.localeCompare(b.filePath));
 }
 
 function assertClaudeSelector(selector: Selector): void {
@@ -72,7 +76,7 @@ function assertClaudeSelector(selector: Selector): void {
   }
 }
 
-async function walkAsync(currentDir: string, files: ClaudeSourceFileMeta[], options: CollectSourceFilesOptions): Promise<void> {
+async function collectSourceFilePaths(currentDir: string, filePaths: string[], options: CollectSourceFilesOptions): Promise<void> {
   let dirHandle;
   try {
     dirHandle = await opendir(currentDir);
@@ -84,26 +88,31 @@ async function walkAsync(currentDir: string, files: ClaudeSourceFileMeta[], opti
   for await (const entry of dirHandle) {
     const fullPath = `${currentDir}/${entry.name}`;
     if (entry.isDirectory()) {
-      await walkAsync(fullPath, files, options);
+      await collectSourceFilePaths(fullPath, filePaths, options);
       continue;
     }
     if (!entry.isFile() || !entry.name.endsWith(".jsonl")) continue;
 
-    try {
-      const metadata = await readAcceptedMetadataAsync(fullPath);
-      if (!metadata) continue;
-      const stats = await stat(fullPath);
-      files.push({
-        filePath: fullPath,
-        pathDate: metadata.pathDate,
-        cwd: metadata.cwd,
-        mtimeMs: stats.mtimeMs,
-        size: stats.size,
-        acceptedFingerprint: metadata.acceptedFingerprint,
-      });
-    } catch (error) {
-      if (options.strict) throw error instanceof SourceInventoryError ? error : new SourceInventoryError(fullPath, "stat file", error);
-    }
+    filePaths.push(fullPath);
+  }
+}
+
+async function readSourceFileMeta(filePath: string, options: CollectSourceFilesOptions): Promise<ClaudeSourceFileMeta | null> {
+  try {
+    const metadata = await readAcceptedMetadataAsync(filePath);
+    if (!metadata) return null;
+    const stats = await stat(filePath);
+    return {
+      filePath,
+      pathDate: metadata.pathDate,
+      cwd: metadata.cwd,
+      mtimeMs: stats.mtimeMs,
+      size: stats.size,
+      acceptedFingerprint: metadata.acceptedFingerprint,
+    };
+  } catch (error) {
+    if (options.strict) throw error instanceof SourceInventoryError ? error : new SourceInventoryError(filePath, "stat file", error);
+    return null;
   }
 }
 

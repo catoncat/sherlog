@@ -4,6 +4,7 @@ import { opendir, stat } from "node:fs/promises";
 import { resolve, sep } from "node:path";
 import { createInterface } from "node:readline";
 import { canonicalizeSelector, selectorContainsFile, selectorSource } from "../selector";
+import { mapWithConcurrency } from "./concurrency";
 import type {
   DateRange,
   Selector,
@@ -16,6 +17,7 @@ import { SourceInventoryError } from "./codex-inventory";
 import { acceptedPiCompactionRecord, acceptedPiMessageRecord, acceptedPiSessionRecord, timestampDate } from "./pi-policy";
 
 const ACCEPTED_METADATA_RECORD_LIMIT = 2;
+const SOURCE_FILE_METADATA_CONCURRENCY = 32;
 
 interface PiSourceFileMeta extends SourceFileMeta {
   acceptedFingerprint: string;
@@ -61,10 +63,12 @@ export function piSourceSnapshotFromFiles(selector: Selector, allFiles: SourceFi
 }
 
 export async function collectPiSourceFiles(root: string, options: CollectSourceFilesOptions = {}): Promise<PiSourceFileMeta[]> {
-  const files: PiSourceFileMeta[] = [];
-  await walkAsync(resolve(root), files, options);
-  files.sort((a, b) => a.filePath.localeCompare(b.filePath));
-  return files;
+  const filePaths: string[] = [];
+  await collectSourceFilePaths(resolve(root), filePaths, options);
+  const files = await mapWithConcurrency(filePaths, SOURCE_FILE_METADATA_CONCURRENCY, (filePath) =>
+    readSourceFileMeta(filePath, options)
+  );
+  return files.filter((file): file is PiSourceFileMeta => file !== null).sort((a, b) => a.filePath.localeCompare(b.filePath));
 }
 
 function assertPiSelector(selector: Selector): void {
@@ -74,7 +78,7 @@ function assertPiSelector(selector: Selector): void {
   }
 }
 
-async function walkAsync(currentDir: string, files: PiSourceFileMeta[], options: CollectSourceFilesOptions): Promise<void> {
+async function collectSourceFilePaths(currentDir: string, filePaths: string[], options: CollectSourceFilesOptions): Promise<void> {
   let dirHandle;
   try {
     dirHandle = await opendir(currentDir);
@@ -86,26 +90,31 @@ async function walkAsync(currentDir: string, files: PiSourceFileMeta[], options:
   for await (const entry of dirHandle) {
     const fullPath = `${currentDir}/${entry.name}`;
     if (entry.isDirectory()) {
-      await walkAsync(fullPath, files, options);
+      await collectSourceFilePaths(fullPath, filePaths, options);
       continue;
     }
     if (!entry.isFile() || !entry.name.endsWith(".jsonl")) continue;
 
-    try {
-      const metadata = await readAcceptedMetadataAsync(fullPath);
-      if (!metadata) continue;
-      const stats = await stat(fullPath);
-      files.push({
-        filePath: fullPath,
-        pathDate: metadata.pathDate,
-        cwd: metadata.cwd,
-        mtimeMs: stats.mtimeMs,
-        size: stats.size,
-        acceptedFingerprint: metadata.acceptedFingerprint,
-      });
-    } catch (error) {
-      if (options.strict) throw error instanceof SourceInventoryError ? error : new SourceInventoryError(fullPath, "stat file", error);
-    }
+    filePaths.push(fullPath);
+  }
+}
+
+async function readSourceFileMeta(filePath: string, options: CollectSourceFilesOptions): Promise<PiSourceFileMeta | null> {
+  try {
+    const metadata = await readAcceptedMetadataAsync(filePath);
+    if (!metadata) return null;
+    const stats = await stat(filePath);
+    return {
+      filePath,
+      pathDate: metadata.pathDate,
+      cwd: metadata.cwd,
+      mtimeMs: stats.mtimeMs,
+      size: stats.size,
+      acceptedFingerprint: metadata.acceptedFingerprint,
+    };
+  } catch (error) {
+    if (options.strict) throw error instanceof SourceInventoryError ? error : new SourceInventoryError(filePath, "stat file", error);
+    return null;
   }
 }
 
