@@ -103,7 +103,7 @@ text header 带效率回述:`shlog find "q" · 检索 ~N 条 · 结果 R · Xms`
 
 效率回述默认开,环境变量 `SHLOG_STATS=0`(或 `off`/`false`/`no`)可关闭文本 header 里的注解(`检索 ~N 条 / 读取 K 条 / Xms`);`--json` 的 `scannedMessageCount` / `elapsedMs` 与 `read-page` 的 `total/hasMore` 等功能字段始终保留。关闭时文本里没有可锚的数字,直接省掉效率尾注、别硬编。
 
-零结果不是结束条件。`--json` 下如果返回 `nextAction`,按它选择/检查同一 selector；text 输出也会打印 `next:` 步骤。只有 `status.requestedCoverage.recommendedAction === "sync"` 时才跑同范围 `sync`,然后重试同一个 `find`。fresh coverage 下仍无结果,才可以说没找到。
+零结果不是结束条件。`--json` 下如果返回 `nextAction`,按它选择/检查同一 selector；text 输出也会打印 `next:` 步骤。新版 `find` 即使有结果也可能返回 `nextAction.reason=stale_or_missing_coverage`，这表示结果只是当前 index 的 best-effort。若 `nextAction.commands` 已给出同步命令，直接按命令同步并重试；否则只有 `status.requestedCoverage.recommendedAction === "sync"` 时才跑同范围 `sync`。fresh coverage 下仍无结果,才可以说没找到。
 
 Example:
 

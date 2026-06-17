@@ -72,6 +72,7 @@ export function printFindResults(
       console.log(chalk.gray(`next: ${PROGRAM_NAME} read-range ${result.sessionRef} --seq ${result.matchSeq}`));
     }
   }
+  printNextAction(nextAction);
 }
 
 export function printReadRangeResult(

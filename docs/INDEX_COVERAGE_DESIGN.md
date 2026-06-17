@@ -222,9 +222,10 @@ Coverage 可以蕴含更窄 selector。
 
 约束：
 
-- 不扫描 raw sessions
+- 只允许为 coverage freshness 做 metadata-only raw session 扫描；内容召回本身仍只读 SQLite index
 - 不触发 sync
 - 不使用 source inventory 作为召回来源
+- coverage stale/missing 时即使已有结果也必须返回 `nextAction`，避免 agent 把旧索引结果当完整历史结论
 
 ### list
 

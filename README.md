@@ -35,6 +35,8 @@ shlog read-range <sessionRef> --seq <matchSeq>
 shlog read-page <sessionRef> --offset 0 --limit 20
 ```
 
+If `find` prints `next:` or JSON includes `nextAction`, refresh the suggested coverage and retry before treating the results as complete. This can happen even when `find` returns non-empty results.
+
 For project-scoped agent work, check and refresh only that coverage:
 
 ```bash

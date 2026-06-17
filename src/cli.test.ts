@@ -875,8 +875,8 @@ describe("shlog cli", { timeout: 20_000 }, () => {
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toContain("没有找到结果");
     expect(result.stdout).toContain("next:");
-    expect(result.stdout).toContain("shlog status");
     expect(result.stdout).toContain("shlog sync");
+    expect(result.stdout).toContain("Retry this find");
   });
 
   test("list text output tells agents to check coverage before giving up on zero results", async () => {
@@ -997,6 +997,47 @@ describe("shlog cli", { timeout: 20_000 }, () => {
     expect(status.exitCode).toBe(0);
     const payload = JSON.parse(status.stdout) as { coverage: Array<{ freshness: string }> };
     expect(payload.coverage[0]?.freshness).toBe("stale");
+  });
+
+  test("find reports stale default coverage even when stale index returns results", async () => {
+    const base = mkdtempSync(join(tmpdir(), "cxs-cli-find-stale-default-"));
+    tempDirs.push(base);
+    const home = join(base, "home");
+    const root = join(home, ".codex", "sessions");
+    const day = join(root, "2026", "04", "21");
+    mkdirSync(day, { recursive: true });
+    const oldFile = join(day, "rollout-2026-04-21T10-00-00-14141414-1414-4414-8414-141414141414.jsonl");
+    writeFileSync(
+      oldFile,
+      [
+        line("session_meta", { id: "14141414-1414-4414-8414-141414141414", cwd: "/tmp/stale-default" }),
+        line("event_msg", { type: "user_message", message: "go.link2.bond old indexed hit" }),
+      ].join("\n"),
+    );
+
+    const dbPath = join(base, "index.sqlite");
+    const env = { HOME: home };
+    const synced = await runCli(["sync", "--db", dbPath, "--json"], { env });
+    expect(synced.exitCode).toBe(0);
+
+    writeFileSync(
+      join(day, "rollout-2026-04-21T11-00-00-15151515-1515-4515-8515-151515151515.jsonl"),
+      [
+        line("session_meta", { id: "15151515-1515-4515-8515-151515151515", cwd: "/tmp/stale-default" }),
+        line("event_msg", { type: "user_message", message: "new unsynced hit should make coverage stale" }),
+      ].join("\n"),
+    );
+
+    const found = await runCli(["find", "go.link2.bond", "--source", "codex", "--db", dbPath, "--json"], { env });
+    expect(found.exitCode).toBe(0);
+    const payload = JSON.parse(found.stdout) as {
+      results: Array<{ sessionUuid: string }>;
+      nextAction?: { reason: string; selector?: { kind: string; root: string }; commands?: Array<{ argv: string[] }> };
+    };
+    expect(payload.results[0]?.sessionUuid).toBe("14141414-1414-4414-8414-141414141414");
+    expect(payload.nextAction?.reason).toBe("stale_or_missing_coverage");
+    expect(payload.nextAction?.selector).toMatchObject({ kind: "all", root });
+    expect(payload.nextAction?.commands?.[0]?.argv).toEqual(["shlog", "sync", "--source", "codex", "--root", root]);
   });
 
   test("status --selector treats fresh all coverage as covering a cwd selector", async () => {

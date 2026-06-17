@@ -4,6 +4,7 @@
 
 | 症状 | 先跑 | 处理 |
 | --- | --- | --- |
+| `find` 有结果但 JSON/text 同时给 `nextAction.reason=stale_or_missing_coverage` | 按 `nextAction.commands` 或 `nextAction.steps` 跑建议的 `sync` | 当前结果只是旧 index 的 best-effort；同步后重试，不能直接下完整历史结论 |
 | `find` 零结果但用户坚持存在 | 对相关 public source 跑 `status --source <id> --cwd <path> --json` 或 `status --source <id> --selector '<json>' --json` | 看每个目标范围的 `requestedCoverage`；必要时按 source 同步；再带同范围查询 |
 | `sync` 非零退出带 per-file errors | `sync --root <dir> --json 2>&1` 或 `sync --selector '<json>' --json 2>&1` | 看 `errorDetails[]`；默认严格模式；只在允许部分成功时加 `--best-effort` |
 | 旧安装版 `sync` 返回 `selector_required` | 更新 CLI，或原命令补 `--root`、`--cwd` / `--selector` | 当前版本裸 `sync` 应能 first-install bootstrap；旧版需要显式范围 |
@@ -23,7 +24,7 @@
 
 ## Find zero results but user insists it exists
 
-先看 `find --json` / `list --json` 有没有 `nextAction`。有就按它执行；没有也不要直接放弃,先确认目标范围 coverage。
+先看 `find --json` / `list --json` 有没有 `nextAction`。有就按它执行，不要只在零结果时才看；没有也不要直接放弃,先确认目标范围 coverage。
 
 ```bash
 "${SHLOG_BIN:-${CXS_BIN:-shlog}}" status --source codex --json

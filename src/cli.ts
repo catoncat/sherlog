@@ -1,13 +1,15 @@
 import { performance } from "node:perf_hooks";
+import { existsSync } from "node:fs";
 import { Command } from "commander";
 import packageJson from "../package.json" with { type: "json" };
 import {
   DEFAULT_DB_PATH,
+  isCurrentIndexVersion,
   migrateLegacyDataDirIfNeeded,
   PROGRAM_NAME,
   statsReadoutEnabled,
 } from "./env";
-import { IndexSchemaUpgradeRequiredError, IndexUnavailableError } from "./db";
+import { IndexSchemaUpgradeRequiredError, IndexUnavailableError, listCoverageRecords, withReadDb } from "./db";
 import { getSessionSourceAdapter, listSessionSourceAdapters } from "./sources";
 
 // One-shot migration from legacy cxs data dirs to the current shlog state dir.
@@ -32,7 +34,7 @@ import {
   listSessionSummaries,
   SessionNotFoundError,
 } from "./query";
-import { canonicalizeSelector, parseSelectorJson, SelectorParseError, selectorSource } from "./selector";
+import { canonicalizeSelector, parseSelectorJson, SelectorParseError, selectorImplies, selectorSource } from "./selector";
 import { collectStatus } from "./status";
 import { SyncLockTimeoutError } from "./sync-lock";
 import type { FindResult, FindSort, FindSummary, QueryNextAction, Selector, SessionListSort, SessionSourceId } from "./types";
@@ -146,19 +148,22 @@ program
   .option("--exclude-session <uuid>", "排除指定 session_uuid；可重复", collectValues, [])
   .option("--db <path>", "覆盖默认数据库路径", DEFAULT_DB_PATH)
   .option("--json", "输出 JSON")
-  .action((query, options) => {
-    runReadCommand(Boolean(options.json), () => {
+  .action(async (query, options) => {
+    await runReadCommand(Boolean(options.json), async () => {
       const limit = parsePositiveInt(options.limit, 10);
       const sort = normalizeFindSort(options.sort);
       const sourceIds = publicFindSources(options.source, options.selector);
-      const summaries = sourceIds.map((sourceId) => {
+      const summaries = await Promise.all(sourceIds.map(async (sourceId) => {
         const selector = optionalSelector({ ...options, source: sourceId, rootOnlySelector: true });
-        return findSessions(options.db, query, limit, selector, {
+        const summary = findSessions(options.db, query, limit, selector, {
           sourceId,
           sort,
           excludeSessions: options.excludeSession ?? [],
         });
-      });
+        const coverageSelector = selector ?? defaultAllSelector(sourceId);
+        const coverageAction = await buildFindCoverageNextAction(options.db, coverageSelector, "this find");
+        return coverageAction ? { ...summary, nextAction: coverageAction } : summary;
+      }));
       const result = mergeFindSummaries(query, sort, options.excludeSession ?? [], summaries, limit);
       // performance.now() 自 timeOrigin(进程启动)起算 ≈ 本次端到端耗时,
       // 含 better-sqlite3 模块加载;shlog 是一次性进程,所以这就是诚实的端到端。
@@ -329,13 +334,13 @@ function collectValues(value: string, previous: string[]): string[] {
   return previous;
 }
 
-function runReadCommand(
+async function runReadCommand(
   jsonMode: boolean,
-  action: () => void,
+  action: () => void | Promise<void>,
   sessionNotFoundContext: { dbPath?: string; retryReadArgv?: (error: SessionNotFoundError) => string[] } = {},
-): void {
+): Promise<void> {
   try {
-    action();
+    await action();
   } catch (error) {
     if (error instanceof SourceOptionError) {
       emitSourceError(error, jsonMode);
@@ -450,6 +455,9 @@ function mergeFindSummaries(
     freshness: "not_checked" as const,
     coveringSelectors: coverageBySource.flatMap((entry) => entry.coverage.coveringSelectors),
   };
+  const coverageActions = summaries
+    .map((summary) => summary.nextAction)
+    .filter((action): action is QueryNextAction => action?.reason === "stale_or_missing_coverage");
   return {
     query,
     sourceIds: summaries.flatMap((summary) => summary.sourceIds),
@@ -459,7 +467,11 @@ function mergeFindSummaries(
     scannedMessageCount: summaries.reduce((total, summary) => total + summary.scannedMessageCount, 0),
     coverage,
     coverageBySource,
-    nextAction: results.length === 0 ? buildCrossSourceZeroResultsNextAction() : undefined,
+    nextAction: coverageActions.length > 0
+      ? buildCrossSourceCoverageNextAction(coverageActions)
+      : results.length === 0
+        ? buildCrossSourceZeroResultsNextAction()
+        : undefined,
   };
 }
 
@@ -533,6 +545,74 @@ function buildCrossSourceZeroResultsNextAction(): QueryNextAction {
       "Retry this find before concluding nothing exists.",
     ],
   };
+}
+
+async function buildFindCoverageNextAction(
+  dbPath: string,
+  selector: Selector,
+  commandLabel: string,
+): Promise<QueryNextAction | undefined> {
+  if (!existsSync(dbPath)) return undefined;
+
+  const sourceId = selectorSource(selector);
+  const source = getSessionSourceAdapter(sourceId);
+  const files = await source.collectFiles(selector.root);
+  const snapshot = await source.snapshotFromFiles(selector, files);
+  const coveringSelectors = withReadDb(dbPath, (db) =>
+    listCoverageRecords(db, sourceId).filter((entry) =>
+      isCurrentIndexVersion(entry.indexVersion) && selectorImplies(entry.selector, snapshot.selector)
+    )
+  );
+  const fresh = coveringSelectors.some((entry) =>
+    entry.sourceFingerprint === snapshot.fingerprint && entry.sourceFileCount === snapshot.fileCount
+  );
+  if (fresh) return undefined;
+
+  const syncArgv = syncArgvForSelector(snapshot.selector);
+  return {
+    kind: "check_coverage_then_retry",
+    reason: "stale_or_missing_coverage",
+    selector: snapshot.selector,
+    steps: [
+      `Indexed coverage for this selector is ${coveringSelectors.length > 0 ? "stale" : "missing"}; results may be incomplete or misleading.`,
+      `Run ${syncArgv.join(" ")}.`,
+      `Retry ${commandLabel} before treating current results as complete.`,
+    ],
+    commands: [
+      {
+        label: "refresh selector coverage",
+        recommended: true,
+        argv: syncArgv,
+        selector: snapshot.selector,
+      },
+    ],
+  };
+}
+
+function buildCrossSourceCoverageNextAction(actions: QueryNextAction[]): QueryNextAction {
+  const commands = actions.flatMap((action) => action.commands ?? []);
+  return {
+    kind: "check_coverage_then_retry",
+    reason: "stale_or_missing_coverage",
+    steps: [
+      "One or more searched sources have stale or missing coverage; merged results may be incomplete or misleading.",
+      ...commands.filter((command) => command.recommended).map((command) => `Run ${command.argv.join(" ")}.`),
+      "Retry this find before treating current results as complete.",
+    ],
+    commands,
+  };
+}
+
+function syncArgvForSelector(selector: Selector): string[] {
+  const sourceId = selectorSource(selector);
+  const argv = [PROGRAM_NAME, "sync", "--source", sourceId, "--root", selector.root];
+  if (selector.kind === "cwd") {
+    argv.push("--cwd", selector.cwd);
+  }
+  if (selector.kind === "date_range" || selector.kind === "cwd_date_range") {
+    argv.push("--selector", JSON.stringify(selector));
+  }
+  return argv;
 }
 
 function emitSourceError(error: SourceOptionError, jsonMode: boolean): void {
@@ -755,6 +835,10 @@ function syncSelector(options: { selector?: string; root?: string; cwd?: string;
   if (selector) return selector;
   const root = getSessionSourceAdapter(options.source).defaultRoot();
   return canonicalizeSelector({ kind: "all", source: options.source, root });
+}
+
+function defaultAllSelector(sourceId: SessionSourceId): Selector {
+  return canonicalizeSelector({ kind: "all", source: sourceId, root: getSessionSourceAdapter(sourceId).defaultRoot() });
 }
 
 function optionalSelector(options: { selector?: string; root?: string; cwd?: string; source: SessionSourceId; rootOnlySelector?: boolean }): Selector | null {

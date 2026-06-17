@@ -51,18 +51,22 @@ Claude Code and Pi refs are source-qualified such as `claude-code:<id>` or `pi:<
 
 `matchSource = "session"` means the hit came from session-level fields such as title, derived summary, compact handoff, or reasoning summary rather than a concrete message. In that case `matchSeq` is `null`; use `read-page` first instead of fabricating a `read-range --seq` anchor.
 
-`QueryNextAction` appears on `find` / `list` when `results` is empty and the command cannot prove the target coverage is fresh:
+`QueryNextAction` appears on `find` / `list` when the command cannot prove the target coverage is fresh. For `find`, this can happen even when `results` is non-empty; those results are best-effort from the current index until the suggested sync/retry is done.
 
 ```ts
 {
   kind: "check_coverage_then_retry" | "choose_selector_then_check_coverage";
-  reason: "zero_results_with_unconfirmed_selector_coverage" | "zero_results_without_selector";
+  reason:
+    | "zero_results_with_unconfirmed_selector_coverage"
+    | "zero_results_without_selector"
+    | "stale_or_missing_coverage";
   selector?: Selector;
   steps: string[];
+  commands?: Array<{ label: string; recommended: boolean; argv: string[]; selector?: Selector }>;
 }
 ```
 
-Treat it as a retry gate: choose/check the same selector, run `sync` only if `status.requestedCoverage.recommendedAction === "sync"`, then retry `find` before concluding nothing exists.
+Treat it as a retry gate: if `commands` are present, run the recommended sync command and retry. Otherwise choose/check the same selector, run `sync` only if `status.requestedCoverage.recommendedAction === "sync"`, then retry `find` before concluding the current result set is complete.
 
 ## read-range
 

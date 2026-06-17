@@ -14,7 +14,7 @@
 
 All commands that read indexed content support `--json`. Read commands fail cleanly if the index has not been created yet.
 
-In source-aware builds, all fixed commands accept `--source <id>`. Public values are `codex` and experimental `claude-code`.
+In source-aware builds, all fixed commands accept `--source <id>`. Public values are `codex`, experimental `claude-code`, and experimental `pi`.
 
 `find` is the recall primitive and defaults to all public indexed sources:
 
@@ -28,6 +28,7 @@ Use a source only to narrow or diagnose:
 ```bash
 shlog find "health check" --source codex
 shlog find "health check" --source claude-code
+shlog find "health check" --source pi
 ```
 
 For `status`, `sync`, `list`, `stats`, and bare read commands, omitting `--source` still means Codex. Read commands can also consume the `sessionRef` returned by `find` directly:
@@ -38,7 +39,7 @@ shlog sync --source claude-code --root ~/.claude/projects --json
 shlog read-range claude-code:<sessionId> --seq <matchSeq>
 ```
 
-Unknown sources still return `unsupported_source` before doing command work. Claude Code remains experimental public support: the current adapter is built around the existing local transcript reader, validated with synthetic fixtures, and may still evolve toward a more stable SDK/session API contract. If an installed CLI rejects the `--source` option itself, that installation predates this behavior; update the CLI or run the checkout with `npm run shlog -- ...`.
+Unknown sources still return `unsupported_source` before doing command work. Claude Code and Pi remain experimental public support: the current adapters are built around existing local transcript readers, validated with synthetic fixtures, and may still evolve toward more stable SDK/session API contracts. If an installed CLI rejects the `--source` option itself, that installation predates this behavior; update the CLI or run the checkout with `npm run shlog -- ...`.
 
 ## Selectors
 
@@ -75,6 +76,12 @@ shlog find "xsearch" --cwd /Users/you/work/project --sort ended --exclude-sessio
 ```
 
 `find` defaults to relevance sorting. Do not treat default `find` order as time order.
+
+`find` remains read-only, but it does a metadata-only freshness guard for the
+searched selector. If JSON output includes `nextAction.reason:
+"stale_or_missing_coverage"` or text output prints `next:` after non-empty
+results, those results are best-effort from the current SQLite index. Run the
+suggested `sync` command and retry before treating the result set as complete.
 
 ## Sync And Storage
 

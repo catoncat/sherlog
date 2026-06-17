@@ -120,9 +120,18 @@ export interface CoverageStatus {
 
 export interface QueryNextAction {
   kind: "check_coverage_then_retry" | "choose_selector_then_check_coverage";
-  reason: "zero_results_with_unconfirmed_selector_coverage" | "zero_results_without_selector";
+  reason:
+    | "zero_results_with_unconfirmed_selector_coverage"
+    | "zero_results_without_selector"
+    | "stale_or_missing_coverage";
   selector?: Selector;
   steps: string[];
+  commands?: Array<{
+    label: string;
+    recommended: boolean;
+    argv: string[];
+    selector?: Selector;
+  }>;
 }
 
 export interface RequestedCoverageStatus {

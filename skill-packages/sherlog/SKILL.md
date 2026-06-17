@@ -47,11 +47,14 @@ npx skills add -g catoncat/sherlog
 
 在支持 source-aware CLI 的版本里,所有固定命令都可带 `--source <id>`；当前 public CLI 支持 `codex`、experimental `claude-code` 和 experimental `pi`。`find` 省略 `--source` 等价于跨 public sources 搜索，显式 `--source all` 也可以；其他命令省略 source 仍按 Codex 兼容默认处理。遇到 `unsupported_source`，说明 source id 未知，不要改用 raw source root。Claude Code 和 Pi 支持已公开，但仍是 experimental transcript-reader support；如果安装版直接报 unknown option `--source`,它是旧 CLI；省略 source flags 或更新 CLI。
 
-`find` / `list` 返回零结果不是结束条件。遇到零结果、用户说“应该有”、问题涉及最近/当前 repo、或 JSON 里有 `nextAction` 时,必须先按同一范围做 coverage check:
+`find` / `list` 返回零结果不是结束条件。遇到零结果、用户说“应该有”、问题涉及最近/当前 repo、或 JSON 里有 `nextAction` 时,必须先按同一范围处理 coverage:
 
-1. `status --cwd <path> --json` / `status --root <dir> --selector '<json>' --json`
-2. 若 `requestedCoverage.recommendedAction === "sync"`,跑同范围 `sync --cwd` / `sync --root` / `sync --selector`
-3. 再用同一 selector 重试 `find` / `list`;只有 fresh coverage 下仍无结果,才说没找到
+1. 如果 `nextAction.reason === "stale_or_missing_coverage"`，直接按 `nextAction.commands` 或 `nextAction.steps` 跑建议的同范围 `sync`，然后重试同一个 `find` / `list`。
+2. 否则跑 `status --cwd <path> --json` / `status --root <dir> --selector '<json>' --json`。
+3. 若 `requestedCoverage.recommendedAction === "sync"`,跑同范围 `sync --cwd` / `sync --root` / `sync --selector`。
+4. 再用同一 selector 重试 `find` / `list`;只有 fresh coverage 下仍无结果,才说没找到。
+
+注意：新版 `find` 即使返回了非空 `results`，也可能同时返回 `nextAction.reason === "stale_or_missing_coverage"`。这表示当前结果只是旧 SQLite index 里的 best-effort，不是完整历史结论；必须先同步重试，不能直接回答。
 
 `read-page` / `read-range` 返回 `session_not_found` 也不是“session 不存在”的最终结论。它只说明这个
 `sessionRef` 不在当前 Sherlog index 中。优先按 JSON 里的 `nextAction` 走：先确认 source/id 是否正确，再跑
@@ -85,7 +88,7 @@ scoped sync，最后重试 read。不要直接跳到 raw source root，也不要
 - `read-* --json` 返回 `session_not_found` 时看 `nextAction`:这通常是未同步、coverage stale、source/id 不匹配或用户给了另一层 thread/rollout id。先检查 coverage/source 并重试，不要马上下结论。
 - `matchSource = "session"` 时 `matchSeq = null`;这种命中先 `read-page` 抽样,**不要伪造 `read-range --seq`**
 - 用户给 cwd 但不确定 sync 状态 → `status --json`;确认绝对 cwd 后跑 `status --cwd <path>`;缺失/stale 才 `sync --cwd <path>`
-- `find --json` / `list --json` 零结果时看 `nextAction`:它是防止 agent 放弃的机器可读提示。按提示选择/检查 selector、必要时同步、再重试。
+- `find --json` / `list --json` 只要有 `nextAction` 就先处理它，不限于零结果。`stale_or_missing_coverage` 表示当前结果可能不完整；按提示同步并重试。
 - `cwd` 只是候选过滤,不是主题真相;还要再看 `title`、`summaryText`、开头几条 message
 - 同主题可能多个 uuid;按 `cwd / startedAt / matchCount` 选,不要按 title 脑补去重
 
