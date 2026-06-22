@@ -100,7 +100,7 @@ Purpose: 搜索相关 session，返回最小必要命中。用于 semantic recal
 
 `find` 默认搜索所有 public indexed sources。结果里的 `sourceId` 告诉你来源，`sessionRef` 是后续 `read-range` / `read-page` 的首选输入。只有用户指定来源、要缩小范围、或在诊断某个 source 的覆盖问题时才加 `--source codex` / `--source claude-code` / `--source pi`。
 
-text header 带效率回述:`shlog find "q" · 检索 ~N 条 · 结果 R · Xms`(`检索 ~N` = 范围内语料规模诚实分母,`--json` 里是 `scannedMessageCount` / `elapsedMs`)。`read-range` / `read-page` 的 header 带「读取 K 条 / 本 session 共 T 条 · Xms」和 `total=… · hasMore=… · Xms`。这些数字用于「结果回述」那段克制地告诉用户省了多少,**不要据此编造「省 X%」**。
+text header 带效率回述:`shlog find "q" · 检索 ~N 条 · 结果 R · Xms`(`检索 ~N` = 范围内语料规模诚实分母,`--json` 里是 `scannedMessageCount` / `elapsedMs`)。`read-range` / `read-page` 的 header 带「读取 K 条 / 本 session 共 T 条 · Xms」和 `total=… · hasMore=… · Xms`。大规模调查时可用这些真实数字做一句简短尾注,**不要据此编造「省 X%」**。
 
 效率回述默认开,环境变量 `SHLOG_STATS=0`(或 `off`/`false`/`no`)可关闭文本 header 里的注解(`检索 ~N 条 / 读取 K 条 / Xms`);`--json` 的 `scannedMessageCount` / `elapsedMs` 与 `read-page` 的 `total/hasMore` 等功能字段始终保留。关闭时文本里没有可锚的数字,直接省掉效率尾注、别硬编。
 

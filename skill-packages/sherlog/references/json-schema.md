@@ -19,7 +19,7 @@ Top-level shape:
 }
 ```
 
-`scannedMessageCount` 随 selector 范围收窄(全库 vs `--cwd` 子集),用于「从 ~N 条历史里定位」的诚实回述,不要据此编造「省 X%」。`elapsedMs` 由 CLI 层在产出输出时用 `performance.now()` 注入,`read-range` / `read-page` 的 JSON 同样带 `elapsedMs`。
+`scannedMessageCount` 随 selector 范围收窄(全库 vs `--cwd` 子集),可用于「从 ~N 条历史里定位」这类诚实回述,不要据此编造「省 X%」。`elapsedMs` 由 CLI 层在产出输出时用 `performance.now()` 注入,`read-range` / `read-page` 的 JSON 同样带 `elapsedMs`。
 
 `FindResult`:
 

@@ -5,37 +5,15 @@ description: "Use proactively for local Codex history and personal setup archaeo
 
 # Sherlog
 
-用 `shlog` / `Sherlog` 在自己的 SQLite index 里检索旧 agent 对话。当前公开 CLI source 有 `codex`、experimental `claude-code` 和 experimental `pi`；`find` 省略 `--source` 时默认跨 public sources 搜索，agent 正常使用时不要先问用户选来源。`--source codex` / `--source claude-code` / `--source pi` 只用于用户指定、缩小范围或诊断。`claude-code` 与 `pi` 现在是 public fixed-command support，但仍是 experimental transcript-reader contract；不要把它们说成稳定 raw JSONL 承诺，遇到非 text record 语义缺口也不要跳回 raw source root 取证。各 source 的 raw sessions 都只是 ingest source；正常历史检索只读 Sherlog index。心法:**先选 retrieval primitive,再定位候选 session,最后用 shlog read 命令拿内容证据**。
+用 `shlog` 在 Sherlog SQLite index 里检索旧 agent 对话。心法: **先选 retrieval primitive,再定位候选 session,最后用 `read-*` 拿内容证据**。
 
-## 安装(两步)
+命令默认写法:
 
-**1. 装 Sherlog CLI**(本 skill 不带 CLI 包,只是 agent 工作流):
-
-详见 README 的 [CLI Install Guide](https://github.com/catoncat/sherlog#quick-install)。安装后做一次 sanity:
-
-```bash
-"${SHLOG_BIN:-${CXS_BIN:-shlog}}" --version       # 应输出 shlog 版本号
-"${SHLOG_BIN:-${CXS_BIN:-shlog}}" --help          # 应列出 status/sync/find/read-range/read-page/list/stats
-"${SHLOG_BIN:-${CXS_BIN:-shlog}}" status --help   # 若显示 --source <id>,应列出 codex|claude-code|pi
-```
-
-如果 `shlog` 不在 PATH 里,设 `export SHLOG_BIN=/absolute/path/to/bin/shlog`。`CXS_BIN` 仍兼容。如果安装版
-`status --help` 没有 `--source`,说明 CLI 早于 source-aware 行为；省略 source flags,
-或先更新到包含该行为的 CLI 发布版。
-
-普通用户首次安装后可直接运行一次 `"${SHLOG_BIN:-${CXS_BIN:-shlog}}" sync` 初始化默认 Codex index；这会 canonicalize 为默认 Codex sessions root 的 `all` selector。Agent 有明确项目范围时仍优先用 `status --cwd <path>` / `sync --cwd <path>`，不要把默认全 root bootstrap 当成每次检索前置。
-
-**2. 装 skill**:
-
-```bash
-npx skills add -g catoncat/sherlog
-```
-
-这只是在全局安装 agent skill，不代表 `Sherlog` 支持该 runtime 的 session source。装完通常需要重启 agent / 开新 session。
+`"${SHLOG_BIN:-${CXS_BIN:-shlog}}" <subcommand> ...`
 
 ## 先选 retrieval primitive
 
-不要把 `status -> sync -> find/list -> read` 当固定起手。先判断用户真正需要哪种 primitive:
+不要把 `status -> sync -> find/list -> read` 当固定起手。按用户问题选择:
 
 | 用户需要 | 起手 primitive | 证据规则 |
 | --- | --- | --- |
@@ -45,122 +23,47 @@ npx skills add -g catoncat/sherlog
 | coverage/freshness/index availability: 索引缺失、coverage stale、要决定是否同步 | `shlog status --json` / `status --cwd` / `status --selector` | `status` 不回答内容问题,只决定 coverage 和 sync 需求 |
 | mutation: 建索引或更新 coverage | `shlog sync`（first-install 默认 Codex bootstrap）或 `shlog sync --cwd/--root/--selector` | 普通检索不要 `--prune`;Agent 有范围时优先 scoped sync；只有用户明确要求清理已消失 source 的旧索引记录才用 |
 
-在支持 source-aware CLI 的版本里,所有固定命令都可带 `--source <id>`；当前 public CLI 支持 `codex`、experimental `claude-code` 和 experimental `pi`。`find` 省略 `--source` 等价于跨 public sources 搜索，显式 `--source all` 也可以；其他命令省略 source 仍按 Codex 兼容默认处理。遇到 `unsupported_source`，说明 source id 未知，不要改用 raw source root。Claude Code 和 Pi 支持已公开，但仍是 experimental transcript-reader support；如果安装版直接报 unknown option `--source`,它是旧 CLI；省略 source flags 或更新 CLI。
+## 硬规则
 
-`find` / `list` 返回零结果不是结束条件。遇到零结果、用户说“应该有”、问题涉及最近/当前 repo、或 JSON 里有 `nextAction` 时,先判断 coverage 风险,不要无脑同步当前 cwd:
+- Sherlog index 是正常历史检索的 source of truth；不要为正常查询改查 raw JSONL 或其他 source root。
+- 回答"当时说了什么/决定了什么"前必须用 `read-range` / `read-page` 读内容；`find`、title、summary 只能定位候选。
+- `find` 默认跨 public indexed sources 搜索；只有用户指定、缩小范围或诊断时才加 `--source codex|claude-code|pi`。
+- 后续读取优先使用 `find --json` 返回的 `sessionRef`；不要从 uuid 自己猜 source。
+- `matchSource = "session"` 时 `matchSeq = null`;先 `read-page`,不要伪造 `read-range --seq`。
+- `find` 默认按 relevance 排序；"最新/最近 + 关键词"用 `--sort ended`,必要时 `--exclude-session <current_uuid>` 排除 self-hit。
+- 只读 SQLite 只允许查 Sherlog index 的稳定 metadata；内容判断仍回到 `read-*`。
+- `sync` 只更新 index/coverage。coverage 缺失或确实 stale 时才同步同一范围；`sync --prune` 只在用户明确要丢弃已消失 source 的旧索引记录时使用。
 
-1. 如果 `status.requestedCoverage.freshness === "stale"` 且 `staleReason === "source_content_changed"` / `recommendedAction === "query"`，这通常只是 Codex 当前或最近 session 的 source file 还在追加；先用现有 index 查询,只有需要最新尾部、零结果可疑或用户要求完整性时才同步。
-2. 如果 `nextAction.reason === "stale_or_missing_coverage"` 且结果为空、用户要求完整历史结论,或 coverage 是 `missing` / `source_set_changed`，按 `nextAction.commands` 或 `nextAction.steps` 跑建议的同范围 `sync`，然后重试同一个 `find` / `list`。
-3. 否则跑 `status --cwd <path> --json` / `status --root <dir> --selector '<json>' --json`。
-4. 若 `requestedCoverage.recommendedAction === "sync"`,跑同范围 `sync --cwd` / `sync --root` / `sync --selector`。
-5. 再用同一 selector 重试 `find` / `list`;只有 fresh coverage 下仍无结果,才说没找到。
+## Coverage / Failure Gate
 
-注意：新版 `find` 在 Codex 非空 `results` 且只是 `source_content_changed` 软 stale 时不会再强制给 `nextAction`。如果非空结果仍带 `nextAction.reason === "stale_or_missing_coverage"`，通常是 coverage 缺失、source file 集合变化或非 Codex source 保守同步；需要完整结论时同步重试，若只是普通历史线索可先读命中并说明覆盖边界。
+`find/list/read-*` 的零结果或错误通常不是最终结论。先看 JSON 里的 `nextAction`,并保持同一 source/selector/cwd/root 处理 coverage:
 
-`read-page` / `read-range` 返回 `session_not_found` 也不是“session 不存在”的最终结论。它只说明这个
-`sessionRef` 不在当前 Sherlog index 中。优先按 JSON 里的 `nextAction` 走：先确认 source/id 是否正确，再跑
-`status --source <id> --json` 检查 freshness；若 coverage missing/stale，跑 `sync --source <id>` 或更窄的同源
-scoped sync，最后重试 read。不要直接跳到 raw source root，也不要把它回答成“没有这个 session”。
+- `index_unavailable`: 普通首次安装可 `sync`;明确项目范围优先 `sync --cwd <path>`。
+- `session_not_found`: 只说明当前 index 没有这个 `sessionRef`;按 `nextAction` 检查 source/id/coverage,必要时同 source scoped sync 后重试。
+- `stale_or_missing_coverage`: 先判断是否需要完整结论。Codex `source_content_changed` + `recommendedAction: "query"` 常是活跃尾部软 stale,可先 query/read；coverage 缺失、source set 变化、非 Codex 保守同步、零结果可疑或用户要求完整性时,按提示同范围 sync 后重试。
+- fresh coverage 下仍无结果,才说没找到。
 
-只读 SQLite 只允许查 Sherlog 自己的 index,不要查 Codex raw JSONL 或其他 source roots。稳定 session metadata 字段限于:`source_id`, `native_session_id`, `session_key`, `session_uuid`, `started_at`, `ended_at`, `cwd`, `title`, `summary_text`, `message_count`, `source_root`, `file_path`。
+## 不适用
 
-**反例**(应该用别的工具):
+- 当前 repo 代码/字符串搜索 -> 代码搜索工具。
+- 当前文件或已知路径阅读 -> 文件读取工具。
+- 外部文档/网页 -> WebSearch / WebFetch。
+- 只问当前 live state 且无历史配置语义 -> 运行态/文件检查；带"配过/以前/本机有哪些配置"语义时,先用 Sherlog 找历史线索再验证 live truth。
+- 今日提交/日报 -> 对应日报工具；当前会话收尾 -> `session-wrap`。
 
-- 当前 repo 代码/字符串搜索 → 代码搜索工具
-- 当前文件或已知路径阅读 → 文件读取工具
-- 外部文档/网页 → WebFetch / WebSearch
-- 只问当前 live state 且无历史配置语义 → 运行态/文件检查；但若问题带"配过/以前/本机有哪些配置"语义,先用 Sherlog 找历史线索再验证 live truth
-- 今日提交/日报 → `commit-daily-summary`
-- 当前会话收尾 → `session-wrap`
+## 回述与自评
 
-## 工作流心法
-
-- Sherlog index 是历史检索 source of truth；bash/sqlite/jq 只是 cheap projection/orchestration,不是内容证据层
-- `status` 不是通用第一步；只有 coverage/freshness/index availability/source inventory 问题才先用它
-- `find` 用于 semantic recall；metadata-only 问题不要硬走全文检索
-- `read-range` / `read-page` 是内容证据层；回答"当时说了什么/决定了什么"前必须读内容
-- `sync` 只是写入/更新 SQLite index 和 coverage;查找本身不需要 sync。首次安装可裸 `sync` 初始化默认 Codex index；日常 agent 检索只有目标范围 coverage 缺失或 stale 时才 `sync --cwd <path>` / `sync --root <dir>` / `sync --selector`
-- `sync` 默认保留已索引历史；raw JSONL 从 source snapshot 中消失后，不要引导用户改查另一个 root。只有用户明确要让 Sherlog 丢弃 source 中已经消失的旧记录时才用 `sync --prune`
-- 用 `status --cwd <path> --json` 或 `status --selector '<json>' --json` 检查目标范围；`requestedCoverage.recommendedAction === "query"` 时直接查，`"sync"` 时才同步。`freshness: "stale"` 但 `staleReason: "source_content_changed"` / `recommendedAction: "query"` 是 Codex 软 stale,常见于当前对话 JSONL 尾部变化,不要把它当成每次检索前同步的理由。
-- `stats.sessionCount` 很多不等于目标范围有 source-aware complete coverage；fresh `{"source":"codex","kind":"all",...}` coverage 可以覆盖同 source/root 下的 cwd/date 子 selector
-- "最新/最近 + 关键词"不要直接把默认 `find` 结果当最新；用 `find <query> --cwd <path> --sort ended` 或 `find <query> --root <dir> --sort ended`，必要时 `--exclude-session <current_uuid>` 排除当前会话/self-hit。若用户明确限定 Codex、Claude Code 或 Pi，再加 `--source <id>`。
-- 混合自然语言 + 英文技术词的问题可以先直接 `find` 原句；新版 CLI 在严格召回为 0 时会保守提取 ASCII 技术词做一次 relaxed recall。仍要用 `read-range` / `read-page` 验证内容，不要只凭命中标题下结论。
-- `find --json` 结果包含 `sourceId` 和 `sessionRef`;后续 read 优先直接用 `sessionRef`。不要自己从 uuid 猜 source。
-- `read-* --json` 返回 `session_not_found` 时看 `nextAction`:这通常是未同步、coverage stale、source/id 不匹配或用户给了另一层 thread/rollout id。先检查 coverage/source 并重试，不要马上下结论。
-- `matchSource = "session"` 时 `matchSeq = null`;这种命中先 `read-page` 抽样,**不要伪造 `read-range --seq`**
-- 用户给 cwd 但不确定 sync 状态 → `status --json`;确认绝对 cwd 后跑 `status --cwd <path>`;缺失/stale 才 `sync --cwd <path>`
-- `find --json` / `list --json` 有 `nextAction` 时先判断风险，不限于零结果。`stale_or_missing_coverage` 表示当前结果可能不完整；coverage 缺失、source set 变化、非 Codex source 保守同步、零结果或完整性需求才按提示同步并重试。Codex 当前会话尾部导致的 `source_content_changed` / `recommendedAction: "query"` 软 stale 可以先 query/read。
-- `cwd` 只是候选过滤,不是主题真相;还要再看 `title`、`summaryText`、开头几条 message
-- 同主题可能多个 uuid;按 `cwd / startedAt / matchCount` 选,不要按 title 脑补去重
-
-## 结果回述（给用户，克制）
-
-Sherlog 的工具输出在对话里通常是折叠的，只有你（agent）看得到。满足下面条件时，
-你**必须**在回述里克制地带一句效率尾注，让用户感知到「快 / 省」；但绝不刷屏、
-绝不诱导自己少读。
-
-- 仅当答案确实压在一次**有规模**的 Sherlog 调查上（检索语料上了量级，或跨多个
-  session / 多次 read）时，在实质答案末尾追加**最多一句**效率尾注。
-- 措辞锚到 CLI header 里的**真实测量值**：检索覆盖规模（find 的「检索 ~N 条」）、
-  实际读取条数（各次 read 的「读取 K 条」累加）、端到端耗时（各次 `Xms` 粗略
-  相加）。模板：`（从 ~N 条历史里用 ~Yms 定位，读了 Z 条）`。
-- 跨多次调用就把读取条数和 ms **粗略加总，只报量级、不假装精确**。
-- **不报编造的「省 X%」**。「省」靠两个真实数字的落差自己说话（17 万条里读了几条），
-  不要挂一个估出来的分母。
-- **绝不**在零结果 / coverage-miss / 单条直查时附效率尾注——没找到、或本来就没
-  省下什么时说「省」= 自打脸。
-- 这一句是**给用户看的答案尾注**，和下面「使用后自评」（内部反思、不输出给用户）
-  是两回事，不要混。
-- 效率回述默认开。用户嫌吵可设 `SHLOG_STATS=0`（或 `off`）关掉 CLI header 里的
-  注解；这时文本里就没有「检索 ~N 条 / 读取 K 条 / Xms」可锚，**别硬编数字**，
-  直接省掉效率尾注即可（`--json` 的 `scannedMessageCount` / `elapsedMs` 不受影响）。
-
-## 使用后自评
-
-每次用 Sherlog 回答完，都做一次轻量自评；不要把这段长篇输出给用户，只在有问题时简短暴露结论。
-
-这个自评和 `$sherlog-dogfood` 是配套流程：`Sherlog` 只发现并提示可记录的 case，`sherlog-dogfood` 才负责交互式采集、写入私有 golden、跑 eval、生成修复 handoff。
-
-判断这次结果属于哪类：
-
-- `good`: 找到的 session/cwd/时间/上下文能支撑答案。
-- `query-refine`: 第一条 query 不理想，但通过改关键词、selector、`--sort ended`、`--exclude-session` 等正常使用方式解决了。
-- `coverage-issue`: 问题来自索引缺失/stale 或 selector 没覆盖；应说明需要 `status --cwd` / `sync --cwd` / `sync --root` / `status --selector` / `sync --selector`，不要归因给排序。
-- `skill-guidance-issue`: shlog CLI 没错，是 agent 没按 skill 流程用，比如把默认 `find` 当最新、伪造 `read-range --seq`、跳过 selector。
-- `dogfood-candidate`: 仍有可复现的不符合预期，例如 recall miss、明显错排、上下文窗口不对、session hit/message hit 行为让 agent 难以稳定使用。
-
-如果是 `dogfood-candidate`：
-
-1. 不要自动写私有 golden；`sherlog-dogfood` 只能由用户显式触发。
-2. 给用户一句可直接确认的提示，例如：
-
-   ```text
-   这次像是 Sherlog dogfood candidate：<一句话原因>。如果要记录，直接说 `$sherlog-dogfood 记录这个 case`。
-   ```
-
-3. 在当前回复中保留足够 handoff 线索：原始 query、实际 top1/竞争项、期望 session/cwd 或缺失的上下文短语。
-4. 如果用户随后说“记录/加进去/对，记录这个 case”，把它视为显式触发 `sherlog-dogfood`，由那个 skill 交互式补齐和验证。
-5. 不要在 `Sherlog` skill 内继续设计修复方案；记录完成后的“是否启动修复 / 输出 handoff”由 `sherlog-dogfood` 收尾处理。
-
-## 前置
-
-- 如果只是 metadata projection,先读 Sherlog SQLite index;不需要先跑全文 `find`
-- 如果只是 semantic recall,先 `find`;目标 coverage 不明或返回 `index_unavailable` 时再用 `status`
-- 只有需要 coverage/freshness/index availability 时,才先 `status --json` 或 `status --cwd <path> --json` / `status --selector '<json>' --json`
-- 索引不存在、读命令返回 `index_unavailable` → 普通 first install 可跑 `sync`；如果任务已有项目范围，优先 `sync --cwd <path>` / `sync --root <dir>` / `sync --selector '<json>'`。`requestedCoverage.recommendedAction === "sync"` 时只同步同一目标范围。
-- 读命令返回 `session_not_found` → 按 `nextAction` 确认 source/id，再检查 freshness；需要同步时优先同 source 的 scoped sync。fresh coverage 下仍找不到，才说明 Sherlog index 中没有该 session。
-- `sync` 默认严格模式;只有用户接受部分成功才加 `--best-effort`;best-effort 不写 complete coverage
-- `sync --prune` 是显式清理动作,会删除所选 source 中已经消失的旧索引记录；普通历史查询和日常增量同步不要加
-- 从别的 cwd 调用时,若默认 db 不对,显式传 `--db`
+- 大规模检索时,可以用真实 header / JSON 里的扫描量、读取量、耗时做一句简短尾注；没有真实数字就不报。
+- 回答完内部轻量自评: `good` / `query-refine` / `coverage-issue` / `skill-guidance-issue`。只在有问题时向用户简短说明边界或需要的 refine/sync。
 
 ## 参考
 
-详细命令面、字段、流程、错误处理:
+按需读取,不要默认全量加载:
 
-- [`references/cli-surface.md`](references/cli-surface.md) — 每个子命令的 options + Example
-- [`references/progressive-workflow.md`](references/progressive-workflow.md) — 4 个 worked scenarios
-- [`references/json-schema.md`](references/json-schema.md) — 完整 JSON 字段
-- [`references/failure-cookbook.md`](references/failure-cookbook.md) — 错误症状速查 / `--json` error shape 速查
-- [`references/advanced-queries.md`](references/advanced-queries.md) — query 语义 / 只读 SQLite metadata projection / CJK 行为
+- `references/progressive-workflow.md`: 不确定该选哪种 primitive,或需要 worked scenario。
+- `references/failure-cookbook.md`: 遇到 `nextAction`、coverage stale/missing、`session_not_found`、旧 schema、锁、零结果。
+- `references/cli-surface.md`: 需要完整命令 options、安装/版本兼容、source-aware 细节。
+- `references/advanced-queries.md`: metadata SQLite projection、CJK/query 语义、缩范围策略。
+- `references/json-schema.md`: 需要解析完整 JSON 字段或 error shape。
 
-# skill-sync: distributable sherlog skill package, active-tail stale guidance, 2026-06-22
+# skill-sync: distributable sherlog skill package, compressed entrypoint, 2026-06-22
