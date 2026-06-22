@@ -51,7 +51,7 @@ Claude Code and Pi refs are source-qualified such as `claude-code:<id>` or `pi:<
 
 `matchSource = "session"` means the hit came from session-level fields such as title, derived summary, compact handoff, or reasoning summary rather than a concrete message. In that case `matchSeq` is `null`; use `read-page` first instead of fabricating a `read-range --seq` anchor.
 
-`QueryNextAction` appears on `find` / `list` when the command cannot prove the target coverage is fresh. For `find`, this can happen even when `results` is non-empty; those results are best-effort from the current index until the suggested sync/retry is done.
+`QueryNextAction` appears on `find` / `list` when the command cannot prove the target coverage is fresh enough for the requested conclusion. For Codex `find`, non-empty results no longer get a retry gate for `source_content_changed` soft stale, which commonly means the current session file is still being appended. If non-empty `find` still returns `stale_or_missing_coverage`, treat it as a harder risk such as missing coverage, a changed source file set, or a non-Codex source staying conservative unless a follow-up `status` says otherwise.
 
 ```ts
 {
@@ -66,7 +66,7 @@ Claude Code and Pi refs are source-qualified such as `claude-code:<id>` or `pi:<
 }
 ```
 
-Treat it as a retry gate: if `commands` are present, run the recommended sync command and retry. Otherwise choose/check the same selector, run `sync` only if `status.requestedCoverage.recommendedAction === "sync"`, then retry `find` before concluding the current result set is complete.
+Treat it as a retry gate for zero results, explicit completeness questions, missing coverage, and source-set changes. If `status.requestedCoverage.staleReason === "source_content_changed"` and `recommendedAction === "query"`, prefer querying/reading the existing index first; sync only when the answer may depend on the latest active-session tail. Otherwise choose/check the same selector, run `sync` only if `status.requestedCoverage.recommendedAction === "sync"`, then retry `find` before concluding the current result set is complete.
 
 ## read-range
 
@@ -298,12 +298,22 @@ Input selector JSON may omit `source`; canonical selectors returned by public CL
   requested: Selector;
   complete: boolean;
   freshness: "fresh" | "stale" | "missing";
+  staleReason: "none" | "missing" | "source_content_changed" | "source_set_changed";
   sourceFingerprint: string;
   sourceFileCount: number;
   coveringSelectors: CoverageInventoryStatus[];
   recommendedAction: "query" | "sync";
 }
 ```
+
+`source_content_changed` means an existing source file changed while the selected
+file set stayed stable. For Codex this often happens because the current
+conversation JSONL is still growing; when paired with `recommendedAction:
+"query"`, the existing index may be useful, but it is not proof of the latest
+tail. Other sources may still pair `source_content_changed` with
+`recommendedAction: "sync"`. `source_set_changed` means files entered or left
+the selected snapshot and is a stronger reason to sync before a completeness
+claim.
 
 `CoverageRecord`:
 

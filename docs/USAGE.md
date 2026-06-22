@@ -80,8 +80,11 @@ shlog find "xsearch" --cwd /Users/you/work/project --sort ended --exclude-sessio
 `find` remains read-only, but it does a metadata-only freshness guard for the
 searched selector. If JSON output includes `nextAction.reason:
 "stale_or_missing_coverage"` or text output prints `next:` after non-empty
-results, those results are best-effort from the current SQLite index. Run the
-suggested `sync` command and retry before treating the result set as complete.
+results, those results are best-effort from the current SQLite index. Current
+active-session tail drift is softer: when `status` reports `freshness: "stale"`
+with `staleReason: "source_content_changed"` and `recommendedAction: "query"`,
+query/read the existing index first, and sync only when the answer depends on
+the latest tail or a strict completeness claim.
 
 ## Sync And Storage
 
@@ -101,7 +104,7 @@ Sync is strict by default. If any selected file fails to parse or write, `sync` 
 Pass `--prune` only when you explicitly want to delete indexed sessions that are no longer present in the selected source snapshot.
 Pass `--best-effort` only when you explicitly want successful files written despite failures; best-effort sync does not record complete coverage.
 
-`sync` is not required before every query. Use `status --cwd` or `status --selector` to check coverage first. A fresh `{"kind":"all", ...}` coverage record covers narrower selectors under the same source and root; a high `stats.sessionCount` only means rows exist and is not itself a freshness proof. Read commands never initialize or refresh the index; if they return `index_unavailable`, run `shlog sync` for default Codex history or a scoped sync such as `shlog sync --cwd <project>`.
+`sync` is not required before every query. Use `status --cwd` or `status --selector` to check coverage first. A fresh `{"kind":"all", ...}` coverage record covers narrower selectors under the same source and root; a high `stats.sessionCount` only means rows exist and is not itself a freshness proof. `staleReason: "source_content_changed"` means the selected file set stayed stable but existing source files changed. For Codex this commonly happens while the current conversation JSONL is still growing; when it keeps `recommendedAction: "query"`, agents should not sync before every active conversation query. Other sources may still recommend `sync` for the same stale reason. Read commands never initialize or refresh the index; if they return `index_unavailable`, run `shlog sync` for default Codex history or a scoped sync such as `shlog sync --cwd <project>`.
 
 Indexes created before `shlog-v7-source-identity` should be refreshed with `sync --root`, `sync --cwd`, or `sync --selector` so selector coverage and reads use source-aware identity, current `path_date`, and source-root provenance fields. Existing `cxs-v7-source-identity` indexes remain readable as a compatibility path. Source-aware read commands do not migrate old indexes because they are read-only; they return `index_schema_upgrade_required` with a `shlog sync` hint when the index needs this refresh.
 

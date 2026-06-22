@@ -138,6 +138,7 @@ export interface RequestedCoverageStatus {
   requested: Selector;
   complete: boolean;
   freshness: "fresh" | "stale" | "missing";
+  staleReason: "none" | "missing" | "source_content_changed" | "source_set_changed";
   sourceFingerprint: string;
   sourceFileCount: number;
   coveringSelectors: CoverageInventoryStatus[];

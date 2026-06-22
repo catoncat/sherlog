@@ -1040,6 +1040,46 @@ describe("shlog cli", { timeout: 20_000 }, () => {
     expect(payload.nextAction?.commands?.[0]?.argv).toEqual(["shlog", "sync", "--source", "codex", "--root", root]);
   });
 
+  test("find does not force sync for non-empty results when only existing source content changed", async () => {
+    const base = mkdtempSync(join(tmpdir(), "cxs-cli-find-active-tail-"));
+    tempDirs.push(base);
+    const home = join(base, "home");
+    const root = join(home, ".codex", "sessions");
+    const day = join(root, "2026", "04", "21");
+    mkdirSync(day, { recursive: true });
+    const filePath = join(day, "rollout-2026-04-21T10-00-00-16161616-1616-4616-8616-161616161616.jsonl");
+    writeFileSync(
+      filePath,
+      [
+        line("session_meta", { id: "16161616-1616-4616-8616-161616161616", cwd: "/tmp/active-tail" }),
+        line("event_msg", { type: "user_message", message: "go.link2.bond indexed active tail hit" }),
+      ].join("\n"),
+    );
+
+    const dbPath = join(base, "index.sqlite");
+    const env = { HOME: home };
+    const synced = await runCli(["sync", "--db", dbPath, "--json"], { env });
+    expect(synced.exitCode).toBe(0);
+
+    writeFileSync(
+      filePath,
+      [
+        line("session_meta", { id: "16161616-1616-4616-8616-161616161616", cwd: "/tmp/active-tail" }),
+        line("event_msg", { type: "user_message", message: "go.link2.bond indexed active tail hit" }),
+        line("event_msg", { type: "agent_message", message: "new active tail content after sync" }),
+      ].join("\n"),
+    );
+
+    const found = await runCli(["find", "go.link2.bond", "--source", "codex", "--db", dbPath, "--json"], { env });
+    expect(found.exitCode).toBe(0);
+    const payload = JSON.parse(found.stdout) as {
+      results: Array<{ sessionUuid: string }>;
+      nextAction?: { reason: string };
+    };
+    expect(payload.results[0]?.sessionUuid).toBe("16161616-1616-4616-8616-161616161616");
+    expect(payload.nextAction).toBeUndefined();
+  });
+
   test("status --selector treats fresh all coverage as covering a cwd selector", async () => {
     const base = mkdtempSync(join(tmpdir(), "cxs-cli-coverage-all-covers-cwd-"));
     tempDirs.push(base);

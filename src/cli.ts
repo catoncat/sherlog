@@ -37,7 +37,16 @@ import {
 import { canonicalizeSelector, parseSelectorJson, SelectorParseError, selectorImplies, selectorSource } from "./selector";
 import { collectStatus } from "./status";
 import { SyncLockTimeoutError } from "./sync-lock";
-import type { FindResult, FindSort, FindSummary, QueryNextAction, Selector, SessionListSort, SessionSourceId } from "./types";
+import type {
+  FindResult,
+  FindSort,
+  FindSummary,
+  QueryNextAction,
+  RequestedCoverageStatus,
+  Selector,
+  SessionListSort,
+  SessionSourceId,
+} from "./types";
 
 const program = new Command();
 
@@ -161,7 +170,7 @@ program
           excludeSessions: options.excludeSession ?? [],
         });
         const coverageSelector = selector ?? defaultAllSelector(sourceId);
-        const coverageAction = await buildFindCoverageNextAction(options.db, coverageSelector, "this find");
+        const coverageAction = await buildFindCoverageNextAction(options.db, coverageSelector, "this find", summary.results.length);
         return coverageAction ? { ...summary, nextAction: coverageAction } : summary;
       }));
       const result = mergeFindSummaries(query, sort, options.excludeSession ?? [], summaries, limit);
@@ -551,6 +560,7 @@ async function buildFindCoverageNextAction(
   dbPath: string,
   selector: Selector,
   commandLabel: string,
+  resultCount: number,
 ): Promise<QueryNextAction | undefined> {
   if (!existsSync(dbPath)) return undefined;
 
@@ -563,10 +573,17 @@ async function buildFindCoverageNextAction(
       isCurrentIndexVersion(entry.indexVersion) && selectorImplies(entry.selector, snapshot.selector)
     )
   );
-  const fresh = coveringSelectors.some((entry) =>
-    entry.sourceFingerprint === snapshot.fingerprint && entry.sourceFileCount === snapshot.fileCount
-  );
-  if (fresh) return undefined;
+  let staleReason: RequestedCoverageStatus["staleReason"] = coveringSelectors.length > 0 ? "source_set_changed" : "missing";
+  for (const entry of coveringSelectors) {
+    const entrySnapshot = await source.snapshotFromFiles(entry.selector, files);
+    if (entrySnapshot.fingerprint === entry.sourceFingerprint && entrySnapshot.fileCount === entry.sourceFileCount) {
+      return undefined;
+    }
+    if (entrySnapshot.fileCount === entry.sourceFileCount) {
+      staleReason = "source_content_changed";
+    }
+  }
+  if (sourceId === "codex" && staleReason === "source_content_changed" && resultCount > 0) return undefined;
 
   const syncArgv = syncArgvForSelector(snapshot.selector);
   return {
@@ -574,7 +591,7 @@ async function buildFindCoverageNextAction(
     reason: "stale_or_missing_coverage",
     selector: snapshot.selector,
     steps: [
-      `Indexed coverage for this selector is ${coveringSelectors.length > 0 ? "stale" : "missing"}; results may be incomplete or misleading.`,
+      indexedCoverageStep(staleReason),
       `Run ${syncArgv.join(" ")}.`,
       `Retry ${commandLabel} before treating current results as complete.`,
     ],
@@ -587,6 +604,16 @@ async function buildFindCoverageNextAction(
       },
     ],
   };
+}
+
+function indexedCoverageStep(staleReason: RequestedCoverageStatus["staleReason"]): string {
+  if (staleReason === "missing") {
+    return "Indexed coverage for this selector is missing; results may be incomplete or misleading.";
+  }
+  if (staleReason === "source_content_changed") {
+    return "Indexed coverage for this selector only differs by existing source-file content; sync if this query needs the latest active-session tail.";
+  }
+  return "Indexed coverage for this selector has a changed source file set; results may be incomplete or misleading.";
 }
 
 function buildCrossSourceCoverageNextAction(actions: QueryNextAction[]): QueryNextAction {

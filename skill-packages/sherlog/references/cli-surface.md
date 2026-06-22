@@ -12,7 +12,7 @@
 export SHLOG_BIN=/absolute/path/to/bin/shlog
 ```
 
-没有单独的 `init` 命令。普通首次安装可直接跑一次 `sync`，它会初始化默认 Codex root 的 `all` coverage。`status` 不是每次历史查询的固定第一步；它用于 coverage/freshness/source inventory/index availability。目标 selector coverage 不明时,跑 `status --json`，根据返回的 `context.root`、`sourceInventory.cwdGroups` 和问题范围选择 `--cwd` / `--root` / selector；再用 `status --cwd <path> --json` 或 `status --selector '<json>' --json` 检查 coverage。只有 `requestedCoverage.recommendedAction === "sync"` 时才跑对应的 scoped `sync --cwd` / `sync --root` / `sync --selector`。
+没有单独的 `init` 命令。普通首次安装可直接跑一次 `sync`，它会初始化默认 Codex root 的 `all` coverage。`status` 不是每次历史查询的固定第一步；它用于 coverage/freshness/source inventory/index availability。目标 selector coverage 不明时,跑 `status --json`，根据返回的 `context.root`、`sourceInventory.cwdGroups` 和问题范围选择 `--cwd` / `--root` / selector；再用 `status --cwd <path> --json` 或 `status --selector '<json>' --json` 检查 coverage。只有 `requestedCoverage.recommendedAction === "sync"` 时才跑对应的 scoped `sync --cwd` / `sync --root` / `sync --selector`。`freshness: "stale"` 但 `staleReason: "source_content_changed"` / `recommendedAction: "query"` 是 Codex 软 stale,常见于当前会话 JSONL 继续追加,不是每次检索前同步的理由。
 
 metadata-only 问题可以直接对 Sherlog SQLite index 做只读 projection,例如时间排序、数量、cwd 分布；内容判断仍必须回到 `read-page` / `read-range`。
 
@@ -48,8 +48,9 @@ Example:
 
 `status --selector` 是只读 coverage check。看 `requestedCoverage`:
 
-- `recommendedAction: "query"`: 目标范围已有 fresh complete coverage，可直接 `find/list`
-- `recommendedAction: "sync"`: coverage 缺失或 stale，先跑同范围的 `sync --cwd` / `sync --root` / `sync --selector`
+- `recommendedAction: "query"` + `freshness: "fresh"`: 目标范围已有 fresh complete coverage，可直接 `find/list`
+- `recommendedAction: "query"` + `freshness: "stale"` + `staleReason: "source_content_changed"`: 目标 source file 集合没变,只是已有 Codex source file 内容/mtime/size 变了；通常是活跃 session 尾部变化,可先 `find/list`,需要最新尾部或完整审计时再 sync
+- `recommendedAction: "sync"`: coverage 缺失或 source file 集合变化，先跑同范围的 `sync --cwd` / `sync --root` / `sync --selector`
 - fresh `{"kind":"all",...}` coverage 可以覆盖 cwd/date 子 selector；`stats.sessionCount` 只是 rows 数，不等于 coverage 完整证明
 
 `root` 不再必须写进 selector JSON：传 `--root <dir>` 可补齐 `selector.root`；不传 `--root` 时使用默认 Codex sessions root。常见 cwd/root 范围优先用 CLI shortcut，日期范围再写 JSON。
@@ -103,7 +104,7 @@ text header 带效率回述:`shlog find "q" · 检索 ~N 条 · 结果 R · Xms`
 
 效率回述默认开,环境变量 `SHLOG_STATS=0`(或 `off`/`false`/`no`)可关闭文本 header 里的注解(`检索 ~N 条 / 读取 K 条 / Xms`);`--json` 的 `scannedMessageCount` / `elapsedMs` 与 `read-page` 的 `total/hasMore` 等功能字段始终保留。关闭时文本里没有可锚的数字,直接省掉效率尾注、别硬编。
 
-零结果不是结束条件。`--json` 下如果返回 `nextAction`,按它选择/检查同一 selector；text 输出也会打印 `next:` 步骤。新版 `find` 即使有结果也可能返回 `nextAction.reason=stale_or_missing_coverage`，这表示结果只是当前 index 的 best-effort。若 `nextAction.commands` 已给出同步命令，直接按命令同步并重试；否则只有 `status.requestedCoverage.recommendedAction === "sync"` 时才跑同范围 `sync`。fresh coverage 下仍无结果,才可以说没找到。
+零结果不是结束条件。`--json` 下如果返回 `nextAction`,按它选择/检查同一 selector；text 输出也会打印 `next:` 步骤。新版 Codex `find` 对非空结果会忽略 `source_content_changed` / `recommendedAction: "query"` 软 stale,避免当前会话尾部变化反复逼 agent 同步。若非空结果仍返回 `nextAction.reason=stale_or_missing_coverage`,通常是 coverage 缺失、source file 集合变化或非 Codex source 保守同步；需要完整结论时按 `nextAction.commands` 同步并重试。否则只有 `status.requestedCoverage.recommendedAction === "sync"` 时才跑同范围 `sync`。fresh coverage 下仍无结果,才可以说没找到。
 
 Example:
 

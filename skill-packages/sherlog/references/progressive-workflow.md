@@ -87,8 +87,9 @@ sqlite3 -readonly "$DB_PATH" \
 
 看 `requestedCoverage.recommendedAction`:
 
-- `"query"`: coverage fresh,继续 `find` / `list`。
-- `"sync"`: 同范围同步。
+- `"query"` + `freshness: "fresh"`: coverage fresh,继续 `find` / `list`。
+- `"query"` + `freshness: "stale"` + `staleReason: "source_content_changed"`: Codex 软 stale,通常是当前/最近 session 的 source file 尾部变化；先继续 `find` / `list`,只有需要最新尾部或完整审计时才同步。
+- `"sync"`: coverage 缺失或 source file 集合变化,同范围同步。
 
 ```bash
 "${SHLOG_BIN:-${CXS_BIN:-shlog}}" sync --cwd /absolute/path/to/current/repo --json

@@ -4,7 +4,7 @@
 
 | 症状 | 先跑 | 处理 |
 | --- | --- | --- |
-| `find` 有结果但 JSON/text 同时给 `nextAction.reason=stale_or_missing_coverage` | 按 `nextAction.commands` 或 `nextAction.steps` 跑建议的 `sync` | 当前结果只是旧 index 的 best-effort；同步后重试，不能直接下完整历史结论 |
+| `find` 有结果但 JSON/text 同时给 `nextAction.reason=stale_or_missing_coverage` | 需要完整结论时按 `nextAction.commands` 或 `nextAction.steps` 跑建议的 `sync` | 新版 Codex `find` 已不会因当前会话尾部 `source_content_changed` / `recommendedAction: "query"` 软 stale 拦住非空结果；若仍有 nextAction,通常是 coverage 缺失、source set 变化或非 Codex source 保守同步 |
 | `find` 零结果但用户坚持存在 | 对相关 public source 跑 `status --source <id> --cwd <path> --json` 或 `status --source <id> --selector '<json>' --json` | 看每个目标范围的 `requestedCoverage`；必要时按 source 同步；再带同范围查询 |
 | `sync` 非零退出带 per-file errors | `sync --root <dir> --json 2>&1` 或 `sync --selector '<json>' --json 2>&1` | 看 `errorDetails[]`；默认严格模式；只在允许部分成功时加 `--best-effort` |
 | 旧安装版 `sync` 返回 `selector_required` | 更新 CLI，或原命令补 `--root`、`--cwd` / `--selector` | 当前版本裸 `sync` 应能 first-install bootstrap；旧版需要显式范围 |
@@ -24,14 +24,14 @@
 
 ## Find zero results but user insists it exists
 
-先看 `find --json` / `list --json` 有没有 `nextAction`。有就按它执行，不要只在零结果时才看；没有也不要直接放弃,先确认目标范围 coverage。
+先看 `find --json` / `list --json` 有没有 `nextAction`。有就判断它是否是硬 coverage 风险，不要只在零结果时才看；没有也不要直接放弃,先确认目标范围 coverage。
 
 ```bash
 "${SHLOG_BIN:-${CXS_BIN:-shlog}}" status --source codex --json
 "${SHLOG_BIN:-${CXS_BIN:-shlog}}" status --source claude-code --json
 ```
 
-如果目标范围没有 fresh coverage，先同步明确范围。cwd/root 用快捷方式，日期窗再用 selector：
+如果目标范围没有 fresh coverage，先看 `requestedCoverage.staleReason` 和 `recommendedAction`。`source_content_changed` / `recommendedAction: "query"` 通常只是 Codex 当前或最近 session 还在写尾部,可以先查；`missing` / `source_set_changed` / `recommendedAction: "sync"` 再同步明确范围。cwd/root 用快捷方式，日期窗再用 selector：
 
 ```bash
 "${SHLOG_BIN:-${CXS_BIN:-shlog}}" status --source codex --cwd /Users/me/work/foo --json

@@ -195,13 +195,33 @@ async function requestedCoverageStatus(
     : coveringSelectors.length > 0
       ? "stale"
       : "missing";
+  const staleReason = requestedCoverageStaleReason(freshness, coveringSelectors);
   return {
     requested: snapshot.selector,
     complete: freshness === "fresh",
     freshness,
+    staleReason,
     sourceFingerprint: snapshot.fingerprint,
     sourceFileCount: snapshot.fileCount,
     coveringSelectors,
-    recommendedAction: freshness === "fresh" ? "query" : "sync",
+    recommendedAction: freshness === "fresh" || isAdvisorySourceContentStale(snapshot.selector, staleReason) ? "query" : "sync",
   };
+}
+
+function isAdvisorySourceContentStale(
+  selector: Selector,
+  staleReason: RequestedCoverageStatus["staleReason"],
+): boolean {
+  return selectorSource(selector) === "codex" && staleReason === "source_content_changed";
+}
+
+function requestedCoverageStaleReason(
+  freshness: RequestedCoverageStatus["freshness"],
+  coveringSelectors: CoverageInventoryStatus[],
+): RequestedCoverageStatus["staleReason"] {
+  if (freshness === "fresh") return "none";
+  if (freshness === "missing") return "missing";
+  return coveringSelectors.some((entry) => entry.currentSourceFileCount === entry.sourceFileCount)
+    ? "source_content_changed"
+    : "source_set_changed";
 }

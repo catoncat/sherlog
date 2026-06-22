@@ -123,21 +123,52 @@ describe("collectStatus", () => {
     expect(status.requestedCoverage).toBeDefined();
     expect(status.requestedCoverage?.freshness).toBe("fresh");
     expect(status.requestedCoverage?.complete).toBe(true);
+    expect(status.requestedCoverage?.staleReason).toBe("none");
     expect(status.requestedCoverage?.recommendedAction).toBe("query");
   });
 
-  it("calculates requestedCoverage correctly when requested selector has stale coverage", async () => {
-    const db = openWriteDb(dbPath);
+  it("lets requestedCoverage query when stale coverage only reflects changed existing source content", async () => {
     const selector: Selector = { kind: "cwd", root: tempDir, cwd: "/test/project" };
+    const initialSnapshot = await collectSourceSnapshot(selector);
 
-    // Stale coverage
-    replaceCoverage(db, selector, "bad_fingerprint", 1, 1, INDEX_VERSION);
+    const db = openWriteDb(dbPath);
+    replaceCoverage(db, selector, initialSnapshot.fingerprint, initialSnapshot.fileCount, 1, INDEX_VERSION);
     db.close();
+
+    writeFileSync(
+      join(tempDir, "rollout-2023-10-01T12-00-00.jsonl"),
+      [
+        `{"type":"session_meta","payload":{"cwd":"/test/project"}}`,
+        `{"type":"event_msg","payload":{"type":"user_message","message":"active tail"}}`,
+      ].join("\n"),
+    );
 
     const status = await collectStatus({ rootDir: tempDir, dbPath, selector });
     expect(status.requestedCoverage).toBeDefined();
     expect(status.requestedCoverage?.freshness).toBe("stale");
     expect(status.requestedCoverage?.complete).toBe(false);
+    expect(status.requestedCoverage?.staleReason).toBe("source_content_changed");
+    expect(status.requestedCoverage?.recommendedAction).toBe("query");
+  });
+
+  it("calculates requestedCoverage correctly when requested selector has stale source set coverage", async () => {
+    const db = openWriteDb(dbPath);
+    const selector: Selector = { kind: "cwd", root: tempDir, cwd: "/test/project" };
+    const initialSnapshot = await collectSourceSnapshot(selector);
+
+    replaceCoverage(db, selector, initialSnapshot.fingerprint, initialSnapshot.fileCount, 1, INDEX_VERSION);
+    db.close();
+
+    writeFileSync(
+      join(tempDir, "rollout-2023-10-01T13-00-00.jsonl"),
+      `{"type":"session_meta","payload":{"cwd":"/test/project"}}` + "\n",
+    );
+
+    const status = await collectStatus({ rootDir: tempDir, dbPath, selector });
+    expect(status.requestedCoverage).toBeDefined();
+    expect(status.requestedCoverage?.freshness).toBe("stale");
+    expect(status.requestedCoverage?.complete).toBe(false);
+    expect(status.requestedCoverage?.staleReason).toBe("source_set_changed");
     expect(status.requestedCoverage?.recommendedAction).toBe("sync");
   });
 
@@ -151,6 +182,7 @@ describe("collectStatus", () => {
     expect(status.requestedCoverage).toBeDefined();
     expect(status.requestedCoverage?.freshness).toBe("missing");
     expect(status.requestedCoverage?.complete).toBe(false);
+    expect(status.requestedCoverage?.staleReason).toBe("missing");
     expect(status.requestedCoverage?.recommendedAction).toBe("sync");
   });
 

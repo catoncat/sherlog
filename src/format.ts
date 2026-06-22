@@ -176,6 +176,7 @@ export function printStatus(status: StatusSummary): void {
   console.log(`coverage_count: ${status.coverage.length}`);
   if (status.requestedCoverage) {
     console.log(`requested_coverage: ${status.requestedCoverage.freshness}`);
+    console.log(`stale_reason:       ${status.requestedCoverage.staleReason}`);
     console.log(`recommended_action:  ${status.requestedCoverage.recommendedAction}`);
     console.log(`source_file_count:   ${status.requestedCoverage.sourceFileCount}`);
     console.log(`covering_selectors:  ${status.requestedCoverage.coveringSelectors.length}`);
