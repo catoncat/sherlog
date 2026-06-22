@@ -1,6 +1,6 @@
 {
   "name": "@act0r/sherlog",
-  "version": "0.3.14",
+  "version": "0.3.15",
   "type": "module",
   "description": "Progressive search CLI for local Codex, Claude Code, and Pi session logs",
   "license": "MIT",
