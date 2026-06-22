@@ -70,8 +70,8 @@ describe("source-aware coverage", () => {
     const root = join(base, "sessions");
     const db = openWriteDb(dbPath);
 
-    replaceCoverage(db, { source: "codex", kind: "all", root }, "codex-fingerprint", 1, 1, INDEX_VERSION);
-    replaceCoverage(db, { source: "claude-code", kind: "all", root }, "claude-fingerprint", 1, 1, INDEX_VERSION);
+    replaceCoverage(db, { source: "codex", kind: "all", root }, "codex-fingerprint", "codex-file-set", 1, 1, INDEX_VERSION);
+    replaceCoverage(db, { source: "claude-code", kind: "all", root }, "claude-fingerprint", "claude-file-set", 1, 1, INDEX_VERSION);
 
     const codexStatus = coverageStatusForSelector(db, { source: "codex", kind: "cwd", root, cwd: "/tmp/project" });
     const claudeStatus = coverageStatusForSelector(db, { source: "claude-code", kind: "cwd", root, cwd: "/tmp/project" });

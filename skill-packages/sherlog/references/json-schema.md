@@ -224,6 +224,7 @@ errors in `--json` mode for expected index setup and read failures:
     written: boolean;
     selector: Selector;
     sourceFingerprint: string;
+    sourceFileSetFingerprint: string;
     sourceFileCount: number;
     indexedSessionCount: number;
     reason?: string;
@@ -300,6 +301,7 @@ Input selector JSON may omit `source`; canonical selectors returned by public CL
   freshness: "fresh" | "stale" | "missing";
   staleReason: "none" | "missing" | "source_content_changed" | "source_set_changed";
   sourceFingerprint: string;
+  sourceFileSetFingerprint: string;
   sourceFileCount: number;
   coveringSelectors: CoverageInventoryStatus[];
   recommendedAction: "query" | "sync";
@@ -307,13 +309,14 @@ Input selector JSON may omit `source`; canonical selectors returned by public CL
 ```
 
 `source_content_changed` means an existing source file changed while the selected
-file set stayed stable. For Codex this often happens because the current
-conversation JSONL is still growing; when paired with `recommendedAction:
-"query"`, the existing index may be useful, but it is not proof of the latest
-tail. Other sources may still pair `source_content_changed` with
-`recommendedAction: "sync"`. `source_set_changed` means files entered or left
-the selected snapshot and is a stronger reason to sync before a completeness
-claim.
+file set stayed stable. This is based on `sourceFileSetFingerprint`, not
+`sourceFileCount`; same-count file replacement remains `source_set_changed`.
+For Codex this often happens because the current conversation JSONL is still
+growing; when paired with `recommendedAction: "query"`, the existing index may
+be useful, but it is not proof of the latest tail. Other sources may still pair
+`source_content_changed` with `recommendedAction: "sync"`. `source_set_changed`
+means files entered or left the selected snapshot and is a stronger reason to
+sync before a completeness claim.
 
 `CoverageRecord`:
 
@@ -322,6 +325,7 @@ claim.
   id: number;
   selector: Selector;
   sourceFingerprint: string;
+  sourceFileSetFingerprint: string;
   sourceFileCount: number;
   indexedSessionCount: number;
   completedAt: string;
@@ -335,6 +339,7 @@ claim.
 CoverageRecord & {
   freshness: "fresh" | "stale";
   currentSourceFingerprint: string;
+  currentSourceFileSetFingerprint: string;
   currentSourceFileCount: number;
 }
 ```

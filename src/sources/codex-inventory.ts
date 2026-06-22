@@ -61,6 +61,7 @@ export function codexSourceSnapshotFromFiles(selector: Selector, allFiles: Sourc
   return {
     selector: canonical,
     fingerprint: fingerprintFiles(canonical.root, files),
+    fileSetFingerprint: fingerprintFileSet(canonical.root, files),
     fileCount: files.length,
     files,
   };
@@ -229,6 +230,21 @@ function fingerprintFiles(root: string, files: SourceFileMeta[]): string {
     hash.update(file.pathDate ?? "");
     hash.update("\0");
     hash.update(file.cwd);
+  }
+  return hash.digest("hex");
+}
+
+function fingerprintFileSet(root: string, files: SourceFileMeta[]): string {
+  const hash = createHash("sha256");
+  const resolvedRoot = resolve(root);
+  hash.update(resolvedRoot);
+
+  const rootPrefix = resolvedRoot.endsWith(sep) ? resolvedRoot : `${resolvedRoot}${sep}`;
+  const rootPrefixLen = rootPrefix.length;
+
+  for (const file of files) {
+    hash.update("\0");
+    hash.update(file.filePath.slice(rootPrefixLen));
   }
   return hash.digest("hex");
 }

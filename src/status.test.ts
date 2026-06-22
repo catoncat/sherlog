@@ -57,7 +57,7 @@ describe("collectStatus", () => {
     const selector: Selector = { kind: "cwd", root: tempDir, cwd: "/test/project" };
     const snapshot = await collectSourceSnapshot(selector);
 
-    replaceCoverage(db, selector, snapshot.fingerprint, snapshot.fileCount, 1, INDEX_VERSION);
+    replaceCoverage(db, selector, snapshot.fingerprint, snapshot.fileSetFingerprint, snapshot.fileCount, 1, INDEX_VERSION);
     db.close();
 
     const status = await collectStatus({ rootDir: tempDir, dbPath });
@@ -70,7 +70,7 @@ describe("collectStatus", () => {
     const selector: Selector = { kind: "cwd", root: tempDir, cwd: "/test/project" };
 
     // Use incorrect fingerprint to force stale
-    replaceCoverage(db, selector, "bad_fingerprint", 1, 1, INDEX_VERSION);
+    replaceCoverage(db, selector, "bad_fingerprint", "", 1, 1, INDEX_VERSION);
     db.close();
 
     const status = await collectStatus({ rootDir: tempDir, dbPath });
@@ -91,7 +91,7 @@ describe("collectStatus", () => {
 
     for (const selector of [allSelector, cwdSelector, dateSelector]) {
       const snapshot = await collectSourceSnapshot(selector);
-      replaceCoverage(db, selector, snapshot.fingerprint, snapshot.fileCount, 1, INDEX_VERSION);
+      replaceCoverage(db, selector, snapshot.fingerprint, snapshot.fileSetFingerprint, snapshot.fileCount, 1, INDEX_VERSION);
     }
     db.close();
 
@@ -116,7 +116,7 @@ describe("collectStatus", () => {
     const selector: Selector = { kind: "cwd", root: tempDir, cwd: "/test/project" };
     const snapshot = await collectSourceSnapshot(selector);
 
-    replaceCoverage(db, selector, snapshot.fingerprint, snapshot.fileCount, 1, INDEX_VERSION);
+    replaceCoverage(db, selector, snapshot.fingerprint, snapshot.fileSetFingerprint, snapshot.fileCount, 1, INDEX_VERSION);
     db.close();
 
     const status = await collectStatus({ rootDir: tempDir, dbPath, selector });
@@ -132,7 +132,7 @@ describe("collectStatus", () => {
     const initialSnapshot = await collectSourceSnapshot(selector);
 
     const db = openWriteDb(dbPath);
-    replaceCoverage(db, selector, initialSnapshot.fingerprint, initialSnapshot.fileCount, 1, INDEX_VERSION);
+    replaceCoverage(db, selector, initialSnapshot.fingerprint, initialSnapshot.fileSetFingerprint, initialSnapshot.fileCount, 1, INDEX_VERSION);
     db.close();
 
     writeFileSync(
@@ -156,7 +156,7 @@ describe("collectStatus", () => {
     const selector: Selector = { kind: "cwd", root: tempDir, cwd: "/test/project" };
     const initialSnapshot = await collectSourceSnapshot(selector);
 
-    replaceCoverage(db, selector, initialSnapshot.fingerprint, initialSnapshot.fileCount, 1, INDEX_VERSION);
+    replaceCoverage(db, selector, initialSnapshot.fingerprint, initialSnapshot.fileSetFingerprint, initialSnapshot.fileCount, 1, INDEX_VERSION);
     db.close();
 
     writeFileSync(
@@ -168,6 +168,26 @@ describe("collectStatus", () => {
     expect(status.requestedCoverage).toBeDefined();
     expect(status.requestedCoverage?.freshness).toBe("stale");
     expect(status.requestedCoverage?.complete).toBe(false);
+    expect(status.requestedCoverage?.staleReason).toBe("source_set_changed");
+    expect(status.requestedCoverage?.recommendedAction).toBe("sync");
+  });
+
+  it("treats same-count file-set replacement as source_set_changed", async () => {
+    const selector: Selector = { kind: "cwd", root: tempDir, cwd: "/test/project" };
+    const initialSnapshot = await collectSourceSnapshot(selector);
+
+    const db = openWriteDb(dbPath);
+    replaceCoverage(db, selector, initialSnapshot.fingerprint, initialSnapshot.fileSetFingerprint, initialSnapshot.fileCount, 1, INDEX_VERSION);
+    db.close();
+
+    rmSync(join(tempDir, "rollout-2023-10-01T12-00-00.jsonl"));
+    writeFileSync(
+      join(tempDir, "rollout-2023-10-01T13-00-00.jsonl"),
+      `{"type":"session_meta","payload":{"cwd":"/test/project"}}` + "\n",
+    );
+
+    const status = await collectStatus({ rootDir: tempDir, dbPath, selector });
+    expect(status.requestedCoverage?.freshness).toBe("stale");
     expect(status.requestedCoverage?.staleReason).toBe("source_set_changed");
     expect(status.requestedCoverage?.recommendedAction).toBe("sync");
   });

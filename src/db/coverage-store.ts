@@ -9,6 +9,7 @@ export function replaceCoverage(
   db: Db,
   selector: Selector,
   sourceFingerprint: string,
+  sourceFileSetFingerprint: string,
   sourceFileCount: number,
   indexedSessionCount: number,
   indexVersion: string,
@@ -18,8 +19,8 @@ export function replaceCoverage(
   const stmt = db.prepare(`
     INSERT INTO coverage (
       source_id, selector_key, selector_json, selector_kind, root, cwd, from_date, to_date,
-      source_fingerprint, source_file_count, indexed_session_count, index_version
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      source_fingerprint, source_file_set_fingerprint, source_file_count, indexed_session_count, index_version
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     ON CONFLICT(selector_key) DO UPDATE SET
       source_id = excluded.source_id,
       selector_json = excluded.selector_json,
@@ -29,6 +30,7 @@ export function replaceCoverage(
       from_date = excluded.from_date,
       to_date = excluded.to_date,
       source_fingerprint = excluded.source_fingerprint,
+      source_file_set_fingerprint = excluded.source_file_set_fingerprint,
       source_file_count = excluded.source_file_count,
       indexed_session_count = excluded.indexed_session_count,
       completed_at = CURRENT_TIMESTAMP,
@@ -44,6 +46,7 @@ export function replaceCoverage(
     "fromDate" in canonical ? canonical.fromDate : null,
     "toDate" in canonical ? canonical.toDate : null,
     sourceFingerprint,
+    sourceFileSetFingerprint,
     sourceFileCount,
     indexedSessionCount,
     indexVersion,
@@ -166,6 +169,7 @@ type CoverageRow = {
   source_id: string;
   selector_json: string;
   source_fingerprint: string;
+  source_file_set_fingerprint: string;
   source_file_count: number;
   indexed_session_count: number;
   completed_at: string;
@@ -182,6 +186,7 @@ function rowToCoverageRecord(row: CoverageRow): CoverageRecord {
     id: row.id,
     selector: JSON.parse(row.selector_json) as Selector,
     sourceFingerprint: row.source_fingerprint,
+    sourceFileSetFingerprint: row.source_file_set_fingerprint ?? "",
     sourceFileCount: row.source_file_count,
     indexedSessionCount: row.indexed_session_count,
     completedAt: row.completed_at,

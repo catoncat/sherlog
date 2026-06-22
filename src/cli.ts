@@ -576,10 +576,14 @@ async function buildFindCoverageNextAction(
   let staleReason: RequestedCoverageStatus["staleReason"] = coveringSelectors.length > 0 ? "source_set_changed" : "missing";
   for (const entry of coveringSelectors) {
     const entrySnapshot = await source.snapshotFromFiles(entry.selector, files);
-    if (entrySnapshot.fingerprint === entry.sourceFingerprint && entrySnapshot.fileCount === entry.sourceFileCount) {
+    if (
+      entrySnapshot.fingerprint === entry.sourceFingerprint
+      && (entry.sourceFileSetFingerprint === "" || entrySnapshot.fileSetFingerprint === entry.sourceFileSetFingerprint)
+      && entrySnapshot.fileCount === entry.sourceFileCount
+    ) {
       return undefined;
     }
-    if (entrySnapshot.fileCount === entry.sourceFileCount) {
+    if (entry.sourceFileSetFingerprint !== "" && entrySnapshot.fileSetFingerprint === entry.sourceFileSetFingerprint) {
       staleReason = "source_content_changed";
     }
   }

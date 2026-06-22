@@ -81,7 +81,7 @@ export async function syncSessions(options: SyncOptions = {}): Promise<SyncSumma
       errors: 0,
       errorDetails: [],
       selector,
-      coverage: skippedCoverage(selector, sourceSnapshot.fingerprint, sourceSnapshot.fileCount, "not_written"),
+      coverage: skippedCoverage(selector, sourceSnapshot.fingerprint, sourceSnapshot.fileSetFingerprint, sourceSnapshot.fileCount, "not_written"),
     };
 
     try {
@@ -218,7 +218,7 @@ function applyOperations(
   bestEffort: boolean,
   prune: boolean,
   selector: Selector,
-  sourceSnapshot: { fingerprint: string; fileCount: number },
+  sourceSnapshot: { fingerprint: string; fileSetFingerprint: string; fileCount: number },
   retainedFilePaths: Set<string>,
 ): CoverageWriteSummary {
   if (bestEffort) {
@@ -230,7 +230,7 @@ function applyOperations(
         recordSyncError(summary, operation.filePath, error);
       }
     }
-    return skippedCoverage(selector, sourceSnapshot.fingerprint, sourceSnapshot.fileCount, "best_effort");
+    return skippedCoverage(selector, sourceSnapshot.fingerprint, sourceSnapshot.fileSetFingerprint, sourceSnapshot.fileCount, "best_effort");
   }
 
   let currentFilePath = "";
@@ -249,6 +249,7 @@ function applyOperations(
       db,
       selector,
       sourceSnapshot.fingerprint,
+      sourceSnapshot.fileSetFingerprint,
       sourceSnapshot.fileCount,
       indexedSessionCount,
       INDEX_VERSION,
@@ -257,6 +258,7 @@ function applyOperations(
       written: true,
       selector: record.selector,
       sourceFingerprint: record.sourceFingerprint,
+      sourceFileSetFingerprint: record.sourceFileSetFingerprint,
       sourceFileCount: record.sourceFileCount,
       indexedSessionCount: record.indexedSessionCount,
     };
@@ -272,7 +274,7 @@ function applyOperations(
   for (const operation of operations) {
     recordAppliedOperation(summary, operation);
   }
-  return coverage ?? skippedCoverage(selector, sourceSnapshot.fingerprint, sourceSnapshot.fileCount, "not_written");
+  return coverage ?? skippedCoverage(selector, sourceSnapshot.fingerprint, sourceSnapshot.fileSetFingerprint, sourceSnapshot.fileCount, "not_written");
 }
 
 function applyOperation(
@@ -347,6 +349,7 @@ function buildSyncErrorMessage(summary: SyncSummary): string {
 function skippedCoverage(
   selector: Selector,
   sourceFingerprint: string,
+  sourceFileSetFingerprint: string,
   sourceFileCount: number,
   reason: string,
 ): CoverageWriteSummary {
@@ -354,6 +357,7 @@ function skippedCoverage(
     written: false,
     selector,
     sourceFingerprint,
+    sourceFileSetFingerprint,
     sourceFileCount,
     indexedSessionCount: 0,
     reason,
@@ -371,7 +375,7 @@ function sourceUnavailableSummary(selector: Selector, error: unknown): SyncSumma
     errors: 0,
     errorDetails: [],
     selector,
-    coverage: skippedCoverage(selector, "", 0, "source_unavailable"),
+    coverage: skippedCoverage(selector, "", "", 0, "source_unavailable"),
   };
   recordSyncError(summary, sourceErrorPath(selector, error), error);
   return summary;

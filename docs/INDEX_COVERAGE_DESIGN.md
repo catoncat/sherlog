@@ -226,7 +226,7 @@ Coverage 可以蕴含更窄 selector。
 - 不触发 sync
 - 不使用 source inventory 作为召回来源
 - coverage missing 或 source file 集合变化时即使已有结果也必须返回 `nextAction`，避免 agent 把旧索引结果当完整历史结论
-- coverage 仅因既有 source file 内容变化而 stale 时归类为 `source_content_changed`；Codex 当前会话 JSONL 尾部追加可把它降级为 `recommendedAction: "query"` 的软 stale，非空 `find` 不应强制 agent 每次同步。其他 source 仍可保守推荐 `sync`。
+- coverage 仅因既有 source file 内容变化而 stale 时归类为 `source_content_changed`；该判断必须基于 source file set fingerprint / path set，而不是 file count。Codex 当前会话 JSONL 尾部追加可把它降级为 `recommendedAction: "query"` 的软 stale，非空 `find` 不应强制 agent 每次同步。其他 source 仍可保守推荐 `sync`。
 
 ### list
 

@@ -55,6 +55,7 @@ export function claudeCodeSourceSnapshotFromFiles(selector: Selector, allFiles: 
   return {
     selector: canonical,
     fingerprint: fingerprintFiles(canonical.root, files),
+    fileSetFingerprint: fingerprintFileSet(canonical.root, files),
     fileCount: files.length,
     files,
   };
@@ -220,6 +221,20 @@ function fingerprintFiles(root: string, files: ClaudeSourceFileMeta[]): string {
     hash.update(file.cwd);
     hash.update("\0");
     hash.update(file.acceptedFingerprint);
+  }
+
+  return hash.digest("hex");
+}
+
+function fingerprintFileSet(root: string, files: ClaudeSourceFileMeta[]): string {
+  const hash = createHash("sha256");
+  const resolvedRoot = resolve(root);
+  const rootPrefix = resolvedRoot.endsWith(sep) ? resolvedRoot : `${resolvedRoot}${sep}`;
+  hash.update(resolvedRoot);
+
+  for (const file of files) {
+    hash.update("\0");
+    hash.update(file.filePath.slice(rootPrefix.length));
   }
 
   return hash.digest("hex");

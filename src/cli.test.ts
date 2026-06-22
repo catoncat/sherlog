@@ -1080,6 +1080,56 @@ describe("shlog cli", { timeout: 20_000 }, () => {
     expect(payload.nextAction).toBeUndefined();
   });
 
+  test("find still reports stale coverage for same-count Codex file-set replacement", async () => {
+    const base = mkdtempSync(join(tmpdir(), "cxs-cli-find-same-count-file-set-"));
+    tempDirs.push(base);
+    const home = join(base, "home");
+    const root = join(home, ".codex", "sessions");
+    const day = join(root, "2026", "04", "21");
+    mkdirSync(day, { recursive: true });
+    const retainedFile = join(day, "rollout-2026-04-21T10-00-00-17171717-1717-4717-8717-171717171717.jsonl");
+    const removedFile = join(day, "rollout-2026-04-21T10-30-00-18181818-1818-4818-8818-181818181818.jsonl");
+    writeFileSync(
+      retainedFile,
+      [
+        line("session_meta", { id: "17171717-1717-4717-8717-171717171717", cwd: "/tmp/same-count-file-set" }),
+        line("event_msg", { type: "user_message", message: "same-count indexed hit" }),
+      ].join("\n"),
+    );
+    writeFileSync(
+      removedFile,
+      [
+        line("session_meta", { id: "18181818-1818-4818-8818-181818181818", cwd: "/tmp/same-count-file-set" }),
+        line("event_msg", { type: "user_message", message: "removed filler" }),
+      ].join("\n"),
+    );
+
+    const dbPath = join(base, "index.sqlite");
+    const env = { HOME: home };
+    const synced = await runCli(["sync", "--db", dbPath, "--json"], { env });
+    expect(synced.exitCode).toBe(0);
+
+    rmSync(removedFile, { force: true });
+    writeFileSync(
+      join(day, "rollout-2026-04-21T11-00-00-19191919-1919-4919-8919-191919191919.jsonl"),
+      [
+        line("session_meta", { id: "19191919-1919-4919-8919-191919191919", cwd: "/tmp/same-count-file-set" }),
+        line("event_msg", { type: "user_message", message: "new unsynced same-count replacement" }),
+      ].join("\n"),
+    );
+
+    const found = await runCli(["find", "same-count indexed hit", "--source", "codex", "--db", dbPath, "--json"], { env });
+    expect(found.exitCode).toBe(0);
+    const payload = JSON.parse(found.stdout) as {
+      results: Array<{ sessionUuid: string }>;
+      nextAction?: { reason: string; selector?: { kind: string; root: string }; commands?: Array<{ argv: string[] }> };
+    };
+    expect(payload.results[0]?.sessionUuid).toBe("17171717-1717-4717-8717-171717171717");
+    expect(payload.nextAction?.reason).toBe("stale_or_missing_coverage");
+    expect(payload.nextAction?.selector).toMatchObject({ kind: "all", root });
+    expect(payload.nextAction?.commands?.[0]?.argv).toEqual(["shlog", "sync", "--source", "codex", "--root", root]);
+  });
+
   test("status --selector treats fresh all coverage as covering a cwd selector", async () => {
     const base = mkdtempSync(join(tmpdir(), "cxs-cli-coverage-all-covers-cwd-"));
     tempDirs.push(base);

@@ -169,12 +169,14 @@ async function toCoverageInventoryStatus(
   const context = await getContext(selectorSource(record.selector), record.selector.root);
   const snapshot = await context.source.snapshotFromFiles(record.selector, context.files);
   const fresh = snapshot.fingerprint === record.sourceFingerprint
+    && (record.sourceFileSetFingerprint === "" || snapshot.fileSetFingerprint === record.sourceFileSetFingerprint)
     && snapshot.fileCount === record.sourceFileCount
     && isCurrentIndexVersion(record.indexVersion);
   return {
     ...record,
     freshness: fresh ? "fresh" : "stale",
     currentSourceFingerprint: snapshot.fingerprint,
+    currentSourceFileSetFingerprint: snapshot.fileSetFingerprint,
     currentSourceFileCount: snapshot.fileCount,
   };
 }
@@ -202,6 +204,7 @@ async function requestedCoverageStatus(
     freshness,
     staleReason,
     sourceFingerprint: snapshot.fingerprint,
+    sourceFileSetFingerprint: snapshot.fileSetFingerprint,
     sourceFileCount: snapshot.fileCount,
     coveringSelectors,
     recommendedAction: freshness === "fresh" || isAdvisorySourceContentStale(snapshot.selector, staleReason) ? "query" : "sync",
@@ -221,7 +224,9 @@ function requestedCoverageStaleReason(
 ): RequestedCoverageStatus["staleReason"] {
   if (freshness === "fresh") return "none";
   if (freshness === "missing") return "missing";
-  return coveringSelectors.some((entry) => entry.currentSourceFileCount === entry.sourceFileCount)
+  return coveringSelectors.some((entry) =>
+    entry.sourceFileSetFingerprint !== "" && entry.currentSourceFileSetFingerprint === entry.sourceFileSetFingerprint
+  )
     ? "source_content_changed"
     : "source_set_changed";
 }

@@ -331,7 +331,7 @@ describe("cxs session-level fields", () => {
     const selector = { kind: "cwd" as const, root, cwd: "/tmp/covered-but-unchecked" };
     const dbPath = join(base, "index.sqlite");
     const db = openWriteDb(dbPath);
-    replaceCoverage(db, selector, "old-fingerprint", 1, 1, INDEX_VERSION);
+    replaceCoverage(db, selector, "old-fingerprint", "old-file-set", 1, 1, INDEX_VERSION);
     db.close();
 
     const found = findSessions(dbPath, "definitely missing needle", 5, selector);

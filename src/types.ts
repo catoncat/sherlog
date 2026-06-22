@@ -82,6 +82,7 @@ export interface SourceFileMeta {
 export interface SourceSnapshot {
   selector: Selector;
   fingerprint: string;
+  fileSetFingerprint: string;
   fileCount: number;
   files: SourceFileMeta[];
 }
@@ -90,6 +91,7 @@ export interface CoverageRecord {
   id: number;
   selector: Selector;
   sourceFingerprint: string;
+  sourceFileSetFingerprint: string;
   sourceFileCount: number;
   indexedSessionCount: number;
   completedAt: string;
@@ -99,6 +101,7 @@ export interface CoverageRecord {
 export interface CoverageInventoryStatus extends CoverageRecord {
   freshness: "fresh" | "stale";
   currentSourceFingerprint: string;
+  currentSourceFileSetFingerprint: string;
   currentSourceFileCount: number;
 }
 
@@ -106,6 +109,7 @@ export interface CoverageWriteSummary {
   written: boolean;
   selector: Selector;
   sourceFingerprint: string;
+  sourceFileSetFingerprint: string;
   sourceFileCount: number;
   indexedSessionCount: number;
   reason?: string;
@@ -140,6 +144,7 @@ export interface RequestedCoverageStatus {
   freshness: "fresh" | "stale" | "missing";
   staleReason: "none" | "missing" | "source_content_changed" | "source_set_changed";
   sourceFingerprint: string;
+  sourceFileSetFingerprint: string;
   sourceFileCount: number;
   coveringSelectors: CoverageInventoryStatus[];
   recommendedAction: "query" | "sync";

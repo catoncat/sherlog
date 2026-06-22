@@ -114,6 +114,7 @@ function ensureCoverageTable(db: Db): void {
       from_date TEXT,
       to_date TEXT,
       source_fingerprint TEXT NOT NULL,
+      source_file_set_fingerprint TEXT NOT NULL DEFAULT '',
       source_file_count INTEGER NOT NULL,
       indexed_session_count INTEGER NOT NULL,
       completed_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -122,6 +123,7 @@ function ensureCoverageTable(db: Db): void {
   `);
 
   ensureTextColumn(db, "coverage", "source_id", "'codex'");
+  ensureTextColumn(db, "coverage", "source_file_set_fingerprint");
   backfillCoverageSource(db);
   db.exec("CREATE INDEX IF NOT EXISTS idx_coverage_root ON coverage(root)");
   db.exec("CREATE INDEX IF NOT EXISTS idx_coverage_source_root ON coverage(source_id, root)");
@@ -293,6 +295,7 @@ function rebuildCoverageTable(db: Db): void {
       from_date TEXT,
       to_date TEXT,
       source_fingerprint TEXT NOT NULL,
+      source_file_set_fingerprint TEXT NOT NULL DEFAULT '',
       source_file_count INTEGER NOT NULL,
       indexed_session_count INTEGER NOT NULL,
       completed_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -300,7 +303,7 @@ function rebuildCoverageTable(db: Db): void {
     );
     INSERT INTO coverage (
       id, source_id, selector_key, selector_json, selector_kind, root, cwd, from_date,
-      to_date, source_fingerprint, source_file_count, indexed_session_count,
+      to_date, source_fingerprint, source_file_set_fingerprint, source_file_count, indexed_session_count,
       completed_at, index_version
     )
     SELECT
@@ -314,6 +317,7 @@ function rebuildCoverageTable(db: Db): void {
       from_date,
       to_date,
       source_fingerprint,
+      '',
       source_file_count,
       indexed_session_count,
       completed_at,
