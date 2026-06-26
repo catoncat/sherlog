@@ -59,11 +59,11 @@ describe("dogfood eval core", () => {
     ]);
   });
 
-  test("uses read-range for message hits and read-page for session-only hits in auto mode", () => {
+  test("uses read-range for both message and session-only hits in auto mode", () => {
     const item = golden({ contextMustContain: ["decision"] });
 
     expect(desiredContextMode(item, findResult({ matchSource: "message", matchSeq: 7 }))).toBe("read-range");
-    expect(desiredContextMode(item, findResult({ matchSource: "session", matchSeq: null }))).toBe("read-page");
+    expect(desiredContextMode(item, findResult({ matchSource: "session", matchSeq: null }))).toBe("read-range");
   });
 
   test("reports missing context needles case-insensitively", () => {

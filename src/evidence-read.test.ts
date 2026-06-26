@@ -7,6 +7,7 @@ describe("buildEvidenceReadAction", () => {
       sourceId: "codex",
       sessionRef: "11111111-1111-4111-8111-111111111111",
       matchSeq: 7,
+      query: "ranking weights",
     })).toEqual({
       kind: "read-range",
       reason: "message_match",
@@ -29,7 +30,35 @@ describe("buildEvidenceReadAction", () => {
     });
   });
 
-  test("session-only hits resolve to a bounded read-page command", () => {
+  test("session-only hits with query resolve to read-range --query (finds real anchor, not offset=0)", () => {
+    expect(buildEvidenceReadAction({
+      sourceId: "claude-code",
+      sessionRef: "claude-code:session-abc",
+      matchSeq: null,
+      query: "durable output queue",
+    })).toEqual({
+      kind: "read-range",
+      reason: "session_level_match",
+      sourceId: "claude-code",
+      sessionRef: "claude-code:session-abc",
+      query: "durable output queue",
+      before: 2,
+      after: 2,
+      argv: [
+        "shlog",
+        "read-range",
+        "claude-code:session-abc",
+        "--query",
+        "durable output queue",
+        "--before",
+        "2",
+        "--after",
+        "2",
+      ],
+    });
+  });
+
+  test("session-only hits without query fall back to read-page offset=0", () => {
     expect(buildEvidenceReadAction({
       sourceId: "claude-code",
       sessionRef: "claude-code:session-abc",

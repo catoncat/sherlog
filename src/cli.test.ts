@@ -345,7 +345,7 @@ describe("shlog cli", { timeout: 20_000 }, () => {
     expect(findPayload.results[0]?.sessionUuid).toBe("12121212-1212-4212-8212-121212121212");
   });
 
-  test("find --json gives session-only hits a deterministic raw read-page action", async () => {
+  test("find --json gives session-only hits a read-range --query action to locate the real anchor", async () => {
     const base = mkdtempSync(join(tmpdir(), "cxs-cli-session-evidence-"));
     tempDirs.push(base);
     const dbPath = join(base, "index.sqlite");
@@ -390,12 +390,13 @@ describe("shlog cli", { timeout: 20_000 }, () => {
         matchSource: string;
         matchSeq: number | null;
         evidenceRead: {
-          kind: "read-page";
+          kind: "read-range";
           reason: string;
           sourceId: string;
           sessionRef: string;
-          offset: number;
-          limit: number;
+          query: string;
+          before: number;
+          after: number;
           argv: string[];
         };
       }>;
@@ -406,22 +407,18 @@ describe("shlog cli", { timeout: 20_000 }, () => {
     expect(result?.matchSource).toBe("session");
     expect(result?.matchSeq).toBeNull();
     expect(result?.evidenceRead).toMatchObject({
-      kind: "read-page",
+      kind: "read-range",
       reason: "session_level_match",
       sourceId: "codex",
       sessionRef: sessionUuid,
-      offset: 0,
-      limit: 40,
+      query: "payloadbeacon",
+      before: 2,
+      after: 2,
     });
-    expect(result?.evidenceRead.argv).toEqual(["shlog", "read-page", sessionUuid, "--offset", "0", "--limit", "40"]);
+    expect(result?.evidenceRead.argv).toEqual(["shlog", "read-range", sessionUuid, "--query", "payloadbeacon", "--before", "2", "--after", "2"]);
 
     const page = await runCli([
-      result?.evidenceRead.kind ?? "read-page",
-      result?.evidenceRead.sessionRef ?? "",
-      "--offset",
-      String(result?.evidenceRead.offset ?? 0),
-      "--limit",
-      "1",
+      ...result?.evidenceRead.argv.slice(1), // drop leading "shlog"
       "--db",
       dbPath,
       "--json",

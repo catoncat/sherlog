@@ -183,7 +183,7 @@ program
           ...result,
           results: result.results.map((findResult) => ({
             ...findResult,
-            evidenceRead: buildEvidenceReadAction(findResult),
+            evidenceRead: buildEvidenceReadAction({ ...findResult, query: result.query }),
           })),
           elapsedMs,
         }, null, 2));

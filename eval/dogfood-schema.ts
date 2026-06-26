@@ -18,6 +18,7 @@ export interface DogfoodExpectedContext {
   after?: number;
   offset?: number;
   limit?: number;
+  query?: string;
   mustContain?: string[];
 }
 
@@ -172,6 +173,7 @@ function parseContext(value: unknown): DogfoodExpectedContext | undefined {
   if (limit) context.limit = limit;
   const mustContain = readStringArray(value.mustContain);
   if (mustContain) context.mustContain = mustContain;
+  if (typeof value.query === "string" && value.query.length > 0) context.query = value.query;
 
   return Object.keys(context).length > 0 ? context : undefined;
 }

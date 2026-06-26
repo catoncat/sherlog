@@ -95,6 +95,10 @@ function resolveAnchorSeq(
   if (query) {
     const best = searchTopHitInSession(db, session, query);
     if (best && typeof best.matchSeq === "number") return best.matchSeq;
+    // Query found no message-level hit (e.g. session-level match from title or
+    // compact). Fall back to seq=0 so read-range still returns a usable window
+    // instead of throwing — the caller can page forward if needed.
+    return 0;
   }
 
   throw new Error("read-range requires explicit session_uuid plus either --seq or --query");

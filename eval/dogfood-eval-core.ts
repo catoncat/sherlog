@@ -70,7 +70,9 @@ export function desiredContextMode(item: DogfoodGolden, hit: FindResult | null):
   if (!context?.mustContain?.length) return null;
   const mode = context.mode ?? "auto";
   if (mode !== "auto") return mode;
-  return typeof hit?.matchSeq === "number" ? "read-range" : "read-page";
+  // Session-only hits now use read-range --query to locate the real anchor,
+  // so auto mode always prefers read-range.
+  return "read-range";
 }
 
 export function missingContextNeedles(item: DogfoodGolden, contextText: string): string[] {

@@ -126,7 +126,18 @@ function readContextIfNeeded(
   const context = item.expected.context ?? {};
   if (mode === "read-range") {
     if (typeof hit.matchSeq !== "number") {
-      return { kind: "read-range", unavailableReason: "selected hit has no numeric matchSeq" };
+      // Session-only hit: use the query to locate the real anchor inside the
+      // session transcript, mirroring buildEvidenceReadAction's read-range --query path.
+      const query = context.query ?? item.query;
+      if (!query) {
+        return { kind: "read-range", unavailableReason: "selected hit has no numeric matchSeq and no query available" };
+      }
+      const range = getMessageRange(dbPath, hit.sessionRef, {
+        query,
+        before: context.before ?? 2,
+        after: context.after ?? 2,
+      });
+      return { kind: "read-range", text: messagesText(range.messages) };
     }
     const range = getMessageRange(dbPath, hit.sessionRef, {
       seq: hit.matchSeq,
@@ -187,9 +198,7 @@ function acceptanceGoldens(roots: AcceptanceFixtureRoots): DogfoodGolden[] {
         matchSource: "session",
         matchSeq: null,
         context: {
-          mode: "read-page",
-          offset: 0,
-          limit: 10,
+          mode: "read-range",
           mustContain: ["Prepare release notes", "Use the existing checklist"],
         },
       },
