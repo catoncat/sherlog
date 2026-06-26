@@ -4,7 +4,7 @@ import type { DogfoodGolden } from "./dogfood-schema";
 export type DogfoodMark = "pass" | "fail" | "skip";
 
 export interface DogfoodPredicateResult {
-  label: "session_uuid" | "cwd" | "match_source" | "context";
+  label: "source_id" | "session_uuid" | "session_ref" | "cwd" | "match_source" | "match_seq" | "context";
   expected: string;
   actual: string;
   matched: boolean;
@@ -87,12 +87,30 @@ function buildPredicates(
   const predicates: DogfoodPredicateResult[] = [];
   const acceptable = item.expected.acceptableSessionUuids ?? [];
 
+  if (item.expected.sourceId) {
+    predicates.push({
+      label: "source_id",
+      expected: item.expected.sourceId,
+      actual: hit?.sourceId ?? "no selected hit",
+      matched: hit?.sourceId === item.expected.sourceId,
+    });
+  }
+
   if (acceptable.length > 0) {
     predicates.push({
       label: "session_uuid",
       expected: `one of ${acceptable.join(", ")} in top ${selected.topK}`,
       actual: hit ? `${hit.sessionUuid} at rank ${selected.rank}` : "no results",
       matched: Boolean(hit && acceptable.includes(hit.sessionUuid) && (selected.rank ?? Infinity) <= selected.topK),
+    });
+  }
+
+  if (item.expected.sessionRef) {
+    predicates.push({
+      label: "session_ref",
+      expected: item.expected.sessionRef,
+      actual: hit?.sessionRef ?? "no selected hit",
+      matched: hit?.sessionRef === item.expected.sessionRef,
     });
   }
 
@@ -112,6 +130,15 @@ function buildPredicates(
       expected: item.expected.matchSource,
       actual: hit?.matchSource ?? "no selected hit",
       matched: hit?.matchSource === item.expected.matchSource,
+    });
+  }
+
+  if (item.expected.matchSeq !== undefined) {
+    predicates.push({
+      label: "match_seq",
+      expected: String(item.expected.matchSeq),
+      actual: hit ? String(hit.matchSeq) : "no selected hit",
+      matched: hit?.matchSeq === item.expected.matchSeq,
     });
   }
 
