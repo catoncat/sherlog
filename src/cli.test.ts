@@ -4,7 +4,7 @@ import { chmodSync, existsSync, mkdtempSync, mkdirSync, rmSync, writeFileSync } 
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import Database from "better-sqlite3";
-import { openWriteDb } from "./db";
+import { openWriteDb, replaceSession } from "./db";
 import { INDEX_VERSION } from "./env";
 import { syncSessions } from "./indexer";
 
@@ -343,6 +343,95 @@ describe("shlog cli", { timeout: 20_000 }, () => {
     expect(found.exitCode).toBe(0);
     const findPayload = JSON.parse(found.stdout) as { results: Array<{ sessionUuid: string }> };
     expect(findPayload.results[0]?.sessionUuid).toBe("12121212-1212-4212-8212-121212121212");
+  });
+
+  test("find --json gives session-only hits a deterministic raw read-page action", async () => {
+    const base = mkdtempSync(join(tmpdir(), "cxs-cli-session-evidence-"));
+    tempDirs.push(base);
+    const dbPath = join(base, "index.sqlite");
+    const sessionUuid = "82828282-8282-4828-8828-828282828282";
+    const db = openWriteDb(dbPath);
+
+    replaceSession(db, {
+      sessionUuid,
+      filePath: join(base, "session-only.jsonl"),
+      title: "payloadbeacon postmortem outline",
+      summaryText: "",
+      compactText: "",
+      reasoningSummaryText: "",
+      cwd: "/tmp/session-evidence",
+      model: "gpt-5.4",
+      startedAt: "2026-04-24T01:00:00.000Z",
+      endedAt: "2026-04-24T01:00:00.000Z",
+      messages: [
+        {
+          role: "user",
+          contentText: "first raw transcript line without the query token",
+          timestamp: "2026-04-24T01:00:00.000Z",
+          seq: 0,
+          sourceKind: "event_msg",
+        },
+        {
+          role: "assistant",
+          contentText: "second raw transcript line for follow-up evidence",
+          timestamp: "2026-04-24T01:00:30.000Z",
+          seq: 1,
+          sourceKind: "event_msg",
+        },
+      ],
+    }, 1, 1, INDEX_VERSION, "");
+    db.close();
+
+    const found = await runCli(["find", "payloadbeacon", "--db", dbPath, "--json"]);
+    expect(found.exitCode).toBe(0);
+    const payload = JSON.parse(found.stdout) as {
+      results: Array<{
+        sessionUuid: string;
+        matchSource: string;
+        matchSeq: number | null;
+        evidenceRead: {
+          kind: "read-page";
+          reason: string;
+          sourceId: string;
+          sessionRef: string;
+          offset: number;
+          limit: number;
+          argv: string[];
+        };
+      }>;
+    };
+    const result = payload.results[0];
+
+    expect(result?.sessionUuid).toBe(sessionUuid);
+    expect(result?.matchSource).toBe("session");
+    expect(result?.matchSeq).toBeNull();
+    expect(result?.evidenceRead).toMatchObject({
+      kind: "read-page",
+      reason: "session_level_match",
+      sourceId: "codex",
+      sessionRef: sessionUuid,
+      offset: 0,
+      limit: 40,
+    });
+    expect(result?.evidenceRead.argv).toEqual(["shlog", "read-page", sessionUuid, "--offset", "0", "--limit", "40"]);
+
+    const page = await runCli([
+      result?.evidenceRead.kind ?? "read-page",
+      result?.evidenceRead.sessionRef ?? "",
+      "--offset",
+      String(result?.evidenceRead.offset ?? 0),
+      "--limit",
+      "1",
+      "--db",
+      dbPath,
+      "--json",
+    ]);
+    expect(page.exitCode).toBe(0);
+    const pagePayload = JSON.parse(page.stdout) as { messages: Array<{ seq: number; contentText: string }> };
+    expect(pagePayload.messages[0]).toMatchObject({
+      seq: 0,
+      contentText: "first raw transcript line without the query token",
+    });
   });
 
   test("fixed commands reject unsupported --source values before other work", async () => {
