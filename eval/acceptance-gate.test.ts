@@ -6,9 +6,11 @@ describe("acceptance gate", () => {
     const result = await runAcceptanceGate();
 
     expect(result.sync.added).toBe(6);
+    expect(result.sourceSyncs["claude-code"].added).toBe(1);
+    expect(result.sourceSyncs.pi.added).toBe(1);
     expect(result.scoreboard).toMatchObject({
-      total: 4,
-      pass: 4,
+      total: 6,
+      pass: 6,
       fail: 0,
       hardFail: 0,
     });
@@ -17,6 +19,8 @@ describe("acceptance gate", () => {
       "session-only-compact-context",
       "cjk-message-hit",
       "exact-query-profile-phrase",
+      "claude-code-message-range-context",
+      "pi-session-page-context",
     ]);
     expect(result.rows.every((row) => row.predicates.length > 0)).toBe(true);
   });
