@@ -34,6 +34,8 @@
 - 核心层负责 selector、coverage、DB、query/read/list/stats。
 - `find` 默认跨 public source fanout 并合并结果；切换 `--source claude-code` 或 `--source pi` 时走同一组命令但只查目标 source。当前非 Codex 语义仍限于 allowlisted transcript text。
 
+Accepted/rejected projection boundaries live in [SOURCE_CONTRACTS.md](SOURCE_CONTRACTS.md). Treat that file as the code-facing contract for parser privacy fixtures; it is not an upstream raw-format stability promise.
+
 Codex adapter 会把原有 `sessionUuid` 映射为 source-aware identity：
 
 - `sourceId = "codex"`
