@@ -141,6 +141,64 @@ describe("pi source adapter", () => {
     expect(searchableProjection).not.toContain("tool call must not leak");
   });
 
+  test("sync skips malformed and unsupported records without leaking format-drift text", async () => {
+    const { root } = writePiFixture("format-drift", [
+      "{this is not json",
+      piLine({ type: "session", id: "pi-format-drift-session", cwd: "/tmp/pi-format-cwd", timestamp: "2026-06-10T00:00:00.000Z" }),
+      piLine({ type: "future_event", timestamp: "1999-01-01T00:00:00.000Z", text: "unsupported pi text must not leak" }),
+      piLine({
+        type: "message",
+        timestamp: "2026-06-10T00:00:01.000Z",
+        message: { role: "user", content: [{ type: "text", text: "accepted pi format drift needle" }], timestamp: "2026-06-10T00:00:01.000Z" },
+      }),
+      "{\"type\":\"message\",\"message\":",
+      piLine({
+        type: "message",
+        timestamp: "2026-06-10T00:00:02.000Z",
+        message: {
+          role: "assistant",
+          content: [
+            { type: "text", text: "accepted pi format drift answer" },
+            { type: "toolCall", name: "bash", arguments: { command: "format drift tool call must not leak" } },
+          ],
+          timestamp: "2026-06-10T00:00:02.000Z",
+        },
+      }),
+      piLine({ type: "compaction", id: "c1", timestamp: "2026-06-10T00:00:03.000Z", summary: "accepted pi format drift summary" }),
+    ]);
+    const dbPath = join(root, "index.sqlite");
+
+    const summary = await syncSessions({
+      dbPath,
+      sourceId: "pi",
+      selector: { source: "pi", kind: "all", root },
+    });
+
+    expect(summary.errors).toBe(0);
+    expect(summary.added).toBe(1);
+    expect(summary.coverage.sourceFileCount).toBe(1);
+    expect(summary.coverage.indexedSessionCount).toBe(1);
+
+    const foundAccepted = findSessions(dbPath, "accepted pi format drift needle", 10, { source: "pi", kind: "all", root }, { sourceId: "pi" });
+    expect(foundAccepted.results.map((result) => result.sessionUuid)).toEqual(["pi:pi-format-drift-session"]);
+
+    const foundCompaction = findSessions(dbPath, "accepted pi format drift summary", 10, { source: "pi", kind: "all", root }, { sourceId: "pi" });
+    expect(foundCompaction.results.map((result) => result.sessionUuid)).toEqual(["pi:pi-format-drift-session"]);
+    expect(foundCompaction.results[0]?.matchSource).toBe("session");
+
+    const foundUnsupported = findSessions(dbPath, "unsupported pi text", 10, { source: "pi", kind: "all", root }, { sourceId: "pi" });
+    expect(foundUnsupported.results).toEqual([]);
+
+    const page = getMessagePage(dbPath, "pi:pi-format-drift-session", 0, 10);
+    expect(page.session.cwd).toBe("/tmp/pi-format-cwd");
+    expect(page.messages.map((message) => message.contentText)).toEqual([
+      "accepted pi format drift needle",
+      "accepted pi format drift answer",
+    ]);
+    expect(JSON.stringify(page)).not.toContain("unsupported pi text must not leak");
+    expect(JSON.stringify(page)).not.toContain("format drift tool call must not leak");
+  });
+
   test("uses the latest Pi model_change as session model", async () => {
     const { filePath } = writePiFixture("latest-model", [
       piLine({ type: "session", id: "pi-model-session", cwd: "/tmp/pi-model-cwd", timestamp: "2026-06-06T00:00:00.000Z" }),
