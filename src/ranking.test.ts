@@ -123,4 +123,36 @@ describe("rerankHits", () => {
     expect(results).toHaveLength(2);
     expect(results[0].sessionUuid).toBe("sess2");
   });
+
+  test("exact query profile prefers adjacent message phrase over split metadata terms", () => {
+    const rows = [
+      makeRow({
+        sessionUuid: "phrase",
+        title: "incident archive",
+        cwd: "/tmp/ops",
+        matchSource: "message",
+        matchSeq: 3,
+        matchRole: "assistant",
+        contentText: "The release checksum mismatch is isolated to the package manifest.",
+        snippet: "release checksum mismatch",
+        score: -6,
+      }),
+      makeRow({
+        sessionUuid: "split-metadata",
+        title: "release planning",
+        cwd: "/tmp/checksum",
+        matchSource: "session",
+        matchSeq: null,
+        matchRole: "session",
+        contentText: "release planning\nchecksum checklist",
+        snippet: "release planning checksum checklist",
+        score: -8,
+      }),
+    ];
+
+    const results = rerankHits(rows, "release checksum", 10);
+
+    expect(results).toHaveLength(2);
+    expect(results[0].sessionUuid).toBe("phrase");
+  });
 });

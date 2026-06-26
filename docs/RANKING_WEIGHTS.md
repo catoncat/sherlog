@@ -45,27 +45,30 @@
 
 ```
 normalizedBm25
-  + (contentPhrase ? 8 : 0)
-  + termCoverage * 2
+  + phraseBonus
+  + exactMessagePhraseBonus
+  + commandSequenceBonus
+  + termCoverage * termCoverageWeight
+  + fullCoverageBonus
   + (matchSource === "message" ? 4 : 0)
   + (matchRole === "user" ? 2 : 0)
 ```
 
-四项的设计意图是:**bm25 + 三个 token-free 的硬证据**。bm25 处理“词义相关性”,这三项处理 bm25 看不到的元信息。
+这些项的设计意图是:**bm25 + query-profile-aware 的硬证据**。bm25 处理“词义相关性”,其余项处理 bm25 看不到的短语邻接、完整覆盖、消息可回读性与作者角色。
 
-### `contentPhrase ? 8 : 0`
+### `phraseBonus` 与 `exactMessagePhraseBonus`
 
-整条 normalizedQuery(已 trim+lower)作为子串出现在 row 文本里时加 8。
+整条 normalizedQuery(已 trim+lower)作为子串出现在 row 文本里时加分。broad query 加 8；exact query 加 18；如果 exact phrase 来自可回读 message row，再加 10。
 
-- 量级取舍:8 大致等于一条“标题级”单列 bm25。意思是“整词组完整命中” ≈ “标题里出现过这个词”,这是一个故意做高的赌注,因为 bm25 在 token 切分后看不到“两个词必须挨着”这种用户意图。
-- 改高(>=12):对引号式查询会更准,但中文长 query 会几乎自动满分,失去区分度。
+- 量级取舍:broad 的 8 大致等于一条“标题级”单列 bm25；exact 的 18 则让多 token 查询更信任相邻短语。message row 额外 +10 是为了偏向可 `read-range` 的原文证据。
+- 改高:broad >=12 会让短语泛匹配压过 session-level 线索；exact >30 会让中文长 query 和很长命令几乎自动满分,失去区分度。
 - 改低(<=4):多 token 查询会被 bm25 单词命中淹没,“`hash collision`” 这种短语和 “`hash` 在 X、`collision` 在 Y”同分。改低之前先做 P1-2 mixed match 对照测试。
 
-### `termCoverage * 2`
+### `termCoverage * termCoverageWeight` 与 `fullCoverageBonus`
 
 `countMatchedTerms(content, terms)`,即 query 里多少个 token 在这一行出现过。
 
-- 量级取舍:每个 token 加 2,3-token query 满覆盖 = 6,差不多和 user-bump+message-bump 加起来一个量级,保证“覆盖更全的行”能压过“偶然命中一个高频词的行”,但不至于盖住 contentPhrase 的 8。
+- 量级取舍:broad query 每个 token 加 2；exact query 每个 token 加 3，并在多 token 全覆盖时再加 4。这样 exact/path-like 查询会更偏向“词都在同一条证据里出现”,但不引入 planner。
 - 改高(>=4):短 query 没影响,长 query 会让“凑齐了所有词但散得很开的长行”赢,这通常不是搜索者想要的——bm25 已经在做这件事了,这一项是“补强”不是“主信号”。
 - 改低(<=1):多 token query 的覆盖度退化为可有可无,大概率出现“两词都命中但只命中一次的行 < 一词命中三次的行”这种反直觉结果。
 
@@ -94,15 +97,15 @@ user-authored content 比 agent 输出多 2 分。
 ```
 bestRowSignalScore
   + (titlePhrase ? 30 : 0)
-  + titleTermHits * 10
-  + cwdTermHits * 18
+  + titleTermHits * titleTermWeight
+  + cwdTermHits * cwdTermWeight
   + min(userHitCount, 3) * 4
   + min(sessionHitCount, 2) * 2
-  + min(hitCount, 6) * 1.5
+  + min(hitCount, 6) * hitCountWeight
   + recencyBonus
 ```
 
-这一层的目的:**让“证据稍弱但 session 整体强相关”的 session 也能赢**。bestRowSignalScore 是 `scoreRow` 出来的最大值,后面所有项是“session 才能看到的信号”。
+这一层的目的:**让“证据稍弱但 session 整体强相关”的 session 也能赢**。bestRowSignalScore 是 `scoreRow` 出来的最大值,后面所有项是“session 才能看到的信号”。broad query 保持较强的 session-level metadata / sustained-evidence 偏好；exact query 略收窄 title/cwd term 权重,避免 split metadata terms 压过相邻 message phrase。
 
 ### `titlePhrase ? 30 : 0`
 
@@ -113,19 +116,19 @@ bestRowSignalScore
 - 改高(>=50):很少会让结果更好,反而让“标题恰好包含但内容已不相关”的旧 session 浮起来。
 - 改低(<=15):title-only 命中失去优先级,搜索短语类 query 时退化明显。
 
-### `titleTermHits * 10`
+### `titleTermHits * titleTermWeight`
 
-token 维度的 title 命中,每命中一个 query token 加 10。
+token 维度的 title 命中,按 query profile 选择权重。
 
-- 量级取舍:乘 10 让 “3-token 全命中标题” = 30,与 phrase 命中持平。即“词都在标题里、只是顺序对不上”可以达到 phrase 的水平。
+- 量级取舍:broad query 乘 10；exact query 乘 8。broad 搜索保留“标题词命中是强 session 线索”的行为；exact 搜索避免几个拆散的 title token 和完整短语同权。
 - 改高(>=15):多 token query 里只要有几个词出现在标题就压顶,即使语义未必相关——容易被高频词带偏。
 - 改低(<=4):短 phrase 更倾向 phrase 命中而不是 token 命中,中文 query bigram 切分后 token 多、容易因为打折而退化。
 
-### `cwdTermHits * 18`
+### `cwdTermHits * cwdTermWeight`
 
-每命中一个 query token 在 session 的 `cwd` 中,加 18。
+每命中一个 query token 在 session 的 `cwd` 中,按 query profile 选择权重。
 
-- 量级取舍:18 比 titleTermHits×10 更大,这是因为 cwd 的“噪声密度”远低于 title——title 是自然语言、可能和 query 同词不同意,而 cwd 是文件路径,query token 命中 cwd 几乎一定意味着用户当时在那个仓库/目录。
+- 量级取舍:broad query 乘 18；exact query 乘 12。cwd 的“噪声密度”低,所以 broad 搜索仍强烈支持“按项目找”；exact 搜索则降低拆散路径词压过相邻消息短语的概率。
 - 比 titlePhrase=30 略低,但单 token 命中就给 18,意味着“在某个 repo 名里出现过的 query token” = 半个 phrase 命中,这是给“按项目找”的工作流量身定的。
 - 改高:几乎所有 query 都会被 cwd 主导,严重的话两条同 repo 的不相关 session 比一条跨 repo 的精准命中还高,这是错的。
 - 改低或去掉:跨仓库使用 Sherlog 找“在哪个项目里讨论过 X”体验会变差,这是当前 Sherlog 的核心使用场景之一。
@@ -147,12 +150,12 @@ session-level row(`matchSource === 'session'`)的命中条数, clamp 到 2,乘 2
 - clamp=2 的意义:`sessions_fts` 一个 session 最多产 1 行(去重过),实际能到 2 的情况很少;clamp 在 2 是为了未来如果路径里产生多 session-level row 时的封顶。
 - 改这个权重的收益很低,通常不要动它,先看 SQL 列权重那一节。
 
-### `min(hitCount, 6) * 1.5`
+### `min(hitCount, 6) * hitCountWeight`
 
-session 内总命中行数,clamp 到 6,乘 1.5(满分 9)。
+session 内总命中行数,clamp 到 6,再按 query profile 选择乘数。
 
 - clamp=6 的意义:总命中行数饱和点。一个 session 里 6 条以上 row 命中,几乎可以肯定是相关的;再多反而可能是噪声(冗长 session 沾边了几个高频词)。
-- 1.5 是“最弱信号”的乘数:命中数本身已经被 bm25 / scoreRow 算过,这里只是“量上的小补强”。
+- hitCountWeight 是“最弱信号”的乘数:broad query 用 1.75,exact query 用 1.25。broad 搜索更愿意相信一整个 session 的持续证据；exact 搜索更愿意相信短语邻接和完整覆盖。
 - 改高 clamp(>=10):长 session 永远比短 session 优势大,惩罚“一次精准命中的短 session”。clamp 在 6 是为了把“质”和“量”的权衡偏向质。
 - 改低乘数(<=0.5):没什么副作用,但也没什么收益,不建议动。
 

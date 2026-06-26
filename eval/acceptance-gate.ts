@@ -11,6 +11,8 @@ const MESSAGE_HIT_SESSION = "11111111-1111-4111-8111-111111111111";
 const SESSION_HIT_SESSION = "22222222-2222-4222-8222-222222222222";
 const CJK_HIT_SESSION = "33333333-3333-4333-8333-333333333333";
 const NOISE_SESSION = "44444444-4444-4444-8444-444444444444";
+const EXACT_PHRASE_SESSION = "55555555-5555-4555-8555-555555555555";
+const SPLIT_METADATA_SESSION = "66666666-6666-4666-8666-666666666666";
 
 export interface AcceptanceGateOptions {
   keepTemp?: boolean;
@@ -186,6 +188,27 @@ function acceptanceGoldens(): DogfoodGolden[] {
         },
       },
     },
+    {
+      id: "exact-query-profile-phrase",
+      query: "release checksum",
+      intent: "exact multi-term queries should prefer adjacent message evidence over split metadata terms",
+      status: "hard",
+      expected: {
+        topK: 1,
+        sourceId: "codex",
+        acceptableSessionUuids: [EXACT_PHRASE_SESSION],
+        sessionRef: EXACT_PHRASE_SESSION,
+        cwdContains: "/tmp/sherlog-acceptance/exact-phrase",
+        matchSource: "message",
+        matchSeq: 1,
+        context: {
+          mode: "read-range",
+          before: 1,
+          after: 0,
+          mustContain: ["Investigate package audit", "release checksum mismatch"],
+        },
+      },
+    },
   ];
 }
 
@@ -209,6 +232,14 @@ function writeAcceptanceFixtures(root: string): void {
   writeCodexSession(day, NOISE_SESSION, "/tmp/sherlog-acceptance/noise", [
     event("user_message", "Refactor parser docs"),
     event("agent_message", "No deploy or handoff evidence here."),
+  ]);
+  writeCodexSession(day, EXACT_PHRASE_SESSION, "/tmp/sherlog-acceptance/exact-phrase", [
+    event("user_message", "Investigate package audit"),
+    event("agent_message", "The release checksum mismatch is isolated to the package manifest."),
+  ]);
+  writeCodexSession(day, SPLIT_METADATA_SESSION, "/tmp/sherlog-acceptance/checksum", [
+    event("user_message", "release planning"),
+    event("agent_message", "checksum checklist covers the release planning board"),
   ]);
 }
 

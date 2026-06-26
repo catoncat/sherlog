@@ -5,10 +5,10 @@ describe("acceptance gate", () => {
   test("passes synthetic evidence-level retrieval fixtures", async () => {
     const result = await runAcceptanceGate();
 
-    expect(result.sync.added).toBe(4);
+    expect(result.sync.added).toBe(6);
     expect(result.scoreboard).toMatchObject({
-      total: 3,
-      pass: 3,
+      total: 4,
+      pass: 4,
       fail: 0,
       hardFail: 0,
     });
@@ -16,6 +16,7 @@ describe("acceptance gate", () => {
       "message-hit-context",
       "session-only-compact-context",
       "cjk-message-hit",
+      "exact-query-profile-phrase",
     ]);
     expect(result.rows.every((row) => row.predicates.length > 0)).toBe(true);
   });
