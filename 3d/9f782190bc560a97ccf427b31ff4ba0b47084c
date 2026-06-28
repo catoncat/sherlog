@@ -1,0 +1,25 @@
+eval/acceptance-gate.test.ts
+  s_d44e8400d42e1a::t_7abdeea6b6ae73 8,12-13
+src/ranking.ts
+  s_d44e8400d42e1a::t_d53b2009264dab 34-37,223,225,241-242,245
+docs/RANKING_WEIGHTS.md
+  s_d44e8400d42e1a::t_9cbd8e8f881f1d 48,50,55,57,59,61-62,65,69,98-99,102,106,117,119,121,125,127,129,151,153,156
+docs/ARCHITECTURE.md
+  s_d44e8400d42e1a::t_efad537a7dabac 149
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.3",
+  "base_commit_sha": "3d9f782190bc560a97ccf427b31ff4ba0b47084c",
+  "prompts": {},
+  "sessions": {
+    "s_d44e8400d42e1a": {
+      "agent_id": {
+        "tool": "pi",
+        "id": "019f080a-17a5-793c-bdc6-f139290d34e2",
+        "model": "gpt-5.5"
+      },
+      "human_author": "catoncat <git@chen.rs>"
+    }
+  }
+}
