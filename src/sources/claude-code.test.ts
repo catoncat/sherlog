@@ -134,6 +134,66 @@ describe("claude-code source adapter", () => {
     expect(searchableProjection).not.toContain("attachment text must not leak");
   });
 
+  test("sync skips malformed and unsupported records without leaking format-drift text", async () => {
+    const { root } = writeClaudeFixture("format-drift", [
+      "{this is not json",
+      claudeLine({
+        type: "system",
+        sessionId: "unsupported-session-must-not-win",
+        cwd: "/tmp/unsupported-cwd-must-not-win",
+        timestamp: "1999-01-01T00:00:00.000Z",
+        message: { content: "unsupported claude text must not leak" },
+      }),
+      claudeLine({
+        type: "user",
+        sessionId: "format-drift-session",
+        cwd: "/tmp/claude-format-cwd",
+        timestamp: "2026-06-10T00:00:00.000Z",
+        message: { content: "accepted claude format drift needle" },
+      }),
+      "{\"type\":\"assistant\",\"message\":",
+      claudeLine({
+        type: "assistant",
+        sessionId: "format-drift-session",
+        cwd: "/tmp/claude-format-cwd",
+        timestamp: "2026-06-10T00:00:01.000Z",
+        message: {
+          content: [
+            { type: "text", text: "accepted claude format drift answer" },
+            { type: "attachment", text: "format drift attachment must not leak" },
+          ],
+        },
+      }),
+    ]);
+    const dbPath = join(root, "index.sqlite");
+
+    const summary = await syncSessions({
+      dbPath,
+      sourceId: "claude-code",
+      selector: { source: "claude-code", kind: "all", root },
+    });
+
+    expect(summary.errors).toBe(0);
+    expect(summary.added).toBe(1);
+    expect(summary.coverage.sourceFileCount).toBe(1);
+    expect(summary.coverage.indexedSessionCount).toBe(1);
+
+    const foundAccepted = findSessions(dbPath, "accepted claude format drift needle", 10, { source: "claude-code", kind: "all", root }, { sourceId: "claude-code" });
+    expect(foundAccepted.results.map((result) => result.sessionUuid)).toEqual(["claude-code:format-drift-session"]);
+
+    const foundUnsupported = findSessions(dbPath, "unsupported claude text", 10, { source: "claude-code", kind: "all", root }, { sourceId: "claude-code" });
+    expect(foundUnsupported.results).toEqual([]);
+
+    const page = getMessagePage(dbPath, "claude-code:format-drift-session", 0, 10);
+    expect(page.session.cwd).toBe("/tmp/claude-format-cwd");
+    expect(page.messages.map((message) => message.contentText)).toEqual([
+      "accepted claude format drift needle",
+      "accepted claude format drift answer",
+    ]);
+    expect(JSON.stringify(page)).not.toContain("unsupported claude text must not leak");
+    expect(JSON.stringify(page)).not.toContain("format drift attachment must not leak");
+  });
+
   test("ignores skipped records when deriving inventory grouping dates and snapshot file metadata", async () => {
     const { root, filePath } = writeClaudeFixture("inventory-policy", [
       claudeLine({

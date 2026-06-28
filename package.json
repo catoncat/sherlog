@@ -48,6 +48,7 @@
     "shlog": "tsx ./src/cli.ts",
     "cxs": "npm run shlog --",
     "eval:manual": "tsx ./eval/run-manual-eval.ts",
+    "eval:acceptance": "tsx ./eval/run-acceptance-eval.ts",
     "eval:compare": "tsx ./eval/compare-eval-batches.ts",
     "eval:perf": "tsx ./eval/perf-bench.ts",
     "eval:dogfood": "tsx ./eval/run-dogfood-eval.ts"

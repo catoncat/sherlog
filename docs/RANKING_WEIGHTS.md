@@ -46,12 +46,13 @@
 ```
 normalizedBm25
   + (contentPhrase ? 8 : 0)
+  + commandSequenceBonus
   + termCoverage * 2
   + (matchSource === "message" ? 4 : 0)
   + (matchRole === "user" ? 2 : 0)
 ```
 
-四项的设计意图是:**bm25 + 三个 token-free 的硬证据**。bm25 处理“词义相关性”,这三项处理 bm25 看不到的元信息。
+这些项的设计意图是:**bm25 + token-free 的硬证据**。bm25 处理“词义相关性”,其余项处理 bm25 看不到的短语邻接、命令 token 邻近、消息可回读性与作者角色。
 
 ### `contentPhrase ? 8 : 0`
 

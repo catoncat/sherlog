@@ -10,6 +10,7 @@ import {
   statsReadoutEnabled,
 } from "./env";
 import { IndexSchemaUpgradeRequiredError, IndexUnavailableError, listCoverageRecords, withReadDb } from "./db";
+import { buildEvidenceReadAction } from "./evidence-read";
 import { getSessionSourceAdapter, listSessionSourceAdapters } from "./sources";
 
 // One-shot migration from legacy cxs data dirs to the current shlog state dir.
@@ -178,7 +179,14 @@ program
       // 含 better-sqlite3 模块加载;shlog 是一次性进程,所以这就是诚实的端到端。
       const elapsedMs = Math.round(performance.now());
       if (options.json) {
-        console.log(JSON.stringify({ ...result, elapsedMs }, null, 2));
+        console.log(JSON.stringify({
+          ...result,
+          results: result.results.map((findResult) => ({
+            ...findResult,
+            evidenceRead: buildEvidenceReadAction({ ...findResult, query: result.query }),
+          })),
+          elapsedMs,
+        }, null, 2));
         return;
       }
       printFindResults(result.query, result.results, result.scannedMessageCount, elapsedMs, statsReadoutEnabled(), result.nextAction);

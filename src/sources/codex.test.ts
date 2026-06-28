@@ -60,6 +60,54 @@ describe("codex source adapter", () => {
     expect(parsed.session.sessionUuid).toBe("aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa");
     expect(parsed.session.messages[0]?.contentText).toBe("adapter session");
   });
+
+  test("filters unsupported, internal, and malformed Codex records from searchable projection", async () => {
+    const base = mkdtempSync(join(tmpdir(), "cxs-codex-contract-"));
+    tempDirs.push(base);
+    const root = join(base, "sessions");
+    const day = join(root, "2026", "04", "23");
+    mkdirSync(day, { recursive: true });
+    const filePath = join(
+      day,
+      "rollout-2026-04-23T12-00-00-bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb.jsonl",
+    );
+    writeFileSync(
+      filePath,
+      [
+        "{not json",
+        line("session_meta", { id: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb", cwd: "/tmp/codex-contract" }),
+        line("event_msg", { type: "tool_result", message: "tool result must not leak" }),
+        line("event_msg", { type: "user_message", message: "accepted codex user text" }),
+        line("event_msg", {
+          type: "user_message",
+          message: "The following is the Codex agent history whose request action you are assessing\ninternal marker must not leak",
+        }),
+        line("event_msg", { type: "agent_message", message: "accepted codex assistant text" }),
+        line("other_record", { message: "unrelated record must not leak" }),
+      ].join("\n"),
+    );
+
+    const parsed = await codexSourceAdapter.parseFile({
+      filePath,
+      cwd: "/tmp/fallback",
+      pathDate: "2026-04-23",
+      mtimeMs: 0,
+      size: 0,
+    });
+
+    expect(parsed.kind).toBe("parsed");
+    if (parsed.kind !== "parsed") return;
+    expect(parsed.session.messages.map((message) => message.contentText)).toEqual([
+      "accepted codex user text",
+      "accepted codex assistant text",
+    ]);
+
+    const searchableProjection = JSON.stringify(parsed.session);
+    expect(searchableProjection).not.toContain("tool result must not leak");
+    expect(searchableProjection).not.toContain("internal marker must not leak");
+    expect(searchableProjection).not.toContain("unrelated record must not leak");
+    expect(searchableProjection).not.toContain("{not json");
+  });
 });
 
 function line(type: string, payload: Record<string, unknown>): string {

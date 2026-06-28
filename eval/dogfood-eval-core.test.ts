@@ -44,11 +44,26 @@ describe("dogfood eval core", () => {
     expect(evaluation.mark).toBe("pass");
   });
 
-  test("uses read-range for message hits and read-page for session-only hits in auto mode", () => {
+  test("checks source id, session ref, and nullable match sequence", () => {
+    const evaluation = evaluateDogfoodItem({
+      item: golden({ sourceId: "codex", sessionRef: "session-a", matchSource: "session", matchSeq: null }),
+      results: [findResult({ matchSource: "session", matchSeq: null })],
+    });
+
+    expect(evaluation.mark).toBe("pass");
+    expect(evaluation.predicateResults.map((predicate) => predicate.label)).toEqual([
+      "source_id",
+      "session_ref",
+      "match_source",
+      "match_seq",
+    ]);
+  });
+
+  test("uses read-range for both message and session-only hits in auto mode", () => {
     const item = golden({ contextMustContain: ["decision"] });
 
     expect(desiredContextMode(item, findResult({ matchSource: "message", matchSeq: 7 }))).toBe("read-range");
-    expect(desiredContextMode(item, findResult({ matchSource: "session", matchSeq: null }))).toBe("read-page");
+    expect(desiredContextMode(item, findResult({ matchSource: "session", matchSeq: null }))).toBe("read-range");
   });
 
   test("reports missing context needles case-insensitively", () => {
@@ -72,7 +87,10 @@ describe("dogfood eval core", () => {
       },
       expected: {
         topK: 5,
+        sourceId: "codex",
         acceptableSessionUuids: ["target-session"],
+        sessionRef: "target-session",
+        matchSeq: null,
       },
     }), "goldens.local.jsonl");
 
@@ -90,7 +108,11 @@ describe("dogfood eval core", () => {
 function golden(
   overrides: Partial<{
     status: "candidate" | "hard" | "stale";
+    sourceId: "codex" | "claude-code" | "pi";
     acceptableSessionUuids: string[];
+    sessionRef: string;
+    matchSource: "message" | "session";
+    matchSeq: number | null;
     topK: number;
     contextMustContain: string[];
   }> = {},
@@ -102,7 +124,11 @@ function golden(
     status: overrides.status ?? "hard",
     expected: {
       topK: overrides.topK,
+      sourceId: overrides.sourceId,
       acceptableSessionUuids: overrides.acceptableSessionUuids,
+      sessionRef: overrides.sessionRef,
+      matchSource: overrides.matchSource,
+      matchSeq: overrides.matchSeq,
       context: overrides.contextMustContain ? { mustContain: overrides.contextMustContain } : undefined,
     },
   };

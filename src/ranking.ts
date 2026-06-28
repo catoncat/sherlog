@@ -23,6 +23,7 @@ export interface RawHitRow {
 }
 
 export interface QueryProfile {
+  kind: "broad" | "exact";
   normalizedQuery: string;
   terms: string[];
   isMultiTerm: boolean;
@@ -30,12 +31,12 @@ export interface QueryProfile {
 }
 
 /**
- * Kept for backward compat with callers that still read `kind`. The v3
- * scoring pipeline does not branch on kind anymore; it treats `isMultiTerm`
- * as a continuous signal instead. Single-term queries are labelled "broad",
- * everything else "exact" to preserve existing external tests.
+ * Kept for backward compat with callers that still read `kind`. The current
+ * scoring pipeline does not branch on broad/exact because real-data A/B showed
+ * no useful ranking impact; phrase, term, path-like, and metadata signals are
+ * applied uniformly instead.
  */
-export function classifyQueryProfile(query: string): QueryProfile & { kind: "broad" | "exact" } {
+export function classifyQueryProfile(query: string): QueryProfile {
   const normalizedQuery = query.trim().toLowerCase();
   const terms = queryTerms(query);
 

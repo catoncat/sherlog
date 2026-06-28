@@ -1,5 +1,5 @@
 import { canonicalizeSelector } from "../src/selector";
-import type { FindSort, MatchSource, Selector } from "../src/types";
+import { isSessionSourceId, type FindSort, type MatchSource, type Selector, type SessionSourceId } from "../src/types";
 
 export type DogfoodStatus = "candidate" | "hard" | "stale";
 export type DogfoodOriginKind = "observed-user-ask" | "evidence-backed-derived" | "manual";
@@ -18,14 +18,18 @@ export interface DogfoodExpectedContext {
   after?: number;
   offset?: number;
   limit?: number;
+  query?: string;
   mustContain?: string[];
 }
 
 export interface DogfoodExpected {
   topK?: number;
+  sourceId?: SessionSourceId;
   acceptableSessionUuids?: string[];
+  sessionRef?: string;
   cwdContains?: string;
   matchSource?: MatchSource;
+  matchSeq?: number | null;
   context?: DogfoodExpectedContext;
 }
 
@@ -120,14 +124,30 @@ function parseExpected(value: unknown): DogfoodExpected | null {
   const topK = readPositiveInteger(value.topK);
   if (topK) expected.topK = topK;
 
+  if (typeof value.sourceId === "string" && isSessionSourceId(value.sourceId)) {
+    expected.sourceId = value.sourceId;
+  }
+
   const acceptableSessionUuids = readStringArray(value.acceptableSessionUuids);
   if (acceptableSessionUuids) expected.acceptableSessionUuids = acceptableSessionUuids;
+
+  const sessionRef = readNonEmptyString(value, "sessionRef");
+  if (sessionRef) expected.sessionRef = sessionRef;
 
   const cwdContains = readNonEmptyString(value, "cwdContains");
   if (cwdContains) expected.cwdContains = cwdContains;
 
   if (value.matchSource === "message" || value.matchSource === "session") {
     expected.matchSource = value.matchSource;
+  }
+
+  if (Object.hasOwn(value, "matchSeq")) {
+    if (value.matchSeq === null) {
+      expected.matchSeq = null;
+    } else {
+      const matchSeq = readNonNegativeInteger(value.matchSeq);
+      if (typeof matchSeq === "number") expected.matchSeq = matchSeq;
+    }
   }
 
   const context = parseContext(value.context);
@@ -153,6 +173,7 @@ function parseContext(value: unknown): DogfoodExpectedContext | undefined {
   if (limit) context.limit = limit;
   const mustContain = readStringArray(value.mustContain);
   if (mustContain) context.mustContain = mustContain;
+  if (typeof value.query === "string" && value.query.length > 0) context.query = value.query;
 
   return Object.keys(context).length > 0 ? context : undefined;
 }
@@ -216,9 +237,12 @@ function parseOrigin(value: unknown, _lineNumber: number): DogfoodOrigin | undef
 
 function hasExpectedAssertion(expected: DogfoodExpected): boolean {
   return Boolean(
-    expected.acceptableSessionUuids?.length
+    Boolean(expected.sourceId)
+    || expected.acceptableSessionUuids?.length
+    || Boolean(expected.sessionRef)
     || Boolean(expected.cwdContains)
     || Boolean(expected.matchSource)
+    || expected.matchSeq !== undefined
     || expected.context?.mustContain?.length,
   );
 }
