@@ -31,10 +31,10 @@ export interface QueryProfile {
 }
 
 /**
- * Single-term queries are labelled "broad" and keep a light preference for
- * sustained session evidence. Multi-token, digit, and path-like queries are
- * labelled "exact" so scoring can reward adjacent phrase and full-coverage
- * evidence without adding a natural-language planner.
+ * Kept for backward compat with callers that still read `kind`. The current
+ * scoring pipeline does not branch on broad/exact because real-data A/B showed
+ * no useful ranking impact; phrase, term, path-like, and metadata signals are
+ * applied uniformly instead.
  */
 export function classifyQueryProfile(query: string): QueryProfile {
   const normalizedQuery = query.trim().toLowerCase();
@@ -217,18 +217,12 @@ function scoreRow(row: RawHitRow, profile: QueryProfile): number {
       ? containsBoundedPhrase(contentLower, profile.normalizedQuery)
       : contentLower.includes(profile.normalizedQuery));
   const termCoverage = countMatchedTerms(contentLower, profile.terms);
-  const termCoverageWeight = profile.kind === "exact" ? 3 : 2;
-  const phraseBonus = contentPhrase ? (profile.kind === "exact" ? 18 : 8) : 0;
-  const exactMessagePhraseBonus = profile.kind === "exact" && contentPhrase && row.matchSource === "message" ? 10 : 0;
-  const fullCoverageBonus = profile.kind === "exact" && hasFullTermCoverage(termCoverage, profile) ? 4 : 0;
   const commandSequenceBonus = scorePathLikeCommandSequence(contentLower, profile);
 
   return normalizedBm25
-    + phraseBonus
-    + exactMessagePhraseBonus
+    + (contentPhrase ? 8 : 0)
     + commandSequenceBonus
-    + termCoverage * termCoverageWeight
-    + fullCoverageBonus
+    + termCoverage * 2
     + (row.matchSource === "message" ? 4 : 0)
     + (row.matchRole === "user" ? 2 : 0);
 }
@@ -241,17 +235,14 @@ function scoreRow(row: RawHitRow, profile: QueryProfile): number {
  */
 function scoreSession(aggregate: SessionAggregate, profile: QueryProfile, now: number): number {
   const recencyBonus = recencyDecay(aggregate.row.endedAt, now);
-  const titleTermWeight = profile.kind === "exact" ? 8 : 10;
-  const cwdTermWeight = profile.kind === "exact" ? 12 : 18;
-  const hitCountWeight = profile.kind === "broad" ? 1.75 : 1.25;
 
   return aggregate.bestRowSignalScore
     + (aggregate.titlePhrase ? 30 : 0)
-    + aggregate.titleTermHits * titleTermWeight
-    + aggregate.cwdTermHits * cwdTermWeight
+    + aggregate.titleTermHits * 10
+    + aggregate.cwdTermHits * 18
     + Math.min(aggregate.userHitCount, 3) * 4
     + Math.min(aggregate.sessionHitCount, 2) * 2
-    + Math.min(aggregate.hitCount, 6) * hitCountWeight
+    + Math.min(aggregate.hitCount, 6) * 1.5
     + recencyBonus;
 }
 
@@ -274,10 +265,6 @@ function countMatchedTerms(haystack: string, terms: string[]): number {
     if (haystack.includes(term)) matched += 1;
   }
   return matched;
-}
-
-function hasFullTermCoverage(termCoverage: number, profile: QueryProfile): boolean {
-  return profile.terms.length > 1 && termCoverage === profile.terms.length;
 }
 
 function scorePathLikeCommandSequence(haystack: string, profile: QueryProfile): number {
