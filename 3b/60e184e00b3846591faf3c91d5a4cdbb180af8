@@ -1,0 +1,21 @@
+package.json
+  s_d44e8400d42e1a::t_5059b46bb6884f 3
+package-lock.json
+  s_d44e8400d42e1a::t_2e667f086752a0 3,9
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.3",
+  "base_commit_sha": "3b60e184e00b3846591faf3c91d5a4cdbb180af8",
+  "prompts": {},
+  "sessions": {
+    "s_d44e8400d42e1a": {
+      "agent_id": {
+        "tool": "pi",
+        "id": "019f080a-17a5-793c-bdc6-f139290d34e2",
+        "model": "gpt-5.5"
+      },
+      "human_author": "catoncat <git@chen.rs>"
+    }
+  }
+}
