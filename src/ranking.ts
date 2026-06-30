@@ -22,21 +22,14 @@ export interface RawHitRow {
   score: number;
 }
 
-export interface QueryProfile {
-  kind: "broad" | "exact";
+export interface QuerySignals {
   normalizedQuery: string;
   terms: string[];
   isMultiTerm: boolean;
   isPathLikeCommand: boolean;
 }
 
-/**
- * Kept for backward compat with callers that still read `kind`. The current
- * scoring pipeline does not branch on broad/exact because real-data A/B showed
- * no useful ranking impact; phrase, term, path-like, and metadata signals are
- * applied uniformly instead.
- */
-export function classifyQueryProfile(query: string): QueryProfile {
+export function buildQuerySignals(query: string): QuerySignals {
   const normalizedQuery = query.trim().toLowerCase();
   const terms = queryTerms(query);
 
@@ -44,17 +37,9 @@ export function classifyQueryProfile(query: string): QueryProfile {
   // array allocations from `split()` and `filter()`. It's ~10x faster.
   const trimmed = query.trim();
   const hasMultipleRawTokens = trimmed.length > 0 && /\s/.test(trimmed);
-  const hasDigits = /\d/.test(query);
   const hasPathLikeToken = /[\\/._:-]/.test(query);
-  // "exact" historically meant: user gave us enough signal that we should
-  // trust phrase matches heavily. Keep that label, but compute it off the
-  // raw query rather than the tokenized terms so the category stays stable
-  // for CJK queries that bigram-explode into many tokens.
-  const kind: "broad" | "exact" = hasMultipleRawTokens || hasDigits || hasPathLikeToken
-    ? "exact"
-    : "broad";
+
   return {
-    kind,
     normalizedQuery,
     terms,
     isMultiTerm: hasMultipleRawTokens,
@@ -77,21 +62,21 @@ interface SessionAggregate {
 }
 
 export function rerankHits(rows: RawHitRow[], query: string, limit: number): FindResult[] {
-  const profile = classifyQueryProfile(query);
-  const grouped = aggregateRows(rows, profile);
-  return rankAggregates(grouped, profile, limit);
+  const signals = buildQuerySignals(query);
+  const grouped = aggregateRows(rows, signals);
+  return rankAggregates(grouped, limit);
 }
 
-function aggregateRows(rows: RawHitRow[], profile: QueryProfile): Map<string, SessionAggregate> {
+function aggregateRows(rows: RawHitRow[], signals: QuerySignals): Map<string, SessionAggregate> {
   const grouped = new Map<string, SessionAggregate>();
 
   for (const row of rows) {
-    const signalScore = scoreRow(row, profile);
+    const signalScore = scoreRow(row, signals);
     const key = row.sessionKey ?? row.sessionUuid;
     const existing = grouped.get(key);
 
     if (!existing) {
-      grouped.set(key, createSessionAggregate(row, profile, signalScore));
+      grouped.set(key, createSessionAggregate(row, signals, signalScore));
     } else {
       updateSessionAggregate(existing, row, signalScore);
     }
@@ -100,18 +85,18 @@ function aggregateRows(rows: RawHitRow[], profile: QueryProfile): Map<string, Se
   return grouped;
 }
 
-function createSessionAggregate(row: RawHitRow, profile: QueryProfile, signalScore: number): SessionAggregate {
+function createSessionAggregate(row: RawHitRow, signals: QuerySignals, signalScore: number): SessionAggregate {
   // OPTIMIZATION: title and cwd are identical for all rows of the same session.
   // Computing them only once per sessionUuid avoids redundant string allocations,
   // .toLowerCase() conversions, and .includes() term matching overhead.
   const rowTitleLower = row.title.toLowerCase();
   const rowCwdLower = row.cwd.toLowerCase();
-  const titlePhrase = profile.normalizedQuery.length > 0
-    && (profile.isPathLikeCommand
-      ? containsBoundedPhrase(rowTitleLower, profile.normalizedQuery)
-      : rowTitleLower.includes(profile.normalizedQuery));
-  const titleTermHits = countMatchedTerms(rowTitleLower, profile.terms);
-  const cwdTermHits = countMatchedTerms(rowCwdLower, profile.terms);
+  const titlePhrase = signals.normalizedQuery.length > 0
+    && (signals.isPathLikeCommand
+      ? containsBoundedPhrase(rowTitleLower, signals.normalizedQuery)
+      : rowTitleLower.includes(signals.normalizedQuery));
+  const titleTermHits = countMatchedTerms(rowTitleLower, signals.terms);
+  const cwdTermHits = countMatchedTerms(rowCwdLower, signals.terms);
 
   return {
     row,
@@ -144,12 +129,12 @@ function updateSessionAggregate(existing: SessionAggregate, row: RawHitRow, sign
   }
 }
 
-function rankAggregates(grouped: Map<string, SessionAggregate>, profile: QueryProfile, limit: number): FindResult[] {
+function rankAggregates(grouped: Map<string, SessionAggregate>, limit: number): FindResult[] {
   const now = Date.now();
   const ranked = Array.from(grouped.values())
     .map((aggregate) => ({
       aggregate,
-      sessionScore: scoreSession(aggregate, profile, now),
+      sessionScore: scoreSession(aggregate, now),
     }))
     .sort((left, right) => {
       if (right.sessionScore !== left.sessionScore) {
@@ -209,15 +194,15 @@ function shouldUseDisplayRow(
  * 2. Whether the full query phrase appears verbatim in the content.
  * 3. User-message bump (user-authored content is usually the search intent).
  */
-function scoreRow(row: RawHitRow, profile: QueryProfile): number {
+function scoreRow(row: RawHitRow, signals: QuerySignals): number {
   const normalizedBm25 = -row.score; // higher is better now
   const contentLower = row.contentText.toLowerCase();
-  const contentPhrase = profile.normalizedQuery.length > 0
-    && (profile.isPathLikeCommand
-      ? containsBoundedPhrase(contentLower, profile.normalizedQuery)
-      : contentLower.includes(profile.normalizedQuery));
-  const termCoverage = countMatchedTerms(contentLower, profile.terms);
-  const commandSequenceBonus = scorePathLikeCommandSequence(contentLower, profile);
+  const contentPhrase = signals.normalizedQuery.length > 0
+    && (signals.isPathLikeCommand
+      ? containsBoundedPhrase(contentLower, signals.normalizedQuery)
+      : contentLower.includes(signals.normalizedQuery));
+  const termCoverage = countMatchedTerms(contentLower, signals.terms);
+  const commandSequenceBonus = scorePathLikeCommandSequence(contentLower, signals);
 
   return normalizedBm25
     + (contentPhrase ? 8 : 0)
@@ -233,7 +218,7 @@ function scoreRow(row: RawHitRow, profile: QueryProfile): number {
  * session whose raw FTS match is weaker but whose title/cwd strongly reflect
  * the query can still win.
  */
-function scoreSession(aggregate: SessionAggregate, profile: QueryProfile, now: number): number {
+function scoreSession(aggregate: SessionAggregate, now: number): number {
   const recencyBonus = recencyDecay(aggregate.row.endedAt, now);
 
   return aggregate.bestRowSignalScore
@@ -267,17 +252,17 @@ function countMatchedTerms(haystack: string, terms: string[]): number {
   return matched;
 }
 
-function scorePathLikeCommandSequence(haystack: string, profile: QueryProfile): number {
-  if (!profile.isPathLikeCommand || profile.terms.length < 2) return 0;
-  if (containsBoundedPhrase(haystack, profile.normalizedQuery)) return 36;
+function scorePathLikeCommandSequence(haystack: string, signals: QuerySignals): number {
+  if (!signals.isPathLikeCommand || signals.terms.length < 2) return 0;
+  if (containsBoundedPhrase(haystack, signals.normalizedQuery)) return 36;
 
-  const span = shortestOrderedSpan(tokenize(haystack), profile.terms);
+  const span = shortestOrderedSpan(tokenize(haystack), signals.terms);
   if (span === null) return 0;
 
-  const gaps = span - profile.terms.length;
+  const gaps = span - signals.terms.length;
   if (gaps === 0) return 8;
   if (gaps <= 3) return 24 - gaps * 2;
-  if (gaps <= profile.terms.length) return 10 - gaps;
+  if (gaps <= signals.terms.length) return 10 - gaps;
   return 0;
 }
 

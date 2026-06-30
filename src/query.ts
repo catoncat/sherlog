@@ -1,4 +1,4 @@
-export { classifyQueryProfile } from "./ranking";
+export { buildQuerySignals } from "./ranking";
 export { findSessions } from "./query/find";
 export { getMessagePage, getMessageRange, SessionNotFoundError } from "./query/read";
 export { listSessionSummaries } from "./query/list";

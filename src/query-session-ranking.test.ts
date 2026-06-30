@@ -45,7 +45,7 @@ describe("cxs session ranking", () => {
     expect(found.results[0]?.sessionUuid).toBe("bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb");
   });
 
-  test("broad query prefers sustained session evidence over title-only incidental hit", async () => {
+  test("single-term query prefers sustained session evidence over title-only incidental hit", async () => {
     const base = mkdtempSync(join(tmpdir(), "cxs-broad-"));
     tempDirs.push(base);
     const sessionsRoot = join(base, "sessions", "2026", "04", "21");

@@ -35,8 +35,8 @@
 - 增加对 `matchSource` / `matchSeq = null` 的断言
 - 继续观察 session-level recall 是否引入排序噪音
 
-## P2: 真正接通 broad / exact query 分流
+## P2: eval 先行的 ranking 改进
 
-当前 [ranking.ts](/Users/envvar/work/repos/cxs/src/ranking.ts) 还保留 `classifyQueryProfile()`，但 scoring 没有显式按 broad / exact 分权。
+`ranking.ts` 已删除无真实 A/B 收益的 broad/exact query-profile 分类抽象；不要再把它当成待接通的现状。
 
-这件事仍然值得做，但应放在更强 eval 之后。
+下一步如要改 ranking，先补能证明收益的 eval，再引入具体信号。

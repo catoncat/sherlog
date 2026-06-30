@@ -64,19 +64,15 @@
 - 把 title/summary/compact-only query 加进 manual eval
 - 对 session-only 命中补专门断言
 
-### P2: 真正的 query profile 分流
+### P2: eval 先行的 ranking 改进
 
-目标：让 broad / exact query 的排序策略真正分开。
+已删除无真实 A/B 收益的 broad/exact query-profile 分类抽象；后续 ranking 改进必须先补更强 eval，再引入具体可证明有效的信号。
 
-当前现状：
+后续候选：
 
-- [ranking.ts](/Users/envvar/work/repos/cxs/src/ranking.ts) 仍保留 `classifyQueryProfile()`
-- 但当前 scoring 没有按 `kind` 做显式不同权重
-
-这意味着：
-
-- 分类标签还在
-- 真正的分流还没完成
+- 给 title/summary/compact-only query 补 manual eval / acceptance 覆盖
+- 观察 session-level recall 是否引入排序噪音
+- 只有真实 eval 证明收益后，才新增 ranking 信号
 
 ### P3: 更重的 retrieval 能力
 
