@@ -1,0 +1,32 @@
+src/ranking.ts
+  s_d44e8400d42e1a::t_3357025901c2a1 25,32,41,65-66,70,74,79,88,94-99,197,200-205,255-257,259,262,265
+  s_d44e8400d42e1a::t_a4468a8bc8030a 67,132,137,221
+src/query-session-ranking.test.ts
+  s_d44e8400d42e1a::t_de0ef5352af2f3 48
+docs/ROADMAP.md
+  s_d44e8400d42e1a::t_b7bca1a8fdac2c 67,69,71,73-75
+docs/TODO.md
+  s_d44e8400d42e1a::t_0cca979975c1a9 38,40,42
+docs/ARCHITECTURE.md
+  s_d44e8400d42e1a::t_d075fcd58e36f0 149
+src/query-profile.test.ts
+  s_d44e8400d42e1a::t_e80ce4000da03d 2,4,7-9,15-16,20-21,25-26,32-36,40-44,48-49
+src/query.ts
+  s_d44e8400d42e1a::t_0b5df7d3a8cd7b 1
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.3",
+  "base_commit_sha": "abac7571730726ce595379bfa9a81f14b8b8c134",
+  "prompts": {},
+  "sessions": {
+    "s_d44e8400d42e1a": {
+      "agent_id": {
+        "tool": "pi",
+        "id": "019f080a-17a5-793c-bdc6-f139290d34e2",
+        "model": "gpt-5.5"
+      },
+      "human_author": "catoncat <git@chen.rs>"
+    }
+  }
+}
