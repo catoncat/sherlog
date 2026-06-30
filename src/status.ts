@@ -172,9 +172,17 @@ async function toCoverageInventoryStatus(
     && (record.sourceFileSetFingerprint === "" || snapshot.fileSetFingerprint === record.sourceFileSetFingerprint)
     && snapshot.fileCount === record.sourceFileCount
     && isCurrentIndexVersion(record.indexVersion);
+  const staleReason: CoverageInventoryStatus["staleReason"] = fresh
+    ? "none"
+    : record.sourceFileSetFingerprint !== "" && snapshot.fileSetFingerprint === record.sourceFileSetFingerprint
+      ? "source_content_changed"
+      : "source_set_changed";
+  const advisory = !fresh && isAdvisorySourceContentStale(record.selector, staleReason);
   return {
     ...record,
     freshness: fresh ? "fresh" : "stale",
+    staleReason,
+    advisory,
     currentSourceFingerprint: snapshot.fingerprint,
     currentSourceFileSetFingerprint: snapshot.fileSetFingerprint,
     currentSourceFileCount: snapshot.fileCount,

@@ -100,6 +100,8 @@ export interface CoverageRecord {
 
 export interface CoverageInventoryStatus extends CoverageRecord {
   freshness: "fresh" | "stale";
+  staleReason: "none" | "source_content_changed" | "source_set_changed";
+  advisory: boolean;
   currentSourceFingerprint: string;
   currentSourceFileSetFingerprint: string;
   currentSourceFileCount: number;
