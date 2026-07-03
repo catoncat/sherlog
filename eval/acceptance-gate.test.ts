@@ -13,6 +13,10 @@ describe("acceptance gate", () => {
       pass: 5,
       fail: 0,
       hardFail: 0,
+      assertionPass: 5,
+      assertionFail: 0,
+      facetPass: 1,
+      facetFail: 0,
     });
     expect(result.rows.map((row) => row.id)).toEqual([
       "message-hit-context",
@@ -22,5 +26,6 @@ describe("acceptance gate", () => {
       "pi-session-page-context",
     ]);
     expect(result.rows.every((row) => row.predicates.length > 0)).toBe(true);
+    expect(result.rows.find((row) => row.id === "message-hit-context")?.facetMark).toBe("pass");
   });
 });

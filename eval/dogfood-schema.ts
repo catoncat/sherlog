@@ -4,6 +4,12 @@ import { isSessionSourceId, type FindSort, type MatchSource, type Selector, type
 export type DogfoodStatus = "candidate" | "hard" | "stale";
 export type DogfoodOriginKind = "observed-user-ask" | "evidence-backed-derived" | "manual";
 export type DogfoodContextMode = "auto" | "read-range" | "read-page";
+export type DogfoodFailureClass =
+  | "coverage_index"
+  | "skill_guidance"
+  | "cli_recall_ranking_context"
+  | "stale_golden"
+  | "unclear_case";
 
 export interface DogfoodOrigin {
   kind: DogfoodOriginKind;
@@ -22,6 +28,12 @@ export interface DogfoodExpectedContext {
   mustContain?: string[];
 }
 
+export interface DogfoodExpectedAnswerFacet {
+  label: string;
+  mustContain: string[];
+  failureClass?: DogfoodFailureClass;
+}
+
 export interface DogfoodExpected {
   topK?: number;
   sourceId?: SessionSourceId;
@@ -31,6 +43,7 @@ export interface DogfoodExpected {
   matchSource?: MatchSource;
   matchSeq?: number | null;
   context?: DogfoodExpectedContext;
+  answerFacets?: DogfoodExpectedAnswerFacet[];
 }
 
 export interface DogfoodFindOptions {
@@ -152,6 +165,9 @@ function parseExpected(value: unknown): DogfoodExpected | null {
 
   const context = parseContext(value.context);
   if (context) expected.context = context;
+  const answerFacets = parseAnswerFacets(value.answerFacets);
+  if (answerFacets === "invalid") return null;
+  if (answerFacets) expected.answerFacets = answerFacets;
 
   return hasExpectedAssertion(expected) ? expected : null;
 }
@@ -176,6 +192,28 @@ function parseContext(value: unknown): DogfoodExpectedContext | undefined {
   if (typeof value.query === "string" && value.query.length > 0) context.query = value.query;
 
   return Object.keys(context).length > 0 ? context : undefined;
+}
+
+function parseAnswerFacets(value: unknown): DogfoodExpectedAnswerFacet[] | undefined | "invalid" {
+  if (value === undefined) return undefined;
+  if (!Array.isArray(value)) return "invalid";
+
+  const facets: DogfoodExpectedAnswerFacet[] = [];
+  for (const item of value) {
+    if (!isRecord(item)) return "invalid";
+    const label = readNonEmptyString(item, "label");
+    const mustContain = readStringArray(item.mustContain);
+    if (!label || !mustContain) return "invalid";
+
+    const facet: DogfoodExpectedAnswerFacet = { label, mustContain };
+    if (item.failureClass !== undefined) {
+      if (!isDogfoodFailureClass(item.failureClass)) return "invalid";
+      facet.failureClass = item.failureClass;
+    }
+    facets.push(facet);
+  }
+
+  return facets.length > 0 ? facets : undefined;
 }
 
 function parseFindOptions(value: unknown): DogfoodFindOptions | undefined | "invalid" {
@@ -243,8 +281,17 @@ function hasExpectedAssertion(expected: DogfoodExpected): boolean {
     || Boolean(expected.cwdContains)
     || Boolean(expected.matchSource)
     || expected.matchSeq !== undefined
-    || expected.context?.mustContain?.length,
+    || expected.context?.mustContain?.length
+    || expected.answerFacets?.length
   );
+}
+
+function isDogfoodFailureClass(value: unknown): value is DogfoodFailureClass {
+  return value === "coverage_index"
+    || value === "skill_guidance"
+    || value === "cli_recall_ranking_context"
+    || value === "stale_golden"
+    || value === "unclear_case";
 }
 
 function readNonEmptyString(record: Record<string, unknown>, key: string): string | undefined {
