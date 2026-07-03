@@ -3,7 +3,7 @@
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { spawn as childSpawn } from "node:child_process";
 import { basename, join, resolve } from "node:path";
-import { desiredContextMode, evaluateDogfoodItem, missingContextNeedles, type DogfoodEvaluation } from "./dogfood-eval-core";
+import { buildDogfoodScoreboard, desiredContextMode, evaluateDogfoodItem, missingContextNeedles, type DogfoodEvaluation, type DogfoodScoreboard } from "./dogfood-eval-core";
 import { parseDogfoodJsonl, type DogfoodGolden } from "./dogfood-schema";
 import { DEFAULT_CODEX_DIR } from "../src/env";
 import type { FindResult, FindSort, Selector } from "../src/types";
@@ -88,7 +88,7 @@ for (const [index, item] of entries.entries()) {
   });
 }
 
-const scoreboard = buildScoreboard(rows);
+const scoreboard = buildDogfoodScoreboard(rows.map((row) => ({ status: row.item.status, evaluation: row.evaluation })));
 const readmePath = join(outDir, "README.md");
 const scorecardPath = join(outDir, "scorecard.json");
 writeFileSync(readmePath, renderReadme(args.goldenPath, scoreboard, rows));
@@ -181,6 +181,9 @@ function emptyEvaluation(item: DogfoodGolden): DogfoodEvaluation {
     blocking: item.status === "hard",
     selected: { hit: null, rank: null, topK: item.expected.topK ?? 5 },
     predicateResults: [],
+    assertionMark: item.status === "stale" ? "skip" : "fail",
+    facetMark: item.expected.answerFacets?.length ? "fail" : "skip",
+    failureClasses: item.status === "stale" ? ["stale_golden"] : ["coverage_index"],
   };
 }
 
@@ -194,9 +197,6 @@ async function readContextIfNeeded(
   const mode = desiredContextMode(item, hit);
   if (!mode) return {};
   if (!hit) return { unavailableReason: "no selected hit for context read" };
-  if (mode === "read-range" && typeof hit.matchSeq !== "number") {
-    return { kind: "read-range", unavailableReason: "selected hit has no numeric matchSeq" };
-  }
 
   let command = buildContextCommand(item, hit, mode);
   let contextJson = await runCommand([...command, "--json"]);
@@ -231,10 +231,13 @@ function buildContextCommand(
 ): string[] {
   const context = item.expected.context ?? {};
   if (mode === "read-range") {
+    const anchorArgs = typeof hit.matchSeq === "number"
+      ? ["--seq", String(hit.matchSeq)]
+      : ["--query", context.query ?? item.query];
     return [
       process.execPath, "--import", "tsx", CLI_ENTRY,
-      "read-range", hit.sessionUuid,
-      "--seq", String(hit.matchSeq),
+      "read-range", hit.sessionRef,
+      ...anchorArgs,
       "--before", String(context.before ?? defaultWindow.before),
       "--after", String(context.after ?? defaultWindow.after),
     ];
@@ -242,25 +245,15 @@ function buildContextCommand(
 
   return [
     process.execPath, "--import", "tsx", CLI_ENTRY,
-    "read-page", hit.sessionUuid,
+    "read-page", hit.sessionRef,
     "--offset", String(context.offset ?? 0),
     "--limit", String(context.limit ?? 20),
   ];
 }
 
-function buildScoreboard(rows: Array<{ item: DogfoodGolden; evaluation: DogfoodEvaluation }>): Record<string, number> {
-  const scoreboard = { total: rows.length, pass: 0, fail: 0, skip: 0, hardFail: 0, candidateFail: 0 };
-  for (const row of rows) {
-    scoreboard[row.evaluation.mark] += 1;
-    if (row.item.status === "hard" && row.evaluation.mark === "fail") scoreboard.hardFail += 1;
-    if (row.item.status === "candidate" && row.evaluation.mark === "fail") scoreboard.candidateFail += 1;
-  }
-  return scoreboard;
-}
-
 function renderReadme(
   sourcePath: string,
-  scoreboard: Record<string, number>,
+  scoreboard: DogfoodScoreboard,
   rows: DogfoodEvalRow[],
 ): string {
   const lines = [
@@ -278,13 +271,17 @@ function renderReadme(
     `- skip: ${scoreboard.skip}`,
     `- hard_fail: ${scoreboard.hardFail}`,
     `- candidate_fail: ${scoreboard.candidateFail}`,
+    `- assertion_pass: ${scoreboard.assertionPass}`,
+    `- assertion_fail: ${scoreboard.assertionFail}`,
+    `- facet_pass: ${scoreboard.facetPass}`,
+    `- facet_fail: ${scoreboard.facetFail}`,
     "",
-    "| id | status | mark | blocking | selected_rank | selected_title |",
-    "|----|--------|------|----------|---------------|----------------|",
+    "| id | status | mark | assertions | facets | failure_classes | blocking | selected_rank | selected_title |",
+    "|----|--------|------|------------|--------|-----------------|----------|---------------|----------------|",
   ];
 
   for (const row of rows) {
-    lines.push(`| ${row.item.id} | ${row.item.status} | ${row.evaluation.mark} | ${row.evaluation.blocking} | ${row.evaluation.selected.rank ?? "-"} | ${row.selectedTitle.replaceAll("|", "¦").slice(0, 60)} |`);
+    lines.push(`| ${row.item.id} | ${row.item.status} | ${row.evaluation.mark} | ${row.evaluation.assertionMark} | ${row.evaluation.facetMark} | ${formatFailureClasses(row.evaluation.failureClasses)} | ${row.evaluation.blocking} | ${row.evaluation.selected.rank ?? "-"} | ${row.selectedTitle.replaceAll("|", "¦").slice(0, 60)} |`);
   }
 
   for (const row of rows) {
@@ -295,6 +292,9 @@ function renderReadme(
     lines.push(`- selected_attempt: ${row.selectedAttemptOrdinal ?? "-"} / \`${row.selectedAttemptQuery}\``);
     lines.push(`- status: ${row.item.status}`);
     lines.push(`- mark: ${row.evaluation.mark}`);
+    lines.push(`- assertions: ${row.evaluation.assertionMark}`);
+    lines.push(`- answer_facets: ${row.evaluation.facetMark}`);
+    lines.push(`- failure_classes: ${formatFailureClasses(row.evaluation.failureClasses)}`);
     lines.push(`- top1_title: ${row.top1Title}`);
     lines.push(`- selected_title: ${row.selectedTitle}`);
     lines.push(`- find_json: \`${rel(row.findJsonPath)}\``);
@@ -313,7 +313,15 @@ function renderReadme(
 
 function formatPredicates(predicates: DogfoodEvaluation["predicateResults"]): string {
   if (predicates.length === 0) return "(none)";
-  return predicates.map((predicate) => `${predicate.label}=${predicate.matched ? "ok" : "miss"}(${predicate.expected})`).join(", ");
+  return predicates.map((predicate) => {
+    const status = predicate.matched ? "ok" : `miss:${predicate.failureClass ?? "unclear_case"}`;
+    const label = predicate.group === "answer_facet" && predicate.facetLabel ? `answer_facet:${predicate.facetLabel}` : `${predicate.group}.${predicate.label}`;
+    return `${label}=${status}(${predicate.expected})`;
+  }).join(", ");
+}
+
+function formatFailureClasses(classes: DogfoodEvaluation["failureClasses"]): string {
+  return classes.length > 0 ? classes.join(",") : "-";
 }
 
 function rel(path: string): string {

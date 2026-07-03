@@ -76,6 +76,10 @@ interface DogfoodScoreboard {
   skip: number;
   hardFail: number;
   candidateFail: number;
+  assertionPass: number;
+  assertionFail: number;
+  facetPass: number;
+  facetFail: number;
 }
 
 interface DogfoodScorecardSummary {
@@ -637,6 +641,10 @@ function parseDogfoodStdout(stdout: string): { outDir?: string; scorecard?: stri
         skip: Number(scoreboard.skip) || 0,
         hardFail: Number(scoreboard.hardFail) || 0,
         candidateFail: Number(scoreboard.candidateFail) || 0,
+        assertionPass: Number(scoreboard.assertionPass) || 0,
+        assertionFail: Number(scoreboard.assertionFail) || 0,
+        facetPass: Number(scoreboard.facetPass) || 0,
+        facetFail: Number(scoreboard.facetFail) || 0,
       },
     };
   } catch {

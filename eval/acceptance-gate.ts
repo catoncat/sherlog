@@ -1,7 +1,7 @@
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { desiredContextMode, evaluateDogfoodItem, type DogfoodEvaluation } from "./dogfood-eval-core";
+import { buildDogfoodScoreboard, desiredContextMode, evaluateDogfoodItem, type DogfoodEvaluation, type DogfoodScoreboard } from "./dogfood-eval-core";
 import type { DogfoodGolden } from "./dogfood-schema";
 import { syncSessions } from "../src/indexer";
 import { findSessions, getMessagePage, getMessageRange } from "../src/query";
@@ -33,6 +33,9 @@ export interface AcceptanceGateRow {
   selectedMatchSource: FindResult["matchSource"] | null;
   selectedMatchSeq: number | null;
   contextKind?: "read-range" | "read-page";
+  assertionMark: DogfoodEvaluation["assertionMark"];
+  facetMark: DogfoodEvaluation["facetMark"];
+  failureClasses: DogfoodEvaluation["failureClasses"];
   predicates: DogfoodEvaluation["predicateResults"];
 }
 
@@ -42,7 +45,7 @@ export interface AcceptanceGateResult {
   dbPath: string;
   sync: SyncSummary;
   sourceSyncs: Record<AcceptanceSourceId, SyncSummary>;
-  scoreboard: Record<"total" | "pass" | "fail" | "skip" | "hardFail" | "candidateFail", number>;
+  scoreboard: DogfoodScoreboard;
   rows: AcceptanceGateRow[];
 }
 
@@ -71,7 +74,7 @@ export async function runAcceptanceGate(options: AcceptanceGateOptions = {}): Pr
       dbPath,
       sync: sourceSyncs.codex,
       sourceSyncs,
-      scoreboard: buildScoreboard(rows),
+      scoreboard: buildDogfoodScoreboard(rows.map((row) => ({ status: row.status, evaluation: row }))),
       rows,
     };
   } finally {
@@ -108,6 +111,9 @@ function evaluateAcceptanceItems(dbPath: string, items: DogfoodGolden[]): Accept
       selectedMatchSource: evaluation.selected.hit?.matchSource ?? null,
       selectedMatchSeq: evaluation.selected.hit?.matchSeq ?? null,
       ...(context.kind ? { contextKind: context.kind } : {}),
+      assertionMark: evaluation.assertionMark,
+      facetMark: evaluation.facetMark,
+      failureClasses: evaluation.failureClasses,
       predicates: evaluation.predicateResults,
     };
   });
@@ -149,16 +155,6 @@ function readContextIfNeeded(
   return { kind: "read-page", text: messagesText(page.messages) };
 }
 
-function buildScoreboard(rows: AcceptanceGateRow[]): AcceptanceGateResult["scoreboard"] {
-  const scoreboard = { total: rows.length, pass: 0, fail: 0, skip: 0, hardFail: 0, candidateFail: 0 };
-  for (const row of rows) {
-    scoreboard[row.mark] += 1;
-    if (row.status === "hard" && row.mark === "fail") scoreboard.hardFail += 1;
-    if (row.status === "candidate" && row.mark === "fail") scoreboard.candidateFail += 1;
-  }
-  return scoreboard;
-}
-
 function acceptanceGoldens(roots: AcceptanceFixtureRoots): DogfoodGolden[] {
   return [
     {
@@ -180,6 +176,12 @@ function acceptanceGoldens(roots: AcceptanceFixtureRoots): DogfoodGolden[] {
           after: 1,
           mustContain: ["health check returned 500", "rollback plan includes readback verification"],
         },
+        answerFacets: [
+          {
+            label: "failure symptom and mitigation evidence",
+            mustContain: ["health check returned 500", "rollback plan includes readback verification"],
+          },
+        ],
       },
     },
     {

@@ -44,6 +44,52 @@ describe("dogfood eval core", () => {
     expect(evaluation.mark).toBe("pass");
   });
 
+  test("passes answer facets against retrieved evidence separately from assertions", () => {
+    const evaluation = evaluateDogfoodItem({
+      item: golden({
+        acceptableSessionUuids: ["session-a"],
+        answerFacets: [{
+          label: "install order",
+          mustContain: ["Install official Cursor", "install ccursor"],
+        }],
+      }),
+      results: [findResult({ sessionUuid: "session-a" })],
+      contextKind: "read-range",
+      contextText: "Install official Cursor, log in, then install ccursor.",
+    });
+
+    expect(evaluation.mark).toBe("pass");
+    expect(evaluation.assertionMark).toBe("pass");
+    expect(evaluation.facetMark).toBe("pass");
+    expect(evaluation.predicateResults.map((predicate) => `${predicate.group}.${predicate.label}`)).toEqual([
+      "assertion.session_uuid",
+      "answer_facet.answer_facet",
+    ]);
+    expect(evaluation.predicateResults.find((predicate) => predicate.group === "answer_facet")?.facetLabel).toBe("install order");
+  });
+
+  test("fails answer facets with a failure classification while candidate remains non-blocking", () => {
+    const evaluation = evaluateDogfoodItem({
+      item: golden({
+        status: "candidate",
+        answerFacets: [{
+          label: "decision",
+          mustContain: ["chosen sqlite dbstat path"],
+          failureClass: "skill_guidance",
+        }],
+      }),
+      results: [findResult({ sessionUuid: "session-a" })],
+      contextKind: "read-range",
+      contextText: "The evidence mentions latency only.",
+    });
+
+    expect(evaluation.mark).toBe("fail");
+    expect(evaluation.blocking).toBe(false);
+    expect(evaluation.assertionMark).toBe("skip");
+    expect(evaluation.facetMark).toBe("fail");
+    expect(evaluation.failureClasses).toEqual(["skill_guidance"]);
+  });
+
   test("checks source id, session ref, and nullable match sequence", () => {
     const evaluation = evaluateDogfoodItem({
       item: golden({ sourceId: "codex", sessionRef: "session-a", matchSource: "session", matchSeq: null }),
@@ -91,6 +137,11 @@ describe("dogfood eval core", () => {
         acceptableSessionUuids: ["target-session"],
         sessionRef: "target-session",
         matchSeq: null,
+        answerFacets: [{
+          label: "remembered file",
+          mustContain: ["SKILL.md"],
+          failureClass: "cli_recall_ranking_context",
+        }],
       },
     }), "goldens.local.jsonl");
 
@@ -115,6 +166,7 @@ function golden(
     matchSeq: number | null;
     topK: number;
     contextMustContain: string[];
+    answerFacets: Array<{ label: string; mustContain: string[]; failureClass?: "coverage_index" | "skill_guidance" | "cli_recall_ranking_context" | "stale_golden" | "unclear_case" }>;
   }> = {},
 ): DogfoodGolden {
   return {
@@ -130,6 +182,7 @@ function golden(
       matchSource: overrides.matchSource,
       matchSeq: overrides.matchSeq,
       context: overrides.contextMustContain ? { mustContain: overrides.contextMustContain } : undefined,
+      answerFacets: overrides.answerFacets,
     },
   };
 }
