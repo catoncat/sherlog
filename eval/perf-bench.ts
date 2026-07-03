@@ -1,15 +1,19 @@
 #!/usr/bin/env -S node --import tsx
 
-import { existsSync, mkdirSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, statSync, writeFileSync } from "node:fs";
 import { spawn as childSpawn } from "node:child_process";
-import { homedir, tmpdir } from "node:os";
+import { homedir } from "node:os";
 import { join, resolve } from "node:path";
+import Database from "better-sqlite3";
+import { DEFAULT_DB_PATH } from "../src/env";
 
 interface LatencyStats {
   runs: number;
   samplesMs: number[];
   p50Ms: number;
   p95Ms: number;
+  outputBytes: number;
+  outputChars: number;
 }
 
 interface TopHitRecord {
@@ -25,6 +29,7 @@ interface ReadProbeRecord extends LatencyStats {
   sessionRef: string;
   argv: string[];
   messagesReturned: number;
+  messageContentChars: number;
   anchorSeq?: number;
   totalCount?: number;
 }
@@ -51,6 +56,39 @@ interface CoverageCostSummary {
   } | null;
 }
 
+interface DbTableSizeRecord {
+  name: string;
+  bytes: number;
+}
+
+interface DbStorageSummary {
+  dbSizeBytes: number;
+  pageSize: number;
+  pageCount: number;
+  freelistCount: number;
+  tableSizes: DbTableSizeRecord[];
+}
+
+interface DogfoodScoreboard {
+  total: number;
+  pass: number;
+  fail: number;
+  skip: number;
+  hardFail: number;
+  candidateFail: number;
+}
+
+interface DogfoodScorecardSummary {
+  path: string;
+  exitCode: number;
+  stdoutBytes: number;
+  stdoutChars: number;
+  outDir: string | null;
+  scorecard: string | null;
+  scoreboard: DogfoodScoreboard | null;
+  error: string | null;
+}
+
 interface Report {
   generatedAt: string;
   sourceId: string;
@@ -60,10 +98,12 @@ interface Report {
   messageCount: number;
   syncMs: number;
   dbSizeBytes: number;
+  storage: DbStorageSummary;
   runsPerQuery: number;
   readRunsPerProbe: number;
   coverage: CoverageCostSummary;
   perQuery: PerQueryRecord[];
+  dogfood: DogfoodScorecardSummary | null;
 }
 
 interface FindJsonPayload {
@@ -79,7 +119,7 @@ interface FindJsonPayload {
 interface ReadJsonPayload {
   anchorSeq?: number;
   totalCount?: number;
-  messages?: unknown[];
+  messages?: Array<{ contentText?: unknown }>;
 }
 
 interface StatsJsonPayload {
@@ -131,15 +171,17 @@ interface CliArgs {
   jsonOnly: boolean;
   runsPerQuery: number;
   readRunsPerProbe: number;
+  dogfoodPath: string | null;
 }
 
 function parseArgs(argv: string[]): CliArgs {
   let root = join(homedir(), ".codex", "sessions");
-  let db = join(tmpdir(), `shlog-perf-${Date.now()}.db`);
+  let db = DEFAULT_DB_PATH;
   let source = "codex";
   let jsonOnly = false;
   let runsPerQuery = DEFAULT_RUNS_PER_QUERY;
   let readRunsPerProbe = DEFAULT_READ_RUNS_PER_PROBE;
+  let dogfoodPath: string | null = null;
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
     if (a === "--root") {
@@ -152,14 +194,16 @@ function parseArgs(argv: string[]): CliArgs {
       runsPerQuery = parsePositiveInt(argv[++i], DEFAULT_RUNS_PER_QUERY);
     } else if (a === "--read-runs") {
       readRunsPerProbe = parsePositiveInt(argv[++i], DEFAULT_READ_RUNS_PER_PROBE);
+    } else if (a === "--dogfood") {
+      dogfoodPath = resolve(argv[++i] ?? "");
     } else if (a === "--json-only") {
       jsonOnly = true;
     } else if (a === "--help" || a === "-h") {
-      console.log("Usage: npm run eval:perf -- [--source <id>] [--root <dir>] [--db <path>] [--runs <n>] [--read-runs <n>] [--json-only]");
+      console.log("Usage: npm run eval:perf -- [--source <id>] [--root <dir>] [--db <path>] [--runs <n>] [--read-runs <n>] [--dogfood <goldens.jsonl>] [--json-only]");
       process.exit(0);
     }
   }
-  return { root, db, source, jsonOnly, runsPerQuery, readRunsPerProbe };
+  return { root, db, source, jsonOnly, runsPerQuery, readRunsPerProbe, dogfoodPath };
 }
 
 function parsePositiveInt(value: string | undefined, fallback: number): number {
@@ -224,16 +268,18 @@ async function runJsonOrThrow<T>(cmd: string[]): Promise<{ run: RunResult; paylo
 async function benchJsonCommand<T>(cmd: string[], runs: number): Promise<{ latency: LatencyStats; payload: T }> {
   const samplesAll: number[] = [];
   let payload: T | null = null;
+  let lastStdout = "";
   for (let i = 0; i < runs; i++) {
     const result = await runJsonOrThrow<T>(cmd);
     samplesAll.push(result.run.ms);
+    lastStdout = result.run.stdout;
     payload = result.payload;
   }
   if (!payload) throw new Error(`no payload produced for command: ${cmd.join(" ")}`);
-  return { latency: latencyStats(samplesAll), payload };
+  return { latency: latencyStats(samplesAll, lastStdout), payload };
 }
 
-function latencyStats(samplesAll: number[]): LatencyStats {
+function latencyStats(samplesAll: number[], stdout = ""): LatencyStats {
   const samples = samplesAll.length > 1 ? samplesAll.slice(1) : samplesAll;
   const sorted = [...samples].sort((a, b) => a - b);
   return {
@@ -241,6 +287,8 @@ function latencyStats(samplesAll: number[]): LatencyStats {
     samplesMs: samplesAll.map((x) => Number(x.toFixed(2))),
     p50Ms: Number(median(sorted).toFixed(2)),
     p95Ms: Number(percentile(samples, 0.95).toFixed(2)),
+    outputBytes: Buffer.byteLength(stdout, "utf8"),
+    outputChars: stdout.length,
   };
 }
 
@@ -287,7 +335,7 @@ if (!args.jsonOnly) {
 }
 
 // 1. sync
-const syncRun = await runOrThrow(cliCommand("sync", "--source", args.source, "--db", args.db, "--root", args.root, "--json"));
+const syncRun = await runOrThrow(cliCommand("sync", "--source", args.source, "--db", args.db, "--root", args.root, "--best-effort", "--json"));
 const syncMs = syncRun.ms;
 let sessionCount = 0;
 try {
@@ -325,7 +373,7 @@ for (const q of BENCH_QUERIES) {
     resultCount: Array.isArray(payload.results) ? payload.results.length : 0,
     scannedMessageCount: typeof payload.scannedMessageCount === "number" ? payload.scannedMessageCount : 0,
     topHit,
-    readRange: topHit ? await measureReadRange(topHit) : null,
+    readRange: topHit ? await measureReadRange(topHit, q) : null,
     readPage: topHit ? await measureReadPage(topHit) : null,
   });
 }
@@ -341,6 +389,8 @@ if (typeof statsRun.payload.sessionCount === "number" && statsRun.payload.sessio
 if (typeof statsRun.payload.messageCount === "number") {
   messageCount = statsRun.payload.messageCount;
 }
+const storage = collectDbStorage(args.db, dbSizeBytes);
+const dogfood = args.dogfoodPath ? await runDogfoodScorecard(args.dogfoodPath) : null;
 
 const report: Report = {
   generatedAt: new Date().toISOString(),
@@ -351,10 +401,12 @@ const report: Report = {
   messageCount,
   syncMs: Number(syncMs.toFixed(2)),
   dbSizeBytes,
+  storage,
   runsPerQuery: args.runsPerQuery,
   readRunsPerProbe: args.readRunsPerProbe,
   coverage,
   perQuery,
+  dogfood,
 };
 
 if (!args.jsonOnly) {
@@ -372,6 +424,15 @@ const summary = {
   messageCount,
   syncMs: report.syncMs,
   dbSizeBytes,
+  tableSizeCount: storage.tableSizes.length,
+  largestTables: storage.tableSizes.slice(0, 5),
+  dogfood: dogfood ? {
+    path: dogfood.path,
+    exitCode: dogfood.exitCode,
+    scoreboard: dogfood.scoreboard,
+    outDir: dogfood.outDir,
+    scorecard: dogfood.scorecard,
+  } : null,
   coverage: report.coverage,
   queryCount: perQuery.length,
   readProbeCount: readProbes.length,
@@ -394,15 +455,14 @@ function topHitFromFind(payload: FindJsonPayload): TopHitRecord | null {
   };
 }
 
-async function measureReadRange(hit: TopHitRecord): Promise<ReadProbeRecord | null> {
-  if (hit.matchSeq === null) return null;
+async function measureReadRange(hit: TopHitRecord, query: string): Promise<ReadProbeRecord> {
+  const anchorArgs = hit.matchSeq === null ? ["--query", query] : ["--seq", String(hit.matchSeq)];
   const cmd = cliCommand(
     "read-range",
     hit.sessionRef,
     "--source",
     args.source,
-    "--seq",
-    String(hit.matchSeq),
+    ...anchorArgs,
     "--before",
     "2",
     "--after",
@@ -418,6 +478,7 @@ async function measureReadRange(hit: TopHitRecord): Promise<ReadProbeRecord | nu
     sessionRef: hit.sessionRef,
     argv: publicArgv(cmd),
     messagesReturned: Array.isArray(payload.messages) ? payload.messages.length : 0,
+    messageContentChars: messageContentChars(payload),
     anchorSeq: typeof payload.anchorSeq === "number" ? payload.anchorSeq : undefined,
     ...latency,
   };
@@ -444,9 +505,16 @@ async function measureReadPage(hit: TopHitRecord): Promise<ReadProbeRecord> {
     sessionRef: hit.sessionRef,
     argv: publicArgv(cmd),
     messagesReturned: Array.isArray(payload.messages) ? payload.messages.length : 0,
+    messageContentChars: messageContentChars(payload),
     totalCount: typeof payload.totalCount === "number" ? payload.totalCount : undefined,
     ...latency,
   };
+}
+
+function messageContentChars(payload: ReadJsonPayload): number {
+  return (payload.messages ?? []).reduce((sum, message) => {
+    return sum + (typeof message.contentText === "string" ? message.contentText.length : 0);
+  }, 0);
 }
 
 function coverageCostSummary(run: RunResult, payload: StatusJsonPayload): CoverageCostSummary {
@@ -482,6 +550,100 @@ function countBy(values: string[]): Record<string, number> {
   }, {});
 }
 
+function collectDbStorage(dbPath: string, fallbackDbSizeBytes: number): DbStorageSummary {
+  const dbSizeBytes = safeFileSize(dbPath) ?? fallbackDbSizeBytes;
+  const db = new Database(dbPath, { readonly: true, fileMustExist: true });
+  try {
+    const pageSize = pragmaNumber(db, "page_size");
+    const pageCount = pragmaNumber(db, "page_count");
+    const freelistCount = pragmaNumber(db, "freelist_count");
+    const tableSizes = db.prepare(`
+      SELECT name, SUM(pgsize) AS bytes
+      FROM dbstat
+      GROUP BY name
+      ORDER BY bytes DESC, name ASC
+    `).all().map((row) => {
+      const record = row as { name: unknown; bytes: unknown };
+      return {
+        name: String(record.name),
+        bytes: Number(record.bytes) || 0,
+      };
+    });
+    return { dbSizeBytes, pageSize, pageCount, freelistCount, tableSizes };
+  } catch {
+    return { dbSizeBytes, pageSize: 0, pageCount: 0, freelistCount: 0, tableSizes: [] };
+  } finally {
+    db.close();
+  }
+}
+
+function pragmaNumber(db: Database.Database, name: string): number {
+  const row = db.pragma(name, { simple: true });
+  return typeof row === "number" ? row : Number(row) || 0;
+}
+
+function safeFileSize(path: string): number | null {
+  try {
+    return statSync(path).size;
+  } catch {
+    return null;
+  }
+}
+
+async function runDogfoodScorecard(path: string): Promise<DogfoodScorecardSummary> {
+  if (!existsSync(path)) {
+    return {
+      path,
+      exitCode: 1,
+      stdoutBytes: 0,
+      stdoutChars: 0,
+      outDir: null,
+      scorecard: null,
+      scoreboard: null,
+      error: `dogfood file not found: ${path}`,
+    };
+  }
+
+  const result = await run([process.execPath, "--import", "tsx", resolve(ROOT, "eval", "run-dogfood-eval.ts"), path]);
+  const parsed = parseDogfoodStdout(result.stdout);
+  return {
+    path,
+    exitCode: result.exitCode,
+    stdoutBytes: Buffer.byteLength(result.stdout, "utf8"),
+    stdoutChars: result.stdout.length,
+    outDir: parsed?.outDir ?? null,
+    scorecard: parsed?.scorecard ?? null,
+    scoreboard: parsed?.scoreboard ?? null,
+    error: parsed ? null : (result.stderr || "dogfood runner did not emit parseable summary"),
+  };
+}
+
+function parseDogfoodStdout(stdout: string): { outDir?: string; scorecard?: string; scoreboard?: DogfoodScoreboard } | null {
+  try {
+    const parsed = JSON.parse(stdout) as {
+      outDir?: unknown;
+      scorecard?: unknown;
+      scoreboard?: Partial<DogfoodScoreboard>;
+    };
+    const scoreboard = parsed.scoreboard;
+    if (!scoreboard) return null;
+    return {
+      outDir: typeof parsed.outDir === "string" ? parsed.outDir : undefined,
+      scorecard: typeof parsed.scorecard === "string" ? parsed.scorecard : undefined,
+      scoreboard: {
+        total: Number(scoreboard.total) || 0,
+        pass: Number(scoreboard.pass) || 0,
+        fail: Number(scoreboard.fail) || 0,
+        skip: Number(scoreboard.skip) || 0,
+        hardFail: Number(scoreboard.hardFail) || 0,
+        candidateFail: Number(scoreboard.candidateFail) || 0,
+      },
+    };
+  } catch {
+    return null;
+  }
+}
+
 function buildMarkdown(r: Report): string {
   const lines: string[] = [];
   lines.push("# shlog 性能基准报告");
@@ -494,8 +656,13 @@ function buildMarkdown(r: Report): string {
   lines.push(`- message_count: ${r.messageCount}`);
   lines.push(`- sync_ms: ${r.syncMs.toFixed(1)}`);
   lines.push(`- db_size: ${fmtBytes(r.dbSizeBytes)} (${r.dbSizeBytes} bytes)`);
+  lines.push(`- db_pages: page_size=${r.storage.pageSize}, page_count=${r.storage.pageCount}, freelist=${r.storage.freelistCount}`);
   lines.push(`- find_runs_per_query: ${r.runsPerQuery} (first run is warmup when runs > 1)`);
   lines.push(`- read_runs_per_probe: ${r.readRunsPerProbe} (first run is warmup when runs > 1)`);
+  if (r.dogfood) {
+    lines.push(`- dogfood: exit=${r.dogfood.exitCode}, scoreboard=\`${JSON.stringify(r.dogfood.scoreboard)}\``);
+    if (r.dogfood.scorecard) lines.push(`- dogfood_scorecard: \`${r.dogfood.scorecard}\``);
+  }
   lines.push("");
   lines.push("## coverage and freshness cost");
   lines.push("");
@@ -507,19 +674,33 @@ function buildMarkdown(r: Report): string {
     lines.push(`- requested_coverage: \`${JSON.stringify(r.coverage.requestedCoverage)}\``);
   }
   lines.push("");
+  lines.push("## db table sizes");
+  lines.push("");
+  lines.push("| table | size | bytes |");
+  lines.push("|-------|------:|------:|");
+  for (const row of r.storage.tableSizes.slice(0, 20)) {
+    lines.push(`| \`${row.name}\` | ${fmtBytes(row.bytes)} | ${row.bytes} |`);
+  }
+  lines.push("");
   lines.push("## per-query latency and raw-read probes");
   lines.push("");
-  lines.push("| query | results | scanned msgs | top hit | find p50 ms | find p95 ms | read-range p95 ms | read-page p95 ms |");
-  lines.push("|-------|--------:|-------------:|---------|------------:|------------:|------------------:|----------------:|");
+  lines.push("| query | results | scanned msgs | output bytes | output chars | top hit | find p50 ms | find p95 ms | read-range bytes | read-range chars | read-range p95 ms | read-page bytes | read-page chars | read-page p95 ms |");
+  lines.push("|-------|--------:|-------------:|-------------:|-------------:|---------|------------:|------------:|-----------------:|-----------------:|------------------:|---------------:|---------------:|----------------:|");
   for (const row of r.perQuery) {
     lines.push([
       `| \`${row.query}\``,
       row.resultCount.toString(),
       row.scannedMessageCount.toString(),
+      row.outputBytes.toString(),
+      row.outputChars.toString(),
       row.topHit ? `\`${row.topHit.sourceId}/${row.topHit.matchSource}\`` : "-",
       fmtMs(row.p50Ms),
       fmtMs(row.p95Ms),
+      row.readRange ? row.readRange.outputBytes.toString() : "-",
+      row.readRange ? row.readRange.messageContentChars.toString() : "-",
       row.readRange ? fmtMs(row.readRange.p95Ms) : "-",
+      row.readPage ? row.readPage.outputBytes.toString() : "-",
+      row.readPage ? row.readPage.messageContentChars.toString() : "-",
       `${row.readPage ? fmtMs(row.readPage.p95Ms) : "-"} |`,
     ].join(" | "));
   }
