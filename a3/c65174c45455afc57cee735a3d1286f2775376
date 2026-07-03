@@ -1,0 +1,51 @@
+eval/perf-bench.ts
+  s_e921e7e00e13e2::t_a6727ff6a563e1 79-82,644-647
+eval/dogfood-eval-core.test.ts
+  s_e921e7e00e13e2::t_d73de0235afd05 47-67,69-92,140-144,169,185
+  s_e921e7e00e13e2::t_a2db1456ade316 68
+eval/acceptance-gate.test.ts
+  s_e921e7e00e13e2::t_81d91a6c0d57f1 16-19,29
+eval/acceptance-gate.ts
+  s_e921e7e00e13e2::t_300fdd23cd3f16 36-38,114-116,179-184
+  s_e921e7e00e13e2::t_fef58dc669b60c 4,48,77
+eval/dogfood-schema.ts
+  s_e921e7e00e13e2::t_1a61ce09844ef2 7-12,31-36,46,168-170,197-217,289-295
+  s_e921e7e00e13e2::t_b09f3045e00534 284-285
+  s_e921e7e00e13e2::t_8af649d619fe22 218
+  s_e921e7e00e13e2::t_202113b4ea6864 296
+eval/dogfood-eval-core.ts
+  s_e921e7e00e13e2::t_5d9dc5fe4d9b01 112
+  s_e921e7e00e13e2::t_10a82da8216492 5,8-9,14,36-39,61-63,70-72,79-81,99,109,149,153,160,164,171,175,183,187,194,198,205,209,217,221-230,232-235,242-264
+  s_e921e7e00e13e2::t_bd70ee85b4147a 2,10,41-51,110-111,113-134,231
+  s_e921e7e00e13e2::t_d97842a3c937fe 100
+  s_61344bb1b6cb0f::t_06571dd925d6b1 40,265
+eval/run-dogfood-eval.ts
+  s_e921e7e00e13e2::t_cf44327f34dc73 184-186,234-236,240,274-277,279-280,284,295-297,316-317,320-324
+  s_e921e7e00e13e2::t_54d35401510658 91,318-319
+  s_e921e7e00e13e2::t_53b7332ef43206 6,256
+  s_e921e7e00e13e2::t_4c78061111805b 239,248
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.8",
+  "base_commit_sha": "a3c65174c45455afc57cee735a3d1286f2775376",
+  "prompts": {},
+  "sessions": {
+    "s_61344bb1b6cb0f": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f1cf4-a1bf-7841-aac7-4b42951dfc46",
+        "model": "gpt-5.5"
+      },
+      "human_author": "catoncat <git@chen.rs>"
+    },
+    "s_e921e7e00e13e2": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f25c3-9b3a-7900-9cc0-ae01c65c9ec5",
+        "model": "gpt-5.5"
+      },
+      "human_author": "catoncat <git@chen.rs>"
+    }
+  }
+}
