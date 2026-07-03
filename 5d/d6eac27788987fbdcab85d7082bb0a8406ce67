@@ -1,0 +1,22 @@
+eval/perf-bench.ts
+  s_e921e7e00e13e2::t_a1c9cdd97edca0 3,7,15-16,32,59-91,101,106,122,174,184,197-198,202,206,271,275,279,282,290-291,392-393,404,409,427-435,481,508,514-519,553-646,659,662-663,665,677-684,695,700,703
+  s_e921e7e00e13e2::t_2a7ba927e0a965 5,8,179,376,458-459,465
+  s_e921e7e00e13e2::t_70288032086047 664,687-688,694,699,702
+  s_e921e7e00e13e2::t_a80fadac700302 338
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.8",
+  "base_commit_sha": "5dd6eac27788987fbdcab85d7082bb0a8406ce67",
+  "prompts": {},
+  "sessions": {
+    "s_e921e7e00e13e2": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f25c3-9b3a-7900-9cc0-ae01c65c9ec5",
+        "model": "gpt-5.5"
+      },
+      "human_author": "catoncat <git@chen.rs>"
+    }
+  }
+}
