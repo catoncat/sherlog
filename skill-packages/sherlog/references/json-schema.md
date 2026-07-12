@@ -293,10 +293,20 @@ Input selector JSON may omit `source`; canonical selectors returned by public CL
 {
   requested: Selector | null;
   complete: boolean;
-  freshness: "not_checked";
+  freshness: "fresh" | "stale" | "missing" | "not_checked";
+  staleReason?: "none" | "missing" | "source_content_changed" | "source_set_changed";
   coveringSelectors: CoverageRecord[];
 }
 ```
+
+Public `find --json` evaluates raw source freshness and keeps these fields aligned
+with `nextAction`. The synchronous SQLite query facade cannot inspect raw source
+state, so it returns `complete=false` / `freshness="not_checked"` while retaining
+historical `coveringSelectors`; that means freshness is unconfirmed, not that the
+indexed rows are unusable. For a Codex active-tail soft stale, non-empty results
+remain queryable with `complete=false`, `freshness="stale"`, and
+`staleReason="source_content_changed"`; a suspicious zero result also carries a
+retry-oriented `nextAction`.
 
 `RequestedCoverageStatus`:
 

@@ -132,7 +132,8 @@ export interface CoverageWriteSummary {
 export interface CoverageStatus {
   requested: Selector | null;
   complete: boolean;
-  freshness: "not_checked";
+  freshness: "fresh" | "stale" | "missing" | "not_checked";
+  staleReason?: "none" | "missing" | "source_content_changed" | "source_set_changed";
   coveringSelectors: CoverageRecord[];
 }
 

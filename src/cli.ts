@@ -39,6 +39,7 @@ import { canonicalizeSelector, parseSelectorJson, SelectorParseError, selectorIm
 import { collectStatus } from "./status";
 import { SyncLockTimeoutError } from "./sync-lock";
 import type {
+  CoverageStatus,
   FindResult,
   FindSort,
   FindSummary,
@@ -171,8 +172,19 @@ program
           excludeSessions: options.excludeSession ?? [],
         });
         const coverageSelector = selector ?? defaultAllSelector(sourceId);
-        const coverageAction = await buildFindCoverageNextAction(options.db, coverageSelector, "this find", summary.results.length);
-        return coverageAction ? { ...summary, nextAction: coverageAction } : summary;
+        const coverageAssessment = await assessFindCoverage(
+          options.db,
+          coverageSelector,
+          "this find",
+          summary.results.length,
+          summary.coverage,
+        );
+        return {
+          ...summary,
+          coverage: coverageAssessment.coverage,
+          coverageBySource: [{ sourceId, coverage: coverageAssessment.coverage }],
+          nextAction: coverageAssessment.nextAction ?? summary.nextAction,
+        };
       }));
       const result = mergeFindSummaries(query, sort, options.excludeSession ?? [], summaries, limit);
       // performance.now() 自 timeOrigin(进程启动)起算 ≈ 本次端到端耗时,
@@ -469,7 +481,7 @@ function mergeFindSummaries(
   const coverage = {
     requested: null,
     complete: coverageBySource.every((entry) => entry.coverage.complete),
-    freshness: "not_checked" as const,
+    freshness: mergedCoverageFreshness(coverageBySource.map((entry) => entry.coverage)),
     coveringSelectors: coverageBySource.flatMap((entry) => entry.coverage.coveringSelectors),
   };
   const coverageActions = summaries
@@ -564,13 +576,14 @@ function buildCrossSourceZeroResultsNextAction(): QueryNextAction {
   };
 }
 
-async function buildFindCoverageNextAction(
+async function assessFindCoverage(
   dbPath: string,
   selector: Selector,
   commandLabel: string,
   resultCount: number,
-): Promise<QueryNextAction | undefined> {
-  if (!existsSync(dbPath)) return undefined;
+  unconfirmedCoverage: CoverageStatus,
+): Promise<{ coverage: CoverageStatus; nextAction?: QueryNextAction }> {
+  if (!existsSync(dbPath)) return { coverage: unconfirmedCoverage };
 
   const sourceId = selectorSource(selector);
   const source = getSessionSourceAdapter(sourceId);
@@ -589,33 +602,58 @@ async function buildFindCoverageNextAction(
       && (entry.sourceFileSetFingerprint === "" || entrySnapshot.fileSetFingerprint === entry.sourceFileSetFingerprint)
       && entrySnapshot.fileCount === entry.sourceFileCount
     ) {
-      return undefined;
+      return {
+        coverage: {
+          requested: snapshot.selector,
+          complete: true,
+          freshness: "fresh",
+          staleReason: "none",
+          coveringSelectors,
+        },
+      };
     }
     if (entry.sourceFileSetFingerprint !== "" && entrySnapshot.fileSetFingerprint === entry.sourceFileSetFingerprint) {
       staleReason = "source_content_changed";
     }
   }
-  if (sourceId === "codex" && staleReason === "source_content_changed" && resultCount > 0) return undefined;
+  const coverage: CoverageStatus = {
+    requested: snapshot.selector,
+    complete: false,
+    freshness: staleReason === "missing" ? "missing" : "stale",
+    staleReason,
+    coveringSelectors,
+  };
+  if (sourceId === "codex" && staleReason === "source_content_changed" && resultCount > 0) return { coverage };
 
   const syncArgv = syncArgvForSelector(snapshot.selector);
   return {
-    kind: "check_coverage_then_retry",
-    reason: "stale_or_missing_coverage",
-    selector: snapshot.selector,
-    steps: [
-      indexedCoverageStep(staleReason),
-      `Run ${syncArgv.join(" ")}.`,
-      `Retry ${commandLabel} before treating current results as complete.`,
-    ],
-    commands: [
-      {
-        label: "refresh selector coverage",
-        recommended: true,
-        argv: syncArgv,
-        selector: snapshot.selector,
-      },
-    ],
+    coverage,
+    nextAction: {
+      kind: "check_coverage_then_retry",
+      reason: "stale_or_missing_coverage",
+      selector: snapshot.selector,
+      steps: [
+        indexedCoverageStep(staleReason),
+        `Run ${syncArgv.join(" ")}.`,
+        `Retry ${commandLabel} before treating current results as complete.`,
+      ],
+      commands: [
+        {
+          label: "refresh selector coverage",
+          recommended: true,
+          argv: syncArgv,
+          selector: snapshot.selector,
+        },
+      ],
+    },
   };
+}
+
+function mergedCoverageFreshness(coverages: CoverageStatus[]): CoverageStatus["freshness"] {
+  if (coverages.every((coverage) => coverage.freshness === "fresh")) return "fresh";
+  if (coverages.some((coverage) => coverage.freshness === "missing")) return "missing";
+  if (coverages.some((coverage) => coverage.freshness === "stale")) return "stale";
+  return "not_checked";
 }
 
 function indexedCoverageStep(staleReason: RequestedCoverageStatus["staleReason"]): string {
