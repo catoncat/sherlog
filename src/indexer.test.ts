@@ -1,17 +1,20 @@
-import { afterEach, describe, expect, test } from "vitest";
-import { chmodSync, existsSync, mkdtempSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
+import { afterEach, describe, expect, test, vi } from "vitest";
+import { appendFileSync, chmodSync, existsSync, mkdtempSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { spawn } from "node:child_process";
 import { openReadDb, openWriteDb } from "./db";
 import { SyncError, syncSessions } from "./indexer";
-import { findSessions } from "./query";
+import { findSessions, getMessagePage } from "./query";
+import { codexSourceAdapter } from "./sources/codex";
+import { collectStatus } from "./status";
 import { syncLockPath } from "./sync-lock";
 
 const tempDirs: string[] = [];
 const unreadableFiles: string[] = [];
 
 afterEach(() => {
+  vi.restoreAllMocks();
   for (const filePath of unreadableFiles.splice(0)) {
     try {
       chmodSync(filePath, 0o644);
@@ -25,6 +28,177 @@ afterEach(() => {
 });
 
 describe("syncSessions", () => {
+  test("commits a stable Codex snapshot when an active JSONL appends during sync", async () => {
+    const base = mkdtempSync(join(tmpdir(), "cxs-indexer-active-append-"));
+    tempDirs.push(base);
+    const root = join(base, "sessions");
+    const day = join(root, "2026", "07", "12");
+    mkdirSync(day, { recursive: true });
+
+    const activePath = join(day, "rollout-2026-07-12T10-00-00-aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa.jsonl");
+    const stablePath = join(day, "rollout-2026-07-12T09-00-00-bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb.jsonl");
+    writeFileSync(
+      activePath,
+      [
+        line("session_meta", { id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa", cwd: "/tmp/active-append" }),
+        line("event_msg", { type: "user_message", message: "active prefix" }),
+      ].join("\n"),
+    );
+    writeFileSync(
+      stablePath,
+      [
+        line("session_meta", { id: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb", cwd: "/tmp/active-append" }),
+        line("event_msg", { type: "user_message", message: "stable source" }),
+      ].join("\n"),
+    );
+
+    const originalParseFile = codexSourceAdapter.parseFile.bind(codexSourceAdapter);
+    let appended = false;
+    vi.spyOn(codexSourceAdapter, "parseFile").mockImplementation(async (file) => {
+      const parsed = await originalParseFile(file);
+      if (file.filePath === activePath && !appended) {
+        appended = true;
+        appendFileSync(activePath, `\n${line("event_msg", { type: "agent_message", message: "appended tail" })}`);
+      }
+      return parsed;
+    });
+
+    const dbPath = join(base, "index.sqlite");
+    const selector = { kind: "all" as const, root };
+    const first = await syncSessions({ dbPath, selector });
+
+    expect(first.errors).toBe(0);
+    expect(first.added).toBe(2);
+    expect(first.coverage.written).toBe(true);
+    expect(first.coverage.staleReason).toBe("source_content_changed");
+    expect(first.coverage.recommendedAction).toBe("query");
+    const stableFind = findSessions(dbPath, "stable source", 5, selector);
+    expect(stableFind.results).toHaveLength(1);
+    expect(stableFind.nextAction).toBeUndefined();
+    expect(findSessions(dbPath, "appended tail", 5, selector).results).toHaveLength(0);
+    expect(getMessagePage(dbPath, "codex:bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb", 0, 10).messages)
+      .toEqual(expect.arrayContaining([expect.objectContaining({ contentText: "stable source" })]));
+
+    const status = await collectStatus({ dbPath, selector });
+    expect(status.requestedCoverage).toMatchObject({
+      freshness: "stale",
+      staleReason: "source_content_changed",
+      recommendedAction: "query",
+      complete: false,
+    });
+
+    vi.restoreAllMocks();
+    const second = await syncSessions({ dbPath, selector });
+
+    expect(second.updated).toBe(1);
+    expect(findSessions(dbPath, "appended tail", 5, selector).results).toHaveLength(1);
+  });
+
+  test("updates another stable source when an already-indexed Codex file starts appending mid-sync", async () => {
+    const base = mkdtempSync(join(tmpdir(), "cxs-indexer-existing-active-append-"));
+    tempDirs.push(base);
+    const root = join(base, "sessions");
+    const day = join(root, "2026", "07", "12");
+    mkdirSync(day, { recursive: true });
+    const activePath = join(day, "rollout-2026-07-12T10-00-00-aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa.jsonl");
+    const stablePath = join(day, "rollout-2026-07-12T09-00-00-bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb.jsonl");
+    writeFileSync(activePath, [
+      line("session_meta", { id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa", cwd: "/tmp/existing-active" }),
+      line("event_msg", { type: "user_message", message: "existing active prefix" }),
+    ].join("\n"));
+    writeFileSync(stablePath, [
+      line("session_meta", { id: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb", cwd: "/tmp/existing-active" }),
+      line("event_msg", { type: "user_message", message: "stable version one" }),
+    ].join("\n"));
+
+    const dbPath = join(base, "index.sqlite");
+    const selector = { kind: "all" as const, root };
+    await syncSessions({ dbPath, selector });
+    appendFileSync(stablePath, `\n${line("event_msg", { type: "agent_message", message: "stable version two" })}`);
+
+    const originalParseFile = codexSourceAdapter.parseFile.bind(codexSourceAdapter);
+    let appended = false;
+    vi.spyOn(codexSourceAdapter, "parseFile").mockImplementation(async (file) => {
+      const parsed = await originalParseFile(file);
+      if (file.filePath === stablePath && !appended) {
+        appended = true;
+        appendFileSync(activePath, `\n${line("event_msg", { type: "agent_message", message: "new active tail" })}`);
+      }
+      return parsed;
+    });
+
+    const summary = await syncSessions({ dbPath, selector });
+
+    expect(summary.updated).toBe(1);
+    expect(summary.skipped).toBe(1);
+    expect(summary.coverage).toMatchObject({
+      written: true,
+      staleReason: "source_content_changed",
+      recommendedAction: "query",
+    });
+    expect(findSessions(dbPath, "stable version two", 5, selector).results).toHaveLength(1);
+    expect(findSessions(dbPath, "new active tail", 5, selector).results).toHaveLength(0);
+  });
+
+  test.each([
+    {
+      name: "truncates the file",
+      mutate(filePath: string) {
+        writeFileSync(filePath, line("session_meta", { id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa", cwd: "/tmp/destructive-change" }));
+      },
+    },
+    {
+      name: "rewrites the indexed prefix before appending",
+      mutate(filePath: string) {
+        writeFileSync(
+          filePath,
+          [
+            line("session_meta", { id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa", cwd: "/tmp/destructive-change" }),
+            line("event_msg", { type: "user_message", message: "rewritten prefix" }),
+            line("event_msg", { type: "agent_message", message: "larger replacement tail" }),
+          ].join("\n"),
+        );
+      },
+    },
+  ])("strict sync still fails when a Codex source $name during sync", async ({ mutate }) => {
+    const base = mkdtempSync(join(tmpdir(), "cxs-indexer-destructive-change-"));
+    tempDirs.push(base);
+    const root = join(base, "sessions");
+    const day = join(root, "2026", "07", "12");
+    mkdirSync(day, { recursive: true });
+    const activePath = join(day, "rollout-2026-07-12T10-00-00-aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa.jsonl");
+    writeFileSync(
+      activePath,
+      [
+        line("session_meta", { id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa", cwd: "/tmp/destructive-change" }),
+        line("event_msg", { type: "user_message", message: "original prefix" }),
+      ].join("\n"),
+    );
+
+    const originalParseFile = codexSourceAdapter.parseFile.bind(codexSourceAdapter);
+    let changed = false;
+    vi.spyOn(codexSourceAdapter, "parseFile").mockImplementation(async (file) => {
+      const parsed = await originalParseFile(file);
+      if (file.filePath === activePath && !changed) {
+        changed = true;
+        mutate(activePath);
+      }
+      return parsed;
+    });
+
+    const dbPath = join(base, "index.sqlite");
+    const failure = await syncSessions({ dbPath, selector: { kind: "all", root } }).catch((error) => error);
+
+    expect(failure).toBeInstanceOf(SyncError);
+    expect(failure.summary.errorDetails).toEqual([
+      { filePath: "(selector)", message: "source changed during strict sync" },
+    ]);
+    const db = openReadDb(dbPath);
+    const counts = db.prepare("SELECT COUNT(*) AS count FROM sessions").get() as { count: number };
+    db.close();
+    expect(counts.count).toBe(0);
+  });
+
   test("fails loudly with per-file diagnostics and leaves no partial index by default", async () => {
     const { base, dbPath, sessionsRoot, badFilePath } = createFixture();
 

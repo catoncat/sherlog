@@ -36,6 +36,6 @@ export const codexSourceAdapter: SessionSourceAdapter = {
     return collectCodexSourceSnapshot(selector, options);
   },
   parseFile(file: SourceFileMeta) {
-    return parseCodexSession(file.filePath);
+    return parseCodexSession(file);
   },
 };

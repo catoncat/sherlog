@@ -103,7 +103,8 @@ describe("parseCodexSession", () => {
     ].join("\n"));
 
     const parsed = await parseCodexSession(filePath);
-    expect(parsed).toEqual({ kind: "filtered" });
+    expect(parsed).toMatchObject({ kind: "filtered" });
+    expect(parsed.sourceRead?.byteCount).toBeGreaterThan(0);
   });
 });
 

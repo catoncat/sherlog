@@ -81,7 +81,7 @@ Options:
 | `--prune` | 显式删除所选 source 中已经消失的旧索引记录 |
 | `--json` | 成功时把 `SyncSummary` 打到 stdout |
 
-严格模式成功时，`sync` 会更新当前 source snapshot 中仍可见的文件，并写 complete coverage。默认保留已经索引过、但 raw JSONL 后来从 source 中消失的旧 session；查询时不需要切换 root 去追 raw 文件位置。
+严格模式成功时，`sync` 会更新当前 source snapshot 中仍可见的文件，并写 coverage。Codex JSONL 若在读取后仅继续追加，命令仍成功：coverage 对应已读 byte 边界，并返回 `staleReason: "source_content_changed"`、`recommendedAction: "query"`；其他稳定 source 同时落库，后续 sync 再补活跃尾部。截断、前缀改写、source file set 变化以及非 Codex source 的同步中变化仍保持严格失败。默认保留已经索引过、但 raw JSONL 后来从 source 中消失的旧 session；查询时不需要切换 root 去追 raw 文件位置。
 
 只有显式传 `--prune` 时，`sync` 才把 selector 范围内的 index 与当前 source snapshot 对齐；源文件已删除的旧 row 会被移除，并计入 `removed`。源文件仍存在但被过滤或不再能解析成 session 时，仍按当前文件状态删除或报错。
 

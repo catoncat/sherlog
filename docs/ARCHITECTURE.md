@@ -50,7 +50,7 @@ Codex adapter 会把原有 `sessionUuid` 映射为 source-aware identity：
 
 [indexer.ts](/Users/envvar/work/repos/cxs/src/indexer.ts) 按显式 selector 扫描选定 source 的 session snapshot。当前公开 source 可以是 Codex、Claude Code 或 Pi；增量判断仍基于文件 `mtime`、`size` 和 `indexVersion`。
 
-strict sync 默认只更新当前 source snapshot 中仍可见的文件，并保留已经进入 SQLite 的旧 session。这样 raw JSONL 的维护、移动或删除不会让 Sherlog 的历史查询丢失。只有显式传 `--prune` 时，sync 才会把 selector 范围收敛成当前 source snapshot，并删除同一 source 中已不存在的旧 index row。一个 source 的 sync/prune 不会删除另一个 source 的数据。当前 source 中仍存在但被过滤或不能解析成 session 的文件仍按当前状态处理。
+strict sync 默认只更新当前 source snapshot 中仍可见的文件，并保留已经进入 SQLite 的旧 session。Codex adapter 的读取固定在本轮捕获的 byte 边界；若相同 file set 中某个活跃 JSONL 在读后只追加，indexer 校验已读前缀摘要与既有投影后允许提交起始边界，并把 coverage 标为 `source_content_changed` soft stale。截断、前缀改写/替换、file set 变化和其他 source 的中途变化仍阻断事务。这样既不会因当前对话增长阻塞稳定 source，也不会把未读尾部发布成 fresh coverage。只有显式传 `--prune` 时，sync 才会把 selector 范围收敛成当前 source snapshot，并删除同一 source 中已不存在的旧 index row。一个 source 的 sync/prune 不会删除另一个 source 的数据。当前 source 中仍存在但被过滤或不能解析成 session 的文件仍按当前状态处理。
 
 [parser.ts](/Users/envvar/work/repos/cxs/src/parser.ts) 只抽取 `event_msg` 里的：
 

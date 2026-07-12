@@ -228,9 +228,13 @@ errors in `--json` mode for expected index setup and read failures:
     sourceFileCount: number;
     indexedSessionCount: number;
     reason?: string;
+    staleReason?: "source_content_changed";
+    recommendedAction?: "query";
   };
 }
 ```
+
+当 Codex JSONL 在 strict sync 读取其起始 byte 边界后仅继续追加时，sync 仍以成功结束，稳定 source 和已读前缀一起提交；`coverage.staleReason` 标记当前活跃尾部尚未包含，`recommendedAction: "query"` 表示现有 index 可查询，稍后再 sync 可补齐尾部。截断、前缀摘要不一致、同大小替换或 source file set 变化不会得到这两个字段，而是继续走非零失败与 `errorDetails`。
 
 ## Shared Records
 

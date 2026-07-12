@@ -184,6 +184,7 @@ sqlite3 -readonly "$DB_PATH" \
 | 旧安装版 `sync` 缺 selector | stdout | `{ "error": { "code": "selector_required", "message": "..." } }` |
 | `sync` invalid selector | stdout | `{ "error": { "code": "invalid_selector", "message": "..." } }` |
 | `sync` per-file 错 | stderr | `SyncSummary`，看 `errors / errorDetails[]` |
+| `sync` Codex 活跃尾部软 stale | stdout | 成功的 `SyncSummary`；`coverage.written=true`、`staleReason=source_content_changed`、`recommendedAction=query`，稍后重试补尾部 |
 | `sync` 锁超时 | stderr | `{ "error": <message string> }` |
 | `status` invalid selector | stdout | `{ "error": { "code": "invalid_selector", "message": "..." } }` |
 | `find / read-range / read-page / list / stats` 索引不存在 | stdout | `{ "error": { "code": "index_unavailable", "message": "...", "dbPath": "...", "hint": "...", "nextAction": { "kind": "bootstrap_index", "commands": [...] } } }` |

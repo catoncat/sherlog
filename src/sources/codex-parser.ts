@@ -1,7 +1,10 @@
+import { createHash } from "node:crypto";
 import { createReadStream } from "node:fs";
+import { stat } from "node:fs/promises";
 import { basename } from "node:path";
 import { createInterface } from "node:readline";
-import { DEFAULT_SESSION_SOURCE_ID, type ParsedMessage, type ParseSessionResult } from "../types";
+import { Transform } from "node:stream";
+import { DEFAULT_SESSION_SOURCE_ID, type ParsedMessage, type ParseSessionResult, type SourceFileMeta, type SourceReadProof } from "../types";
 
 const INTERNAL_MARKERS = [
   "The following is the Codex agent history whose request action you are assessing",
@@ -20,7 +23,9 @@ interface ParseState {
   filteredMessageCount: number;
 }
 
-export async function parseCodexSession(filePath: string): Promise<ParseSessionResult> {
+export async function parseCodexSession(input: string | SourceFileMeta): Promise<ParseSessionResult> {
+  const file = typeof input === "string" ? await sourceFileMeta(input) : input;
+  const filePath = file.filePath;
   const state: ParseState = {
     eventMessages: [],
     compactMessages: [],
@@ -31,10 +36,24 @@ export async function parseCodexSession(filePath: string): Promise<ParseSessionR
     filteredMessageCount: 0,
   };
 
+  const hash = createHash("sha256");
+  let byteCount = 0;
+  const hashingStream = new Transform({
+    transform(chunk: Buffer, _encoding, callback) {
+      hash.update(chunk);
+      byteCount += chunk.length;
+      callback(null, chunk);
+    },
+  });
+  const inputStream = file.size === 0
+    ? null
+    : createReadStream(filePath, { start: 0, end: file.size - 1 });
+  inputStream?.on("error", (error) => hashingStream.destroy(error));
   const lineReader = createInterface({
-    input: createReadStream(filePath, { encoding: "utf8" }),
+    input: inputStream ? inputStream.pipe(hashingStream) : hashingStream,
     crlfDelay: Infinity,
   });
+  if (!inputStream) hashingStream.end();
 
   for await (const line of lineReader) {
     // Fast path: avoid expensive JSON.parse for lines that clearly don't contain relevant events
@@ -61,8 +80,12 @@ export async function parseCodexSession(filePath: string): Promise<ParseSessionR
     processRecord(record, state);
   }
 
-  if (state.filteredMessageCount > 0 && state.eventMessages.length === 0) return { kind: "filtered" };
-  if (!state.sessionUuid || state.eventMessages.length === 0) return { kind: "skipped" };
+  const sourceRead: SourceReadProof = {
+    byteCount,
+    contentFingerprint: hash.digest("hex"),
+  };
+  if (state.filteredMessageCount > 0 && state.eventMessages.length === 0) return { kind: "filtered", sourceRead };
+  if (!state.sessionUuid || state.eventMessages.length === 0) return { kind: "skipped", sourceRead };
 
   const title = firstUserMessage(state.eventMessages) ?? "(no title)";
 
@@ -79,6 +102,7 @@ export async function parseCodexSession(filePath: string): Promise<ParseSessionR
 
   return {
     kind: "parsed",
+    sourceRead,
     session: {
       sourceId: DEFAULT_SESSION_SOURCE_ID,
       nativeSessionId: state.sessionUuid,
@@ -95,6 +119,17 @@ export async function parseCodexSession(filePath: string): Promise<ParseSessionR
       endedAt: maxTimestamp ?? new Date().toISOString(),
       messages: state.eventMessages,
     },
+  };
+}
+
+async function sourceFileMeta(filePath: string): Promise<SourceFileMeta> {
+  const stats = await stat(filePath);
+  return {
+    filePath,
+    pathDate: null,
+    cwd: "",
+    mtimeMs: stats.mtimeMs,
+    size: stats.size,
   };
 }
 
