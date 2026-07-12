@@ -1,0 +1,45 @@
+src/query-session-fields.test.ts
+  s_f815a8c67d337a::t_bdbb7702337fbc 339
+skill-packages/sherlog/references/json-schema.md
+  s_f815a8c67d337a::t_970ed99cbc5519 296-297,302-309
+  s_f815a8c67d337a::t_b58a7f6445c3ce 310
+skill-packages/sherlog/SKILL.md
+  s_f815a8c67d337a::t_970ed99cbc5519 43
+src/types.ts
+  s_f815a8c67d337a::t_b4ca2fbe2dc399 135-136
+src/cli.ts
+  s_f815a8c67d337a::t_b4ca2fbe2dc399 42,175-187,484,579,584-586,605-613,619-626,630-648,652-656
+  s_f815a8c67d337a::t_242cae4115a3e7 657-658
+docs/USAGE.md
+  s_f815a8c67d337a::t_970ed99cbc5519 104-105
+src/cli.test.ts
+  s_f815a8c67d337a::t_bdbb7702337fbc 861
+  s_f815a8c67d337a::t_41e6556690556e 3,865-911
+  s_f815a8c67d337a::t_949997b980c2fc 912-913
+src/query/coverage.ts
+  s_f815a8c67d337a::t_b4ca2fbe2dc399 9
+src/indexer.test.ts
+  s_f815a8c67d337a::t_bdbb7702337fbc 581-582
+skill-packages/sherlog/references/cli-surface.md
+  s_f815a8c67d337a::t_970ed99cbc5519 107
+package.json
+  s_f815a8c67d337a::t_970ed99cbc5519 3
+package-lock.json
+  s_f815a8c67d337a::t_d811b7d8d0f72a 3,9
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.12",
+  "base_commit_sha": "80939dde0b154e927b36cc8c9a9afb18c4c4e2ce",
+  "prompts": {},
+  "sessions": {
+    "s_f815a8c67d337a": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f55ce-5aa5-77d2-aa3f-1f94a4543c9b",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "catoncat <git@chen.rs>"
+    }
+  }
+}
