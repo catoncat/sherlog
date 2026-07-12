@@ -1,0 +1,25 @@
+src/status.ts
+  s_f815a8c67d337a::t_87599451bcbfbe 2,4-5,31-33,47-49
+src/cli.test.ts
+  s_f815a8c67d337a::t_4ef806e7b0eedf 880-891
+src/coverage-freshness.ts
+  s_f815a8c67d337a::t_87599451bcbfbe 1-79
+src/cli.ts
+  s_f815a8c67d337a::t_87599451bcbfbe 12,38,186,592-594,596,598-599,601-603,605,607
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.12",
+  "base_commit_sha": "86f6bf56b740607458a0fa8af38315eb2c484c67",
+  "prompts": {},
+  "sessions": {
+    "s_f815a8c67d337a": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f55ce-5aa5-77d2-aa3f-1f94a4543c9b",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "catoncat <git@chen.rs>"
+    }
+  }
+}
