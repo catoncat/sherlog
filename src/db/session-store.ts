@@ -1,5 +1,5 @@
 import { tokenizedText } from "../tokenize";
-import { DEFAULT_SESSION_SOURCE_ID, isSessionSourceId, type ParsedSession, type SessionRecord, type SessionSourceId } from "../types";
+import { DEFAULT_SESSION_SOURCE_ID, isSessionSourceId, type ParsedMessage, type ParsedSession, type SessionRecord, type SessionSourceId } from "../types";
 import type { Db } from "./shared";
 import { sessionRootFromFile } from "./sql";
 
@@ -52,6 +52,42 @@ export function getIndexedSessionMetas(
   }
 
   return map;
+}
+
+export interface IndexedSessionProjection {
+  sessionUuid: string;
+  title: string;
+  summaryText: string;
+  compactText: string;
+  reasoningSummaryText: string;
+  cwd: string;
+  startedAt: string;
+  endedAt: string;
+  messages: ParsedMessage[];
+}
+
+export function getIndexedSessionProjection(
+  db: Db,
+  filePath: string,
+  sourceId: SessionSourceId = DEFAULT_SESSION_SOURCE_ID,
+): IndexedSessionProjection | null {
+  const row = db.prepare<[SessionSourceId, string], Omit<IndexedSessionProjection, "messages"> & { id: number }>(`
+    SELECT id, session_uuid AS sessionUuid, title, summary_text AS summaryText,
+           compact_text AS compactText, reasoning_summary_text AS reasoningSummaryText,
+           cwd, started_at AS startedAt, ended_at AS endedAt
+    FROM sessions
+    WHERE source_id = ? AND file_path = ?
+    LIMIT 1
+  `).get(sourceId, filePath);
+  if (!row) return null;
+  const messages = db.prepare<[number], ParsedMessage>(`
+    SELECT role, content_text AS contentText, timestamp, seq, source_kind AS sourceKind
+    FROM messages
+    WHERE session_id = ?
+    ORDER BY seq ASC
+  `).all(row.id);
+  const { id: _id, ...session } = row;
+  return { ...session, messages };
 }
 
 export function deleteSessionByFilePath(db: Db, filePath: string, sourceId: SessionSourceId = DEFAULT_SESSION_SOURCE_ID): void {

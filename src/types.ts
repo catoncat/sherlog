@@ -35,10 +35,20 @@ export interface ParsedSession {
   messages: ParsedMessage[];
 }
 
-export type ParseSessionResult =
+export interface SourceReadProof {
+  byteCount: number;
+  contentFingerprint: string;
+  openedMtimeMs: number;
+  openedSize: number;
+  completedMtimeMs: number;
+  completedSize: number;
+}
+
+export type ParseSessionResult = (
   | { kind: "parsed"; session: ParsedSession }
   | { kind: "filtered" }
-  | { kind: "skipped" };
+  | { kind: "skipped" }
+) & { sourceRead?: SourceReadProof };
 
 export interface SyncErrorDetail {
   filePath: string;
@@ -115,6 +125,8 @@ export interface CoverageWriteSummary {
   sourceFileCount: number;
   indexedSessionCount: number;
   reason?: string;
+  staleReason?: "source_content_changed";
+  recommendedAction?: "query" | "sync";
 }
 
 export interface CoverageStatus {

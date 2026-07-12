@@ -1,3 +1,5 @@
+import { createHash } from "node:crypto";
+import { createReadStream } from "node:fs";
 import { DEFAULT_DB_PATH, INDEX_VERSION, ensureDataDir, isCurrentIndexVersion } from "./env";
 import {
   cleanupMismatchedMessagesForSelector,
@@ -6,6 +8,7 @@ import {
   deleteSessionByFilePath,
   getIndexedSessionMeta,
   getIndexedSessionMetas,
+  getIndexedSessionProjection,
   openWriteDb,
   replaceCoverage,
   replaceSession,
@@ -14,7 +17,7 @@ import { canonicalizeSelector, selectorSource } from "./selector";
 import { getSessionSourceAdapter } from "./sources";
 import { SourceInventoryError } from "./source-inventory";
 import { withSyncLock } from "./sync-lock";
-import type { CoverageWriteSummary, ParsedSession, Selector, SessionSourceId, SourceFileMeta, SyncErrorDetail, SyncSummary } from "./types";
+import type { CoverageWriteSummary, ParsedSession, ParseSessionResult, Selector, SessionSourceId, SourceFileMeta, SyncErrorDetail, SyncSummary } from "./types";
 
 interface SyncOptions {
   dbPath?: string;
@@ -70,6 +73,7 @@ export async function syncSessions(options: SyncOptions = {}): Promise<SyncSumma
     const db = openWriteDb(dbPath);
     const operations: SyncOperation[] = [];
     const unchangedFilePaths = new Set<string>();
+    const readResults = new Map<string, ParseSessionResult>();
 
     const summary: SyncSummary = {
       scanned: sourceSnapshot.fileCount,
@@ -91,6 +95,7 @@ export async function syncSessions(options: SyncOptions = {}): Promise<SyncSumma
         sourceSnapshot.files,
         operations,
         unchangedFilePaths,
+        readResults,
         summary
       );
 
@@ -98,6 +103,8 @@ export async function syncSessions(options: SyncOptions = {}): Promise<SyncSumma
         throw new SyncError(summary);
       }
 
+      let sourceContentChanged = false;
+      let activeSourceDeferred = false;
       if (!options.bestEffort) {
         let afterSnapshot;
         try {
@@ -107,8 +114,20 @@ export async function syncSessions(options: SyncOptions = {}): Promise<SyncSumma
           throw new SyncError(summary);
         }
         if (afterSnapshot.fingerprint !== sourceSnapshot.fingerprint) {
-          recordSyncError(summary, "(selector)", new Error("source changed during strict sync"));
-          throw new SyncError(summary);
+          const change = await classifyCodexSourceChange(
+            source,
+            db,
+            sourceSnapshot,
+            afterSnapshot,
+            readResults,
+          );
+          sourceContentChanged = change.kind === "append";
+          activeSourceDeferred = change.kind === "deferred";
+          if (change.kind === "reject") {
+            recordSyncError(summary, "(selector)", new Error("source changed during strict sync"));
+            throw new SyncError(summary);
+          }
+          if (change.kind === "deferred") removeOperationsForPaths(operations, change.filePaths);
         }
       }
 
@@ -123,7 +142,16 @@ export async function syncSessions(options: SyncOptions = {}): Promise<SyncSumma
         selector,
         sourceSnapshot,
         retainedFilePaths,
+        !activeSourceDeferred,
       );
+      if (sourceContentChanged && summary.coverage.written) {
+        summary.coverage.staleReason = "source_content_changed";
+        summary.coverage.recommendedAction = "query";
+      }
+      if (activeSourceDeferred) {
+        summary.coverage.reason = "active_source_deferred";
+        summary.coverage.recommendedAction = "sync";
+      }
       if (summary.errors > 0 && !options.bestEffort) {
         throw new SyncError(summary);
       }
@@ -148,6 +176,7 @@ async function collectSyncOperations(
   files: readonly SourceFileMeta[],
   operations: SyncOperation[],
   unchangedFilePaths: Set<string>,
+  readResults: Map<string, ParseSessionResult>,
   summary: SyncSummary
 ): Promise<void> {
   // Pre-fetch indexed session metadata for all files using batching to avoid N+1 queries
@@ -172,6 +201,7 @@ async function collectSyncOperations(
         }
 
         const parsed = await source.parseFile(file);
+        readResults.set(filePath, parsed);
         if (parsed.kind === "filtered") {
           operations.push({ kind: "filtered", filePath });
           continue;
@@ -200,6 +230,107 @@ async function collectSyncOperations(
   await Promise.all(workers);
 }
 
+type CodexSourceChange =
+  | { kind: "append" }
+  | { kind: "deferred"; filePaths: Set<string> }
+  | { kind: "reject" };
+
+async function classifyCodexSourceChange(
+  source: ReturnType<typeof getSessionSourceAdapter>,
+  db: ReturnType<typeof openWriteDb>,
+  before: { fileSetFingerprint: string; fileCount: number; files: SourceFileMeta[] },
+  after: { fileSetFingerprint: string; fileCount: number; files: SourceFileMeta[] },
+  readResults: Map<string, ParseSessionResult>,
+): Promise<CodexSourceChange> {
+  if (source.id !== "codex") return { kind: "reject" };
+  if (after.fileCount !== before.fileCount || after.fileSetFingerprint !== before.fileSetFingerprint) return { kind: "reject" };
+
+  const afterByPath = new Map(after.files.map((file) => [file.filePath, file]));
+  const deferred = new Set<string>();
+  for (const beforeFile of before.files) {
+    const afterFile = afterByPath.get(beforeFile.filePath);
+    if (!afterFile) return { kind: "reject" };
+    if (sameSourceFileMeta(beforeFile, afterFile)) continue;
+    if (afterFile.size <= beforeFile.size) return { kind: "reject" };
+
+    const hadReadResult = readResults.has(beforeFile.filePath);
+    const parsed = readResults.get(beforeFile.filePath) ?? await source.parseFile(beforeFile);
+    const proof = parsed.sourceRead;
+    if (!proof || proof.byteCount !== beforeFile.size) return { kind: "reject" };
+    if (await fingerprintFilePrefix(beforeFile.filePath, beforeFile.size) !== proof.contentFingerprint) return { kind: "reject" };
+    const projection = indexedProjectionAppendStatus(db, beforeFile.filePath, parsed, !hadReadResult);
+    const changedBeforeRead = proof.openedMtimeMs !== beforeFile.mtimeMs || proof.openedSize !== beforeFile.size;
+    const changedDuringRead = proof.completedMtimeMs !== proof.openedMtimeMs || proof.completedSize !== proof.openedSize;
+    if (projection === "missing" && (changedBeforeRead || changedDuringRead)) {
+      deferred.add(beforeFile.filePath);
+      continue;
+    }
+    if (projection === "unsafe") return { kind: "reject" };
+  }
+  return deferred.size > 0 ? { kind: "deferred", filePaths: deferred } : { kind: "append" };
+}
+
+function removeOperationsForPaths(operations: SyncOperation[], filePaths: Set<string>): void {
+  for (let index = operations.length - 1; index >= 0; index -= 1) {
+    if (filePaths.has(operations[index].filePath)) operations.splice(index, 1);
+  }
+}
+
+function sameSourceFileMeta(left: SourceFileMeta, right: SourceFileMeta): boolean {
+  return left.mtimeMs === right.mtimeMs
+    && left.size === right.size
+    && left.pathDate === right.pathDate
+    && left.cwd === right.cwd;
+}
+
+async function fingerprintFilePrefix(filePath: string, byteCount: number): Promise<string> {
+  const hash = createHash("sha256");
+  if (byteCount === 0) return hash.digest("hex");
+  let read = 0;
+  for await (const chunk of createReadStream(filePath, { start: 0, end: byteCount - 1 })) {
+    hash.update(chunk as Buffer);
+    read += (chunk as Buffer).length;
+  }
+  if (read !== byteCount) return "";
+  return hash.digest("hex");
+}
+
+function indexedProjectionAppendStatus(
+  db: ReturnType<typeof openWriteDb>,
+  filePath: string,
+  parsed: ParseSessionResult,
+  requireExact: boolean,
+): "safe" | "unsafe" | "missing" {
+  const existing = getIndexedSessionProjection(db, filePath, "codex");
+  if (!existing) return "missing";
+  if (parsed.kind !== "parsed" || parsed.session.sessionUuid !== existing.sessionUuid) return "unsafe";
+
+  const messages = existing.messages;
+  const candidate = parsed.session;
+  if (candidate.messages.length < messages.length) return "unsafe";
+  for (let index = 0; index < messages.length; index += 1) {
+    const left = messages[index];
+    const right = candidate.messages[index];
+    if (
+      left.seq !== right.seq
+      || left.role !== right.role
+      || left.contentText !== right.contentText
+      || left.timestamp !== right.timestamp
+      || left.sourceKind !== right.sourceKind
+    ) return "unsafe";
+  }
+  if (candidate.title !== existing.title || candidate.cwd !== existing.cwd || candidate.startedAt !== existing.startedAt) return "unsafe";
+  if (!candidate.compactText.startsWith(existing.compactText) || !candidate.reasoningSummaryText.startsWith(existing.reasoningSummaryText)) return "unsafe";
+  if (!requireExact) return "safe";
+  return candidate.messages.length === messages.length
+    && candidate.summaryText === existing.summaryText
+    && candidate.compactText === existing.compactText
+    && candidate.reasoningSummaryText === existing.reasoningSummaryText
+    && candidate.endedAt === existing.endedAt
+    ? "safe"
+    : "unsafe";
+}
+
 function isUnchanged(
   indexed: { rawFileMtime: number; rawFileSize: number; indexVersion: string } | null,
   mtimeMs: number,
@@ -220,6 +351,7 @@ function applyOperations(
   selector: Selector,
   sourceSnapshot: { fingerprint: string; fileSetFingerprint: string; fileCount: number },
   retainedFilePaths: Set<string>,
+  writeCoverage: boolean,
 ): CoverageWriteSummary {
   if (bestEffort) {
     for (const operation of operations) {
@@ -245,6 +377,16 @@ function applyOperations(
       summary.removed += deleteSessionsForSelectorExceptFilePaths(db, selector, retainedFilePaths);
     }
     const indexedSessionCount = countSessionsForSelector(db, selector);
+    if (!writeCoverage) {
+      coverage = skippedCoverage(
+        selector,
+        sourceSnapshot.fingerprint,
+        sourceSnapshot.fileSetFingerprint,
+        sourceSnapshot.fileCount,
+        "active_source_deferred",
+      );
+      return;
+    }
     const record = replaceCoverage(
       db,
       selector,

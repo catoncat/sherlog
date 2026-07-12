@@ -37,6 +37,10 @@ shlog read-page <sessionRef> --offset 0 --limit 20
 
 If `find` prints `next:` or JSON includes `nextAction`, refresh the suggested coverage and retry before treating the results as complete. Codex active-session tail drift is softer: `status` may report `freshness: "stale"` with `staleReason: "source_content_changed"` and `recommendedAction: "query"` when an existing JSONL is still growing; query/read first, and sync only when the latest tail or a strict completeness claim matters.
 
+The same distinction applies during `sync`: a Codex JSONL that only appends after its bounded read no longer aborts the whole run. Stable sources and the bounded prefix are committed, the successful sync summary marks `coverage.staleReason: "source_content_changed"`, and the next sync fills the tail. Truncation, prefix rewrite/replacement, and source-set changes still fail strict sync.
+
+If a new, unindexed Codex file already changed before its bounded read opened, Sherlog cannot prove that the old snapshot prefix was not rewritten. It conservatively defers that file and complete coverage, commits other stable sources, and returns `coverage.reason: "active_source_deferred"` with `recommendedAction: "sync"`.
+
 For project-scoped agent work, check and refresh only that coverage:
 
 ```bash

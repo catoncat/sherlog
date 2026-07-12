@@ -25,7 +25,13 @@ export function printSyncSummary(summary: SyncSummary): void {
   console.log(`filtered: ${summary.filtered}`);
   console.log(`removed:  ${summary.removed}`);
   console.log(`errors:   ${summary.errors}`);
-  console.log(`coverage: ${summary.coverage.written ? "written" : `not written (${summary.coverage.reason ?? "unknown"})`}`);
+  const writtenCoverage = summary.coverage.staleReason === "source_content_changed"
+    ? "written (soft stale: active Codex tail changed; query is available, retry sync later)"
+    : "written";
+  const unwrittenCoverage = summary.coverage.reason === "active_source_deferred"
+    ? "not written (active Codex source changed before read; stable sources committed, retry sync)"
+    : `not written (${summary.coverage.reason ?? "unknown"})`;
+  console.log(`coverage: ${summary.coverage.written ? writtenCoverage : unwrittenCoverage}`);
   if (summary.errorDetails.length > 0) {
     console.log();
     console.log(chalk.bold.red("sync errors"));

@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, test } from "vitest";
-import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
+import { mkdtempSync, mkdirSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { codexSourceAdapter, getSessionSourceAdapter, listSessionSourceAdapters } from ".";
@@ -92,7 +92,7 @@ describe("codex source adapter", () => {
       cwd: "/tmp/fallback",
       pathDate: "2026-04-23",
       mtimeMs: 0,
-      size: 0,
+      size: statSync(filePath).size,
     });
 
     expect(parsed.kind).toBe("parsed");

@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
-import { printFindResults, printReadPage, printReadRangeResult, printStats } from "./format";
-import type { FindResult, MessageRecord, SessionRecord } from "./types";
+import { printFindResults, printReadPage, printReadRangeResult, printStats, printSyncSummary } from "./format";
+import type { FindResult, MessageRecord, SessionRecord, SyncSummary } from "./types";
 import chalk from "chalk";
 
 const stripAnsi = (value: string): string => value.replace(/\[[0-9;]*m/g, "");
@@ -62,6 +62,68 @@ function makeMessage(seq: number): MessageRecord {
     sourceKind: "event_msg",
   };
 }
+
+describe("printSyncSummary", () => {
+  afterEach(() => vi.restoreAllMocks());
+
+  test("distinguishes an active Codex soft-stale tail from failure", () => {
+    const consoleLogSpy = vi.spyOn(console, "log").mockImplementation(() => {});
+    const selector = { source: "codex" as const, kind: "all" as const, root: "/tmp/sessions" };
+    const summary: SyncSummary = {
+      scanned: 2,
+      added: 2,
+      updated: 0,
+      skipped: 0,
+      filtered: 0,
+      removed: 0,
+      errors: 0,
+      errorDetails: [],
+      selector,
+      coverage: {
+        written: true,
+        selector,
+        sourceFingerprint: "before",
+        sourceFileSetFingerprint: "same-files",
+        sourceFileCount: 2,
+        indexedSessionCount: 2,
+        staleReason: "source_content_changed",
+        recommendedAction: "query",
+      },
+    };
+
+    printSyncSummary(summary);
+
+    expect(captured(consoleLogSpy)).toContain("coverage: written (soft stale: active Codex tail changed; query is available, retry sync later)");
+  });
+
+  test("explains when an unproven active Codex source was deferred", () => {
+    const consoleLogSpy = vi.spyOn(console, "log").mockImplementation(() => {});
+    const selector = { source: "codex" as const, kind: "all" as const, root: "/tmp/sessions" };
+    printSyncSummary({
+      scanned: 2,
+      added: 1,
+      updated: 0,
+      skipped: 0,
+      filtered: 0,
+      removed: 0,
+      errors: 0,
+      errorDetails: [],
+      selector,
+      coverage: {
+        written: false,
+        selector,
+        sourceFingerprint: "before",
+        sourceFileSetFingerprint: "same-files",
+        sourceFileCount: 2,
+        indexedSessionCount: 0,
+        reason: "active_source_deferred",
+        recommendedAction: "sync",
+      },
+    });
+
+    expect(captured(consoleLogSpy)).toContain("coverage: not written (active Codex source changed before read; stable sources committed, retry sync)");
+  });
+});
 
 describe("printStats", () => {
   let consoleLogSpy: any;
