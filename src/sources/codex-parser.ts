@@ -1,6 +1,5 @@
 import { createHash } from "node:crypto";
-import { createReadStream } from "node:fs";
-import { stat } from "node:fs/promises";
+import { open, stat } from "node:fs/promises";
 import { basename } from "node:path";
 import { createInterface } from "node:readline";
 import { Transform } from "node:stream";
@@ -23,10 +22,16 @@ interface ParseState {
   filteredMessageCount: number;
 }
 
-export async function parseCodexSession(input: string | SourceFileMeta): Promise<ParseSessionResult> {
+interface ParseCodexSessionOptions {
+  beforeRead?: () => void | Promise<void>;
+}
+
+export async function parseCodexSession(
+  input: string | SourceFileMeta,
+  options: ParseCodexSessionOptions = {},
+): Promise<ParseSessionResult> {
   const file = typeof input === "string" ? await sourceFileMeta(input) : input;
   const filePath = file.filePath;
-  const observed = await stat(filePath);
   const state: ParseState = {
     eventMessages: [],
     compactMessages: [],
@@ -46,46 +51,57 @@ export async function parseCodexSession(input: string | SourceFileMeta): Promise
       callback(null, chunk);
     },
   });
-  const inputStream = file.size === 0
-    ? null
-    : createReadStream(filePath, { start: 0, end: file.size - 1 });
-  inputStream?.on("error", (error) => hashingStream.destroy(error));
-  const lineReader = createInterface({
-    input: inputStream ? inputStream.pipe(hashingStream) : hashingStream,
-    crlfDelay: Infinity,
-  });
-  if (!inputStream) hashingStream.end();
+  const fileHandle = await open(filePath, "r");
+  const opened = await fileHandle.stat();
+  let completed = opened;
+  try {
+    await options.beforeRead?.();
+    const inputStream = file.size === 0
+      ? null
+      : fileHandle.createReadStream({ start: 0, end: file.size - 1, autoClose: false });
+    inputStream?.on("error", (error) => hashingStream.destroy(error));
+    const lineReader = createInterface({
+      input: inputStream ? inputStream.pipe(hashingStream) : hashingStream,
+      crlfDelay: Infinity,
+    });
+    if (!inputStream) hashingStream.end();
 
-  for await (const line of lineReader) {
-    // Fast path: avoid expensive JSON.parse for lines that clearly don't contain relevant events
-    if (
-      !line.includes('"event_msg"') &&
-      !line.includes('"session_meta"') &&
-      !line.includes('"turn_context"') &&
-      !line.includes('"compacted"') &&
-      !line.includes('"response_item"')
-    ) {
-      continue;
+    for await (const line of lineReader) {
+      // Fast path: avoid expensive JSON.parse for lines that clearly don't contain relevant events
+      if (
+        !line.includes('"event_msg"') &&
+        !line.includes('"session_meta"') &&
+        !line.includes('"turn_context"') &&
+        !line.includes('"compacted"') &&
+        !line.includes('"response_item"')
+      ) {
+        continue;
+      }
+
+      const trimmed = line.trim();
+      if (!trimmed) continue;
+
+      let record: Record<string, unknown>;
+      try {
+        record = JSON.parse(trimmed) as Record<string, unknown>;
+      } catch {
+        continue;
+      }
+
+      processRecord(record, state);
     }
-
-    const trimmed = line.trim();
-    if (!trimmed) continue;
-
-    let record: Record<string, unknown>;
-    try {
-      record = JSON.parse(trimmed) as Record<string, unknown>;
-    } catch {
-      continue;
-    }
-
-    processRecord(record, state);
+    completed = await fileHandle.stat();
+  } finally {
+    await fileHandle.close();
   }
 
   const sourceRead: SourceReadProof = {
     byteCount,
     contentFingerprint: hash.digest("hex"),
-    observedMtimeMs: observed.mtimeMs,
-    observedSize: observed.size,
+    openedMtimeMs: opened.mtimeMs,
+    openedSize: opened.size,
+    completedMtimeMs: completed.mtimeMs,
+    completedSize: completed.size,
   };
   if (state.filteredMessageCount > 0 && state.eventMessages.length === 0) return { kind: "filtered", sourceRead };
   if (!state.sessionUuid || state.eventMessages.length === 0) return { kind: "skipped", sourceRead };

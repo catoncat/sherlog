@@ -38,8 +38,10 @@ export interface ParsedSession {
 export interface SourceReadProof {
   byteCount: number;
   contentFingerprint: string;
-  observedMtimeMs: number;
-  observedSize: number;
+  openedMtimeMs: number;
+  openedSize: number;
+  completedMtimeMs: number;
+  completedSize: number;
 }
 
 export type ParseSessionResult = (

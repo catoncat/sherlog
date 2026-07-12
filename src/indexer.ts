@@ -259,8 +259,9 @@ async function classifyCodexSourceChange(
     if (!proof || proof.byteCount !== beforeFile.size) return { kind: "reject" };
     if (await fingerprintFilePrefix(beforeFile.filePath, beforeFile.size) !== proof.contentFingerprint) return { kind: "reject" };
     const projection = indexedProjectionAppendStatus(db, beforeFile.filePath, parsed, !hadReadResult);
-    const changedBeforeRead = proof.observedMtimeMs !== beforeFile.mtimeMs || proof.observedSize !== beforeFile.size;
-    if (projection === "missing" && changedBeforeRead) {
+    const changedBeforeRead = proof.openedMtimeMs !== beforeFile.mtimeMs || proof.openedSize !== beforeFile.size;
+    const changedDuringRead = proof.completedMtimeMs !== proof.openedMtimeMs || proof.completedSize !== proof.openedSize;
+    if (projection === "missing" && (changedBeforeRead || changedDuringRead)) {
       deferred.add(beforeFile.filePath);
       continue;
     }

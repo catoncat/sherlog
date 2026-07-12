@@ -7,6 +7,7 @@ import { openReadDb, openWriteDb } from "./db";
 import { SyncError, syncSessions } from "./indexer";
 import { findSessions, getMessagePage } from "./query";
 import { codexSourceAdapter } from "./sources/codex";
+import { parseCodexSession } from "./sources/codex-parser";
 import { collectStatus } from "./status";
 import { syncLockPath } from "./sync-lock";
 
@@ -190,6 +191,56 @@ describe("syncSessions", () => {
     expect(second.added).toBe(1);
     expect(second.coverage.written).toBe(true);
     expect(findSessions(dbPath, "rewritten before read", 5, selector).results).toHaveLength(1);
+  });
+
+  test("defers an unindexed Codex file rewritten after fd open but before stream read", async () => {
+    const base = mkdtempSync(join(tmpdir(), "cxs-indexer-open-read-window-"));
+    tempDirs.push(base);
+    const root = join(base, "sessions");
+    const day = join(root, "2026", "07", "12");
+    mkdirSync(day, { recursive: true });
+    const activePath = join(day, "rollout-2026-07-12T10-00-00-aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa.jsonl");
+    const stablePath = join(day, "rollout-2026-07-12T09-00-00-bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb.jsonl");
+    writeFileSync(activePath, [
+      line("session_meta", { id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa", cwd: "/tmp/open-read-window" }),
+      line("event_msg", { type: "user_message", message: "fd-open original prefix" }),
+    ].join("\n"));
+    writeFileSync(stablePath, [
+      line("session_meta", { id: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb", cwd: "/tmp/open-read-window" }),
+      line("event_msg", { type: "user_message", message: "fd-open stable source" }),
+    ].join("\n"));
+
+    const originalParseFile = codexSourceAdapter.parseFile.bind(codexSourceAdapter);
+    let changed = false;
+    vi.spyOn(codexSourceAdapter, "parseFile").mockImplementation((file) => {
+      if (file.filePath !== activePath || changed) return originalParseFile(file);
+      changed = true;
+      return parseCodexSession(file, {
+        beforeRead() {
+          writeFileSync(activePath, [
+            line("session_meta", { id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa", cwd: "/tmp/open-read-window" }),
+            line("event_msg", { type: "user_message", message: "rewritten after fd open" }),
+            line("event_msg", { type: "agent_message", message: "larger fd-open tail" }),
+          ].join("\n"));
+        },
+      });
+    });
+
+    const dbPath = join(base, "index.sqlite");
+    const selector = { kind: "all" as const, root };
+    const summary = await syncSessions({ dbPath, selector });
+
+    expect(summary).toMatchObject({
+      added: 1,
+      errors: 0,
+      coverage: {
+        written: false,
+        reason: "active_source_deferred",
+        recommendedAction: "sync",
+      },
+    });
+    expect(findSessions(dbPath, "fd-open stable source", 5, selector).results).toHaveLength(1);
+    expect(findSessions(dbPath, "rewritten after fd open", 5, selector).results).toHaveLength(0);
   });
 
   test.each([
