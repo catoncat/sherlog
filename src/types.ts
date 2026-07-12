@@ -38,6 +38,8 @@ export interface ParsedSession {
 export interface SourceReadProof {
   byteCount: number;
   contentFingerprint: string;
+  observedMtimeMs: number;
+  observedSize: number;
 }
 
 export type ParseSessionResult = (
@@ -122,7 +124,7 @@ export interface CoverageWriteSummary {
   indexedSessionCount: number;
   reason?: string;
   staleReason?: "source_content_changed";
-  recommendedAction?: "query";
+  recommendedAction?: "query" | "sync";
 }
 
 export interface CoverageStatus {

@@ -42,6 +42,7 @@ description: "Use proactively for local Codex history and personal setup archaeo
 - `session_not_found`: 只说明当前 index 没有这个 `sessionRef`;按 `nextAction` 检查 source/id/coverage,必要时同 source scoped sync 后重试。
 - `stale_or_missing_coverage`: 先判断是否需要完整结论。Codex `source_content_changed` + `recommendedAction: "query"` 常是活跃尾部软 stale,可先 query/read；coverage 缺失、source set 变化、非 Codex 保守同步、零结果可疑或用户要求完整性时,按提示同范围 sync 后重试。
 - `sync` 成功但 `coverage.staleReason: "source_content_changed"`: Codex 活跃 JSONL 在读取后继续追加；已读边界和其他稳定 source 已安全落库，可继续 query/read，稍后再 sync 补尾部。截断、前缀改写和 source set 变化仍是失败，不要把它们当成同一类软 stale。
+- `sync` 成功但 `coverage.reason: "active_source_deferred"`: 尚未索引的新 Codex 文件在有界读取前已变化，无法证明是纯追加；该文件和 complete coverage 被保守延后，其他稳定 source 已落库。按 `recommendedAction: "sync"` 重试，不要把本轮结果当完整覆盖。
 - fresh coverage 下仍无结果,才说没找到。
 
 ## 不适用

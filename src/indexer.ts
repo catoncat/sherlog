@@ -104,6 +104,7 @@ export async function syncSessions(options: SyncOptions = {}): Promise<SyncSumma
       }
 
       let sourceContentChanged = false;
+      let activeSourceDeferred = false;
       if (!options.bestEffort) {
         let afterSnapshot;
         try {
@@ -113,17 +114,20 @@ export async function syncSessions(options: SyncOptions = {}): Promise<SyncSumma
           throw new SyncError(summary);
         }
         if (afterSnapshot.fingerprint !== sourceSnapshot.fingerprint) {
-          sourceContentChanged = await validateCodexAppendOnlyChange(
+          const change = await classifyCodexSourceChange(
             source,
             db,
             sourceSnapshot,
             afterSnapshot,
             readResults,
           );
-          if (!sourceContentChanged) {
+          sourceContentChanged = change.kind === "append";
+          activeSourceDeferred = change.kind === "deferred";
+          if (change.kind === "reject") {
             recordSyncError(summary, "(selector)", new Error("source changed during strict sync"));
             throw new SyncError(summary);
           }
+          if (change.kind === "deferred") removeOperationsForPaths(operations, change.filePaths);
         }
       }
 
@@ -138,10 +142,15 @@ export async function syncSessions(options: SyncOptions = {}): Promise<SyncSumma
         selector,
         sourceSnapshot,
         retainedFilePaths,
+        !activeSourceDeferred,
       );
       if (sourceContentChanged && summary.coverage.written) {
         summary.coverage.staleReason = "source_content_changed";
         summary.coverage.recommendedAction = "query";
+      }
+      if (activeSourceDeferred) {
+        summary.coverage.reason = "active_source_deferred";
+        summary.coverage.recommendedAction = "sync";
       }
       if (summary.errors > 0 && !options.bestEffort) {
         throw new SyncError(summary);
@@ -221,31 +230,49 @@ async function collectSyncOperations(
   await Promise.all(workers);
 }
 
-async function validateCodexAppendOnlyChange(
+type CodexSourceChange =
+  | { kind: "append" }
+  | { kind: "deferred"; filePaths: Set<string> }
+  | { kind: "reject" };
+
+async function classifyCodexSourceChange(
   source: ReturnType<typeof getSessionSourceAdapter>,
   db: ReturnType<typeof openWriteDb>,
   before: { fileSetFingerprint: string; fileCount: number; files: SourceFileMeta[] },
   after: { fileSetFingerprint: string; fileCount: number; files: SourceFileMeta[] },
   readResults: Map<string, ParseSessionResult>,
-): Promise<boolean> {
-  if (source.id !== "codex") return false;
-  if (after.fileCount !== before.fileCount || after.fileSetFingerprint !== before.fileSetFingerprint) return false;
+): Promise<CodexSourceChange> {
+  if (source.id !== "codex") return { kind: "reject" };
+  if (after.fileCount !== before.fileCount || after.fileSetFingerprint !== before.fileSetFingerprint) return { kind: "reject" };
 
   const afterByPath = new Map(after.files.map((file) => [file.filePath, file]));
+  const deferred = new Set<string>();
   for (const beforeFile of before.files) {
     const afterFile = afterByPath.get(beforeFile.filePath);
-    if (!afterFile) return false;
+    if (!afterFile) return { kind: "reject" };
     if (sameSourceFileMeta(beforeFile, afterFile)) continue;
-    if (afterFile.size <= beforeFile.size) return false;
+    if (afterFile.size <= beforeFile.size) return { kind: "reject" };
 
     const hadReadResult = readResults.has(beforeFile.filePath);
     const parsed = readResults.get(beforeFile.filePath) ?? await source.parseFile(beforeFile);
     const proof = parsed.sourceRead;
-    if (!proof || proof.byteCount !== beforeFile.size) return false;
-    if (await fingerprintFilePrefix(beforeFile.filePath, beforeFile.size) !== proof.contentFingerprint) return false;
-    if (!indexedProjectionAllowsAppend(db, beforeFile.filePath, parsed, !hadReadResult)) return false;
+    if (!proof || proof.byteCount !== beforeFile.size) return { kind: "reject" };
+    if (await fingerprintFilePrefix(beforeFile.filePath, beforeFile.size) !== proof.contentFingerprint) return { kind: "reject" };
+    const projection = indexedProjectionAppendStatus(db, beforeFile.filePath, parsed, !hadReadResult);
+    const changedBeforeRead = proof.observedMtimeMs !== beforeFile.mtimeMs || proof.observedSize !== beforeFile.size;
+    if (projection === "missing" && changedBeforeRead) {
+      deferred.add(beforeFile.filePath);
+      continue;
+    }
+    if (projection === "unsafe") return { kind: "reject" };
   }
-  return true;
+  return deferred.size > 0 ? { kind: "deferred", filePaths: deferred } : { kind: "append" };
+}
+
+function removeOperationsForPaths(operations: SyncOperation[], filePaths: Set<string>): void {
+  for (let index = operations.length - 1; index >= 0; index -= 1) {
+    if (filePaths.has(operations[index].filePath)) operations.splice(index, 1);
+  }
 }
 
 function sameSourceFileMeta(left: SourceFileMeta, right: SourceFileMeta): boolean {
@@ -267,19 +294,19 @@ async function fingerprintFilePrefix(filePath: string, byteCount: number): Promi
   return hash.digest("hex");
 }
 
-function indexedProjectionAllowsAppend(
+function indexedProjectionAppendStatus(
   db: ReturnType<typeof openWriteDb>,
   filePath: string,
   parsed: ParseSessionResult,
   requireExact: boolean,
-): boolean {
+): "safe" | "unsafe" | "missing" {
   const existing = getIndexedSessionProjection(db, filePath, "codex");
-  if (!existing) return true;
-  if (parsed.kind !== "parsed" || parsed.session.sessionUuid !== existing.sessionUuid) return false;
+  if (!existing) return "missing";
+  if (parsed.kind !== "parsed" || parsed.session.sessionUuid !== existing.sessionUuid) return "unsafe";
 
   const messages = existing.messages;
   const candidate = parsed.session;
-  if (candidate.messages.length < messages.length) return false;
+  if (candidate.messages.length < messages.length) return "unsafe";
   for (let index = 0; index < messages.length; index += 1) {
     const left = messages[index];
     const right = candidate.messages[index];
@@ -289,16 +316,18 @@ function indexedProjectionAllowsAppend(
       || left.contentText !== right.contentText
       || left.timestamp !== right.timestamp
       || left.sourceKind !== right.sourceKind
-    ) return false;
+    ) return "unsafe";
   }
-  if (candidate.title !== existing.title || candidate.cwd !== existing.cwd || candidate.startedAt !== existing.startedAt) return false;
-  if (!candidate.compactText.startsWith(existing.compactText) || !candidate.reasoningSummaryText.startsWith(existing.reasoningSummaryText)) return false;
-  if (!requireExact) return true;
+  if (candidate.title !== existing.title || candidate.cwd !== existing.cwd || candidate.startedAt !== existing.startedAt) return "unsafe";
+  if (!candidate.compactText.startsWith(existing.compactText) || !candidate.reasoningSummaryText.startsWith(existing.reasoningSummaryText)) return "unsafe";
+  if (!requireExact) return "safe";
   return candidate.messages.length === messages.length
     && candidate.summaryText === existing.summaryText
     && candidate.compactText === existing.compactText
     && candidate.reasoningSummaryText === existing.reasoningSummaryText
-    && candidate.endedAt === existing.endedAt;
+    && candidate.endedAt === existing.endedAt
+    ? "safe"
+    : "unsafe";
 }
 
 function isUnchanged(
@@ -321,6 +350,7 @@ function applyOperations(
   selector: Selector,
   sourceSnapshot: { fingerprint: string; fileSetFingerprint: string; fileCount: number },
   retainedFilePaths: Set<string>,
+  writeCoverage: boolean,
 ): CoverageWriteSummary {
   if (bestEffort) {
     for (const operation of operations) {
@@ -346,6 +376,16 @@ function applyOperations(
       summary.removed += deleteSessionsForSelectorExceptFilePaths(db, selector, retainedFilePaths);
     }
     const indexedSessionCount = countSessionsForSelector(db, selector);
+    if (!writeCoverage) {
+      coverage = skippedCoverage(
+        selector,
+        sourceSnapshot.fingerprint,
+        sourceSnapshot.fileSetFingerprint,
+        sourceSnapshot.fileCount,
+        "active_source_deferred",
+      );
+      return;
+    }
     const record = replaceCoverage(
       db,
       selector,

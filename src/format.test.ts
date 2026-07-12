@@ -95,6 +95,34 @@ describe("printSyncSummary", () => {
 
     expect(captured(consoleLogSpy)).toContain("coverage: written (soft stale: active Codex tail changed; query is available, retry sync later)");
   });
+
+  test("explains when an unproven active Codex source was deferred", () => {
+    const consoleLogSpy = vi.spyOn(console, "log").mockImplementation(() => {});
+    const selector = { source: "codex" as const, kind: "all" as const, root: "/tmp/sessions" };
+    printSyncSummary({
+      scanned: 2,
+      added: 1,
+      updated: 0,
+      skipped: 0,
+      filtered: 0,
+      removed: 0,
+      errors: 0,
+      errorDetails: [],
+      selector,
+      coverage: {
+        written: false,
+        selector,
+        sourceFingerprint: "before",
+        sourceFileSetFingerprint: "same-files",
+        sourceFileCount: 2,
+        indexedSessionCount: 0,
+        reason: "active_source_deferred",
+        recommendedAction: "sync",
+      },
+    });
+
+    expect(captured(consoleLogSpy)).toContain("coverage: not written (active Codex source changed before read; stable sources committed, retry sync)");
+  });
 });
 
 describe("printStats", () => {

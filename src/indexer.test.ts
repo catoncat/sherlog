@@ -140,6 +140,58 @@ describe("syncSessions", () => {
     expect(findSessions(dbPath, "new active tail", 5, selector).results).toHaveLength(0);
   });
 
+  test("defers an unindexed Codex file that changed before its bounded read while committing stable sources", async () => {
+    const base = mkdtempSync(join(tmpdir(), "cxs-indexer-pre-read-change-"));
+    tempDirs.push(base);
+    const root = join(base, "sessions");
+    const day = join(root, "2026", "07", "12");
+    mkdirSync(day, { recursive: true });
+    const activePath = join(day, "rollout-2026-07-12T10-00-00-aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa.jsonl");
+    const stablePath = join(day, "rollout-2026-07-12T09-00-00-bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb.jsonl");
+    writeFileSync(activePath, [
+      line("session_meta", { id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa", cwd: "/tmp/pre-read-change" }),
+      line("event_msg", { type: "user_message", message: "unproven original prefix" }),
+    ].join("\n"));
+    writeFileSync(stablePath, [
+      line("session_meta", { id: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb", cwd: "/tmp/pre-read-change" }),
+      line("event_msg", { type: "user_message", message: "stable source survives" }),
+    ].join("\n"));
+
+    const originalParseFile = codexSourceAdapter.parseFile.bind(codexSourceAdapter);
+    let changed = false;
+    vi.spyOn(codexSourceAdapter, "parseFile").mockImplementation(async (file) => {
+      if (file.filePath === activePath && !changed) {
+        changed = true;
+        writeFileSync(activePath, [
+          line("session_meta", { id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa", cwd: "/tmp/pre-read-change" }),
+          line("event_msg", { type: "user_message", message: "rewritten before read" }),
+          line("event_msg", { type: "agent_message", message: "larger unproven tail" }),
+        ].join("\n"));
+      }
+      return originalParseFile(file);
+    });
+
+    const dbPath = join(base, "index.sqlite");
+    const selector = { kind: "all" as const, root };
+    const first = await syncSessions({ dbPath, selector });
+
+    expect(first.errors).toBe(0);
+    expect(first.added).toBe(1);
+    expect(first.coverage).toMatchObject({
+      written: false,
+      reason: "active_source_deferred",
+      recommendedAction: "sync",
+    });
+    expect(findSessions(dbPath, "stable source survives", 5, selector).results).toHaveLength(1);
+    expect(findSessions(dbPath, "rewritten before read", 5, selector).results).toHaveLength(0);
+
+    vi.restoreAllMocks();
+    const second = await syncSessions({ dbPath, selector });
+    expect(second.added).toBe(1);
+    expect(second.coverage.written).toBe(true);
+    expect(findSessions(dbPath, "rewritten before read", 5, selector).results).toHaveLength(1);
+  });
+
   test.each([
     {
       name: "truncates the file",

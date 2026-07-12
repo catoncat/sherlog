@@ -26,6 +26,7 @@ interface ParseState {
 export async function parseCodexSession(input: string | SourceFileMeta): Promise<ParseSessionResult> {
   const file = typeof input === "string" ? await sourceFileMeta(input) : input;
   const filePath = file.filePath;
+  const observed = await stat(filePath);
   const state: ParseState = {
     eventMessages: [],
     compactMessages: [],
@@ -83,6 +84,8 @@ export async function parseCodexSession(input: string | SourceFileMeta): Promise
   const sourceRead: SourceReadProof = {
     byteCount,
     contentFingerprint: hash.digest("hex"),
+    observedMtimeMs: observed.mtimeMs,
+    observedSize: observed.size,
   };
   if (state.filteredMessageCount > 0 && state.eventMessages.length === 0) return { kind: "filtered", sourceRead };
   if (!state.sessionUuid || state.eventMessages.length === 0) return { kind: "skipped", sourceRead };
