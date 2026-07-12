@@ -336,7 +336,7 @@ describe("cxs session-level fields", () => {
 
     const found = findSessions(dbPath, "definitely missing needle", 5, selector);
 
-    expect(found.coverage.complete).toBe(true);
+    expect(found.coverage.complete).toBe(false);
     expect(found.coverage.freshness).toBe("not_checked");
     expect(found.results).toHaveLength(0);
     expect(found.nextAction?.reason).toBe("zero_results_with_unconfirmed_selector_coverage");

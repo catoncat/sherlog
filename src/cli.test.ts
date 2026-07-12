@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, test } from "vitest";
 import { spawn as childSpawn } from "node:child_process";
-import { chmodSync, existsSync, mkdtempSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
+import { appendFileSync, chmodSync, existsSync, mkdtempSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import Database from "better-sqlite3";
@@ -858,8 +858,69 @@ describe("shlog cli", { timeout: 20_000 }, () => {
       coverage: { complete: boolean; freshness: string };
     };
     expect(findPayload.coverage.complete).toBe(true);
-    expect(findPayload.coverage.freshness).toBe("not_checked");
+    expect(findPayload.coverage.freshness).toBe("fresh");
     expect(findPayload.results.map((result) => result.cwd)).toEqual(["/tmp/alpha"]);
+  });
+
+  test("find reports live soft-stale coverage without hiding usable indexed results", async () => {
+    const base = mkdtempSync(join(tmpdir(), "cxs-cli-find-soft-stale-"));
+    tempDirs.push(base);
+    const root = join(base, "sessions");
+    const day = join(root, "2026", "07", "12");
+    mkdirSync(day, { recursive: true });
+    const sessionPath = join(day, "rollout-2026-07-12T10-00-00-aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa.jsonl");
+    writeFileSync(sessionPath, [
+      line("session_meta", { id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa", cwd: "/tmp/find-soft-stale" }),
+      line("event_msg", { type: "user_message", message: "indexed active prefix" }),
+    ].join("\n"));
+
+    const dbPath = join(base, "index.sqlite");
+    const synced = await runCli(["sync", "--source", "codex", "--root", root, "--db", dbPath, "--json"]);
+    expect(synced.exitCode).toBe(0);
+
+    const freshMiss = await runCli(["find", "unindexed active tail", "--source", "codex", "--root", root, "--db", dbPath, "--json"]);
+    expect(freshMiss.exitCode).toBe(0);
+    const freshMissPayload = JSON.parse(freshMiss.stdout) as {
+      results: unknown[];
+      coverage: { complete: boolean; freshness: string; staleReason?: string };
+      nextAction?: unknown;
+    };
+    expect(freshMissPayload.results).toHaveLength(0);
+    expect(freshMissPayload.coverage).toMatchObject({ complete: true, freshness: "fresh", staleReason: "none" });
+    expect(freshMissPayload.nextAction).toBeUndefined();
+
+    appendFileSync(sessionPath, `\n${line("event_msg", { type: "agent_message", message: "unindexed active tail" })}`);
+
+    const found = await runCli(["find", "indexed active prefix", "--source", "codex", "--root", root, "--db", dbPath, "--json"]);
+    expect(found.exitCode).toBe(0);
+    const foundPayload = JSON.parse(found.stdout) as {
+      results: unknown[];
+      coverage: { complete: boolean; freshness: string; staleReason?: string };
+      nextAction?: unknown;
+    };
+    expect(foundPayload.results).toHaveLength(1);
+    expect(foundPayload.coverage).toMatchObject({
+      complete: false,
+      freshness: "stale",
+      staleReason: "source_content_changed",
+    });
+    expect(foundPayload.nextAction).toBeUndefined();
+
+    const missedTail = await runCli(["find", "unindexed active tail", "--source", "codex", "--root", root, "--db", dbPath, "--json"]);
+    expect(missedTail.exitCode).toBe(0);
+    const missedTailPayload = JSON.parse(missedTail.stdout) as {
+      results: unknown[];
+      coverage: { complete: boolean; freshness: string; staleReason?: string };
+      nextAction?: { reason: string; steps: string[] };
+    };
+    expect(missedTailPayload.results).toHaveLength(0);
+    expect(missedTailPayload.coverage).toMatchObject({
+      complete: false,
+      freshness: "stale",
+      staleReason: "source_content_changed",
+    });
+    expect(missedTailPayload.nextAction?.reason).toBe("stale_or_missing_coverage");
+    expect(missedTailPayload.nextAction?.steps[0]).toContain("existing source-file content");
   });
 
   test("sync and find support --cwd/--root without handwritten selector JSON", async () => {

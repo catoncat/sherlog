@@ -1,7 +1,8 @@
 import { existsSync, statSync } from "node:fs";
-import { INDEX_VERSION, DEFAULT_DB_PATH, isCurrentIndexVersion } from "./env";
+import { INDEX_VERSION, DEFAULT_DB_PATH } from "./env";
 import { getStatsCounts, listCoverageRecords, withReadDb, type Db } from "./db";
-import { selectorImplies, selectorSource } from "./selector";
+import { evaluateCoverageRecord, evaluateRequestedCoverage } from "./coverage-freshness";
+import { selectorSource } from "./selector";
 import { getSessionSourceAdapter } from "./sources";
 import type { SessionSourceAdapter } from "./sources/types";
 import type {
@@ -27,7 +28,9 @@ export async function collectStatus(options: { sourceId?: SessionSourceId; rootD
   const coverage = existsSync(dbPath) ? withReadDb(dbPath, (db) => listCoverageRecordsForStatus(db, source.id)) : [];
   const coverageStatus: CoverageInventoryStatus[] = [];
   for (const record of coverage) {
-    coverageStatus.push(await toCoverageInventoryStatus(record, getContext));
+    const context = await getContext(selectorSource(record.selector), record.selector.root);
+    const snapshot = await context.source.snapshotFromFiles(record.selector, context.files);
+    coverageStatus.push(evaluateCoverageRecord(record, snapshot));
   }
   const summary: StatusSummary = {
     context: {
@@ -41,7 +44,9 @@ export async function collectStatus(options: { sourceId?: SessionSourceId; rootD
     coverage: coverageStatus,
   };
   if (options.selector) {
-    summary.requestedCoverage = await requestedCoverageStatus(options.selector, coverageStatus, getContext);
+    const context = await getContext(selectorSource(options.selector), options.selector.root);
+    const snapshot = await context.source.snapshotFromFiles(options.selector, context.files);
+    summary.requestedCoverage = evaluateRequestedCoverage(snapshot, coverageStatus);
   }
   return summary;
 }
@@ -160,81 +165,4 @@ function tableExists(db: Db, tableName: string): boolean {
   return db
     .prepare<[string], unknown>("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ? LIMIT 1")
     .get(tableName) !== undefined;
-}
-
-async function toCoverageInventoryStatus(
-  record: CoverageRecord,
-  getContext: (sourceId: SessionSourceId, root: string) => Promise<StatusSourceContext>,
-): Promise<CoverageInventoryStatus> {
-  const context = await getContext(selectorSource(record.selector), record.selector.root);
-  const snapshot = await context.source.snapshotFromFiles(record.selector, context.files);
-  const fresh = snapshot.fingerprint === record.sourceFingerprint
-    && (record.sourceFileSetFingerprint === "" || snapshot.fileSetFingerprint === record.sourceFileSetFingerprint)
-    && snapshot.fileCount === record.sourceFileCount
-    && isCurrentIndexVersion(record.indexVersion);
-  const staleReason: CoverageInventoryStatus["staleReason"] = fresh
-    ? "none"
-    : record.sourceFileSetFingerprint !== "" && snapshot.fileSetFingerprint === record.sourceFileSetFingerprint
-      ? "source_content_changed"
-      : "source_set_changed";
-  const advisory = !fresh && isAdvisorySourceContentStale(record.selector, staleReason);
-  return {
-    ...record,
-    freshness: fresh ? "fresh" : "stale",
-    staleReason,
-    advisory,
-    currentSourceFingerprint: snapshot.fingerprint,
-    currentSourceFileSetFingerprint: snapshot.fileSetFingerprint,
-    currentSourceFileCount: snapshot.fileCount,
-  };
-}
-
-async function requestedCoverageStatus(
-  selector: Selector,
-  coverage: CoverageInventoryStatus[],
-  getContext: (sourceId: SessionSourceId, root: string) => Promise<StatusSourceContext>,
-): Promise<RequestedCoverageStatus> {
-  const context = await getContext(selectorSource(selector), selector.root);
-  const snapshot = await context.source.snapshotFromFiles(selector, context.files);
-  const coveringSelectors = coverage.filter((entry) =>
-    isCurrentIndexVersion(entry.indexVersion) && selectorImplies(entry.selector, selector)
-  );
-  const hasFreshCovering = coveringSelectors.some((entry) => entry.freshness === "fresh");
-  const freshness: RequestedCoverageStatus["freshness"] = hasFreshCovering
-    ? "fresh"
-    : coveringSelectors.length > 0
-      ? "stale"
-      : "missing";
-  const staleReason = requestedCoverageStaleReason(freshness, coveringSelectors);
-  return {
-    requested: snapshot.selector,
-    complete: freshness === "fresh",
-    freshness,
-    staleReason,
-    sourceFingerprint: snapshot.fingerprint,
-    sourceFileSetFingerprint: snapshot.fileSetFingerprint,
-    sourceFileCount: snapshot.fileCount,
-    coveringSelectors,
-    recommendedAction: freshness === "fresh" || isAdvisorySourceContentStale(snapshot.selector, staleReason) ? "query" : "sync",
-  };
-}
-
-function isAdvisorySourceContentStale(
-  selector: Selector,
-  staleReason: RequestedCoverageStatus["staleReason"],
-): boolean {
-  return selectorSource(selector) === "codex" && staleReason === "source_content_changed";
-}
-
-function requestedCoverageStaleReason(
-  freshness: RequestedCoverageStatus["freshness"],
-  coveringSelectors: CoverageInventoryStatus[],
-): RequestedCoverageStatus["staleReason"] {
-  if (freshness === "fresh") return "none";
-  if (freshness === "missing") return "missing";
-  return coveringSelectors.some((entry) =>
-    entry.sourceFileSetFingerprint !== "" && entry.currentSourceFileSetFingerprint === entry.sourceFileSetFingerprint
-  )
-    ? "source_content_changed"
-    : "source_set_changed";
 }

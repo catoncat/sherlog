@@ -6,7 +6,7 @@ export function buildCoverageStatus(db: Db, selector: Selector | null): Coverage
   const status = coverageStatusForSelector(db, selector);
   return {
     requested: selector,
-    complete: status.complete,
+    complete: false,
     freshness: "not_checked",
     coveringSelectors: status.coveringSelectors,
   };

@@ -578,7 +578,8 @@ describe("syncSessions", () => {
     expect(summary.coverage.indexedSessionCount).toBe(1);
 
     const found = findSessions(dbPath, "dated needle", 5, dateSelector);
-    expect(found.coverage.complete).toBe(true);
+    expect(found.coverage.complete).toBe(false);
+    expect(found.coverage.freshness).toBe("not_checked");
     expect(found.results.map((result) => result.sessionUuid)).toEqual([
       "33333333-3333-4333-8333-333333333333",
     ]);

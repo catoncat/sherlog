@@ -104,7 +104,7 @@ text header 带效率回述:`shlog find "q" · 检索 ~N 条 · 结果 R · Xms`
 
 效率回述默认开,环境变量 `SHLOG_STATS=0`(或 `off`/`false`/`no`)可关闭文本 header 里的注解(`检索 ~N 条 / 读取 K 条 / Xms`);`--json` 的 `scannedMessageCount` / `elapsedMs` 与 `read-page` 的 `total/hasMore` 等功能字段始终保留。关闭时文本里没有可锚的数字,直接省掉效率尾注、别硬编。
 
-零结果不是结束条件。`--json` 下如果返回 `nextAction`,按它选择/检查同一 selector；text 输出也会打印 `next:` 步骤。新版 Codex `find` 对非空结果会忽略 `source_content_changed` / `recommendedAction: "query"` 软 stale,避免当前会话尾部变化反复逼 agent 同步。若非空结果仍返回 `nextAction.reason=stale_or_missing_coverage`,通常是 coverage 缺失、source file 集合变化或非 Codex source 保守同步；需要完整结论时按 `nextAction.commands` 同步并重试。否则只有 `status.requestedCoverage.recommendedAction === "sync"` 时才跑同范围 `sync`。fresh coverage 下仍无结果,才可以说没找到。
+零结果不是结束条件。`find --json` 会在同一次调用中评估 raw source freshness，因此 `coverage.complete` / `freshness` / `staleReason` 与 `nextAction` 使用同一 snapshot；纯 SQLite query facade 无法检查 raw 时则诚实返回 `complete=false` / `freshness=not_checked`，但保留 `coveringSelectors`。`--json` 下如果返回 `nextAction`,按它选择/检查同一 selector；text 输出也会打印 `next:` 步骤。Codex `find` 对非空结果会忽略 `source_content_changed` 软 stale,避免当前会话尾部变化反复逼 agent 同步；此时 `complete=false` 表示最新尾部未获证明，不表示已有索引不可查询。若非空结果仍返回 `nextAction.reason=stale_or_missing_coverage`,通常是 coverage 缺失、source file 集合变化或非 Codex source 保守同步；需要完整结论时按 `nextAction.commands` 同步并重试。fresh coverage 下仍无结果,才可以说没找到。
 
 Example:
 
