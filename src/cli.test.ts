@@ -877,6 +877,18 @@ describe("shlog cli", { timeout: 20_000 }, () => {
     const dbPath = join(base, "index.sqlite");
     const synced = await runCli(["sync", "--source", "codex", "--root", root, "--db", dbPath, "--json"]);
     expect(synced.exitCode).toBe(0);
+
+    const freshMiss = await runCli(["find", "unindexed active tail", "--source", "codex", "--root", root, "--db", dbPath, "--json"]);
+    expect(freshMiss.exitCode).toBe(0);
+    const freshMissPayload = JSON.parse(freshMiss.stdout) as {
+      results: unknown[];
+      coverage: { complete: boolean; freshness: string; staleReason?: string };
+      nextAction?: unknown;
+    };
+    expect(freshMissPayload.results).toHaveLength(0);
+    expect(freshMissPayload.coverage).toMatchObject({ complete: true, freshness: "fresh", staleReason: "none" });
+    expect(freshMissPayload.nextAction).toBeUndefined();
+
     appendFileSync(sessionPath, `\n${line("event_msg", { type: "agent_message", message: "unindexed active tail" })}`);
 
     const found = await runCli(["find", "indexed active prefix", "--source", "codex", "--root", root, "--db", dbPath, "--json"]);

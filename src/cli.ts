@@ -4,12 +4,12 @@ import { Command } from "commander";
 import packageJson from "../package.json" with { type: "json" };
 import {
   DEFAULT_DB_PATH,
-  isCurrentIndexVersion,
   migrateLegacyDataDirIfNeeded,
   PROGRAM_NAME,
   statsReadoutEnabled,
 } from "./env";
 import { IndexSchemaUpgradeRequiredError, IndexUnavailableError, listCoverageRecords, withReadDb } from "./db";
+import { evaluateCoverageRecord, evaluateRequestedCoverage } from "./coverage-freshness";
 import { buildEvidenceReadAction } from "./evidence-read";
 import { getSessionSourceAdapter, listSessionSourceAdapters } from "./sources";
 
@@ -35,7 +35,7 @@ import {
   listSessionSummaries,
   SessionNotFoundError,
 } from "./query";
-import { canonicalizeSelector, parseSelectorJson, SelectorParseError, selectorImplies, selectorSource } from "./selector";
+import { canonicalizeSelector, parseSelectorJson, SelectorParseError, selectorSource } from "./selector";
 import { collectStatus } from "./status";
 import { SyncLockTimeoutError } from "./sync-lock";
 import type {
@@ -183,7 +183,7 @@ program
           ...summary,
           coverage: coverageAssessment.coverage,
           coverageBySource: [{ sourceId, coverage: coverageAssessment.coverage }],
-          nextAction: coverageAssessment.nextAction ?? summary.nextAction,
+          nextAction: coverageAssessment.nextAction,
         };
       }));
       const result = mergeFindSummaries(query, sort, options.excludeSession ?? [], summaries, limit);
@@ -589,40 +589,22 @@ async function assessFindCoverage(
   const source = getSessionSourceAdapter(sourceId);
   const files = await source.collectFiles(selector.root);
   const snapshot = await source.snapshotFromFiles(selector, files);
-  const coveringSelectors = withReadDb(dbPath, (db) =>
-    listCoverageRecords(db, sourceId).filter((entry) =>
-      isCurrentIndexVersion(entry.indexVersion) && selectorImplies(entry.selector, snapshot.selector)
-    )
-  );
-  let staleReason: RequestedCoverageStatus["staleReason"] = coveringSelectors.length > 0 ? "source_set_changed" : "missing";
-  for (const entry of coveringSelectors) {
+  const coverageRecords = withReadDb(dbPath, (db) => listCoverageRecords(db, sourceId));
+  const coverageInventory = [];
+  for (const entry of coverageRecords) {
     const entrySnapshot = await source.snapshotFromFiles(entry.selector, files);
-    if (
-      entrySnapshot.fingerprint === entry.sourceFingerprint
-      && (entry.sourceFileSetFingerprint === "" || entrySnapshot.fileSetFingerprint === entry.sourceFileSetFingerprint)
-      && entrySnapshot.fileCount === entry.sourceFileCount
-    ) {
-      return {
-        coverage: {
-          requested: snapshot.selector,
-          complete: true,
-          freshness: "fresh",
-          staleReason: "none",
-          coveringSelectors,
-        },
-      };
-    }
-    if (entry.sourceFileSetFingerprint !== "" && entrySnapshot.fileSetFingerprint === entry.sourceFileSetFingerprint) {
-      staleReason = "source_content_changed";
-    }
+    coverageInventory.push(evaluateCoverageRecord(entry, entrySnapshot));
   }
+  const requestedCoverage = evaluateRequestedCoverage(snapshot, coverageInventory);
+  const staleReason = requestedCoverage.staleReason;
   const coverage: CoverageStatus = {
-    requested: snapshot.selector,
-    complete: false,
-    freshness: staleReason === "missing" ? "missing" : "stale",
+    requested: requestedCoverage.requested,
+    complete: requestedCoverage.complete,
+    freshness: requestedCoverage.freshness,
     staleReason,
-    coveringSelectors,
+    coveringSelectors: requestedCoverage.coveringSelectors,
   };
+  if (requestedCoverage.freshness === "fresh") return { coverage };
   if (sourceId === "codex" && staleReason === "source_content_changed" && resultCount > 0) return { coverage };
 
   const syncArgv = syncArgvForSelector(snapshot.selector);
