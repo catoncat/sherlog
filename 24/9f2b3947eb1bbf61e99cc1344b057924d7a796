@@ -1,0 +1,47 @@
+src/indexer.ts
+  s_f815a8c67d337a::t_e1f5370c9b615e 107,117,124-126,145,151-154,233-238,244-246,249,252,254,259-274,297,302,304-305,309,319,321-323,328-330,353,379-388
+  s_f815a8c67d337a::t_b5a556024058c4 130
+src/sources/codex-parser.ts
+  s_f815a8c67d337a::t_e1f5370c9b615e 29,87-88
+src/format.ts
+  s_f815a8c67d337a::t_06c2646c1993de 31-34
+skill-packages/sherlog/references/failure-cookbook.md
+  s_f815a8c67d337a::t_06c2646c1993de 188
+src/indexer.test.ts
+  s_f815a8c67d337a::t_edeab850780ddc 143-194
+skill-packages/sherlog/SKILL.md
+  s_f815a8c67d337a::t_06c2646c1993de 45
+skill-packages/sherlog/references/json-schema.md
+  s_f815a8c67d337a::t_06c2646c1993de 232,239
+  s_f815a8c67d337a::t_305bdb88763e9f 240
+README.md
+  s_f815a8c67d337a::t_06c2646c1993de 42-43
+docs/USAGE.md
+  s_f815a8c67d337a::t_06c2646c1993de 103
+skill-packages/sherlog/references/cli-surface.md
+  s_f815a8c67d337a::t_06c2646c1993de 84
+docs/ARCHITECTURE.md
+  s_f815a8c67d337a::t_06c2646c1993de 53
+docs/INDEX_COVERAGE_DESIGN.md
+  s_f815a8c67d337a::t_06c2646c1993de 231
+src/types.ts
+  s_f815a8c67d337a::t_e1f5370c9b615e 41-42,127
+src/format.test.ts
+  s_f815a8c67d337a::t_06c2646c1993de 98-125
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.12",
+  "base_commit_sha": "249f2b3947eb1bbf61e99cc1344b057924d7a796",
+  "prompts": {},
+  "sessions": {
+    "s_f815a8c67d337a": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f55ce-5aa5-77d2-aa3f-1f94a4543c9b",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "catoncat <git@chen.rs>"
+    }
+  }
+}
