@@ -205,9 +205,11 @@ Coverage 可以蕴含更窄 selector。
 - 无 selector/scope 的裸 `sync` 只表示 first-install bootstrap：默认 source/root 下的 `all` selector；不得扩展为 `find/list/read-*` 的隐式同步语义
 - 严格成功才写 complete coverage
 - strict sync 默认保留 selector 范围内已索引、但当前 source snapshot 中已消失的旧 row；raw JSONL 的维护、移动或删除不应让 Sherlog 历史查询丢失
-- `--prune` 才把 selector 范围内的 index 收敛成当前 source snapshot 的投影，并删除 source 中已不存在的旧 row
+- `--prune` 删除 selector 范围内 **hot snapshot 与已注册 cold root 中都不存在** 的旧 row；cold-present（含 `*.jsonl.zst` 文件名可识别的 Codex uuid）保留，并计入 `retainedCold`
+- cold root 由 `shlog cold add --root <dir>` 注册（或 `sync --cold-root` 临时追加）；presence 只看文件是否存在，不重解析正文，也不默认把 cold root 并入每次 sync 扫描
 - source 中仍存在但被过滤或已不再可解析成 session 的当前文件，仍应从 index 中删除或报错
 - best-effort 不能产生 complete coverage
+- 冷迁后 `indexedSessionCount > sourceFileCount` 是预期，不是 coverage 坏了
 
 ### find
 

@@ -16,7 +16,7 @@ Hard rules:
 - Stable session metadata fields are `source_id`, `native_session_id`, `session_key`, `session_uuid`, `started_at`, `ended_at`, `cwd`, `title`, `summary_text`, `message_count`, `source_root`, `file_path`.
 - Content claims require `read-range` or `read-page`.
 - `sync` only updates index/coverage; normal retrieval does not need `sync` unless coverage is missing or stale. Bare `sync` is only a first-install default Codex bootstrap; scoped agent work should still use `sync --cwd` / `sync --root` / `sync --selector`.
-- Do not use `sync --prune` for normal retrieval.
+- Do not use `sync --prune` for normal retrieval. After cold-archiving Codex raw, run `cold add --root <archived>` so prune (if ever used) keeps cold-present sessions; cold archive is not "history to drop".
 - `find` default sort is relevance; use `--sort ended` only when the user's question is time-oriented.
 - `find --json` results include `evidenceRead`; follow `evidenceRead.argv` for content verification. If `matchSource = "session"`, `matchSeq = null`; do not invent a `read-range --seq`.
 - Current public sources are `codex`, experimental `claude-code`, and experimental `pi`; `find` omits `--source` to search all public indexed sources by default. Pass `--source codex`, `--source claude-code`, or `--source pi` only to narrow or diagnose. Other source-scoped commands still omit `--source` as Codex-compatible default. Claude Code and Pi are part of the normal CLI surface now, but they are still not stable raw-format promises.

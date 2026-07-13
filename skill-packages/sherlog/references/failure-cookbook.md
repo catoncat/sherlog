@@ -11,7 +11,7 @@
 | `find/list/stats/read-*` 输出 `index_unavailable` | 看 JSON `nextAction` 或直接 `sync` | 索引还没建立；普通 first install 跑 `sync`，项目范围优先 `sync --cwd <path>` |
 | `find/list/stats/read-*` 输出 `index_schema_upgrade_required` | 原范围跑一次 `sync --source codex ...` | 已有 index 是旧 schema；只读命令不迁移，`sync` 是唯一写入口 |
 | `read-range/read-page` 输出 `session_not_found` | 看 JSON `nextAction`，再 `status --source <id> --json` | 只代表当前 index 没有这个 `sessionRef`；可能未同步、coverage stale、source/id 不匹配。必要时同 source scoped sync 后重试 |
-| raw JSONL 从当前 source snapshot 中消失后担心查不到 | 直接 `find/list/read-*` 查 Sherlog index | Sherlog 默认保留已索引历史；不要引导用户改查另一个 root。只有用户明确要丢弃旧历史时才 `sync --prune` |
+| raw JSONL 从当前 source snapshot 中消失后担心查不到 | 直接 `find/list/read-*` 查 Sherlog index | Sherlog 默认保留已索引历史；不要引导用户改查另一个 root。用户若已冷迁到 archived/zst：先 `cold add --root <archived>`；不要为冷迁跑 `sync --prune` |
 | `stats/list/find` 报 `database is locked` | 原命令重试一次 | 多半是 SQLite 忙；仍失败就先跳过 `stats` 直接读 |
 | 同一主题多条 uuid | `find -n 10 --json` | 按 `startedAt`、`cwd`、`matchCount` 选 |
 | 最新/最近 + 关键词被当前会话抢结果 | `find <query> --sort ended --exclude-session <uuid>` | 默认 `find` 是 relevance 排序；时间问题显式用 `--sort ended` 并排除 self-hit |
@@ -53,7 +53,8 @@
 - 默认不要忽略，先看是坏 JSONL、权限问题还是别的解析失败。
 - 只有用户明确接受 partial index 时，才用 `--best-effort`。
 - `--best-effort` 不写 complete coverage。
-- 不要为普通历史查询加 `--prune`；它会删除所选 source 中已经消失的旧 index row。
+- 不要为普通历史查询加 `--prune`。`--prune` 只删 hot 与已注册 cold 中都不存在的行；冷迁后应 `cold add`，不是 prune。
+- 冷迁官方路径：先 `sync` 索引 → 搬家/可选 zstd → `cold add --root ~/.codex/archived_sessions` → 普通 `sync`。整包 tar.zst 不是 cold presence 源。
 
 ## index_unavailable
 

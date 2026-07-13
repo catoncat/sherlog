@@ -50,15 +50,89 @@ describe("deleteSessionsForSelectorExceptFilePaths", () => {
       retained.add(join(root, `retained-${index}.jsonl`));
     }
 
-    const removed = deleteSessionsForSelectorExceptFilePaths(db, { kind: "all", root }, retained);
+    const result = deleteSessionsForSelectorExceptFilePaths(db, { kind: "all", root }, retained);
     db.close();
 
     const readDb = openReadDb(dbPath);
     const count = readDb.prepare("SELECT COUNT(*) AS count FROM sessions").get() as { count: number };
     readDb.close();
 
-    expect(removed).toBe(1);
+    expect(result.removed).toBe(1);
+    expect(result.retainedCold).toBe(0);
     expect(count.count).toBe(0);
+  });
+
+  test("retains sessions present under cold native ids even when file paths are gone", () => {
+    const base = mkdtempSync(join(tmpdir(), "cxs-coverage-cold-retain-"));
+    tempDirs.push(base);
+    const dbPath = join(base, "index.sqlite");
+    const root = join(base, "sessions");
+    const coldPath = join(root, "cold.jsonl");
+    const missingPath = join(root, "missing.jsonl");
+    const db = openWriteDb(dbPath);
+    const coldId = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
+    const missingId = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
+
+    replaceSession(
+      db,
+      {
+        sessionUuid: coldId,
+        filePath: coldPath,
+        title: "cold",
+        summaryText: "cold",
+        compactText: "",
+        reasoningSummaryText: "",
+        cwd: "/tmp/cold",
+        model: "gpt-5.4",
+        startedAt: "2026-04-22T00:00:00.000Z",
+        endedAt: "2026-04-22T00:00:00.000Z",
+        messages: [],
+      },
+      1,
+      1,
+      INDEX_VERSION,
+      "2026-04-22",
+      root,
+    );
+    replaceSession(
+      db,
+      {
+        sessionUuid: missingId,
+        filePath: missingPath,
+        title: "missing",
+        summaryText: "missing",
+        compactText: "",
+        reasoningSummaryText: "",
+        cwd: "/tmp/missing",
+        model: "gpt-5.4",
+        startedAt: "2026-04-22T00:00:00.000Z",
+        endedAt: "2026-04-22T00:00:00.000Z",
+        messages: [],
+      },
+      1,
+      1,
+      INDEX_VERSION,
+      "2026-04-22",
+      root,
+    );
+
+    const result = deleteSessionsForSelectorExceptFilePaths(
+      db,
+      { kind: "all", root },
+      new Set(),
+      new Set([coldId]),
+    );
+    db.close();
+
+    const readDb = openReadDb(dbPath);
+    const rows = readDb
+      .prepare("SELECT native_session_id AS id FROM sessions ORDER BY native_session_id")
+      .all() as Array<{ id: string }>;
+    readDb.close();
+
+    expect(result.removed).toBe(1);
+    expect(result.retainedCold).toBe(1);
+    expect(rows.map((row) => row.id)).toEqual([coldId]);
   });
 });
 

@@ -24,6 +24,9 @@ export function printSyncSummary(summary: SyncSummary): void {
   console.log(`skipped:  ${summary.skipped}`);
   console.log(`filtered: ${summary.filtered}`);
   console.log(`removed:  ${summary.removed}`);
+  if (summary.retainedCold > 0) {
+    console.log(`retainedCold: ${summary.retainedCold}`);
+  }
   console.log(`errors:   ${summary.errors}`);
   const writtenCoverage = summary.coverage.staleReason === "source_content_changed"
     ? "written (soft stale: active Codex tail changed; query is available, retry sync later)"

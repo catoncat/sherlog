@@ -21,7 +21,7 @@ description: "Use proactively for local Codex history and personal setup archaeo
 | semantic recall: 主题、关键词、"之前讨论过 X 吗"、本机配置考古 | `shlog find <query> --json`,默认跨 public sources；按需要带 `--cwd` / `--root` / `--selector` / `--sort ended` | 用 `find` 召回候选,再用结果里的 `sessionRef` 做 `read-range` 或 `read-page` 验证 |
 | context reading: 已知 `sessionUuid` / `sessionRef`、命中 seq、或需要扩大上下文 | `shlog read-range <sessionRef> --seq/--query [--before N --after M]` 或 `shlog read-page <sessionRef>` | 内容证据只来自 `read-*` 输出 |
 | coverage/freshness/index availability: 索引缺失、coverage stale、要决定是否同步 | `shlog status --json` / `status --cwd` / `status --selector` | `status` 不回答内容问题,只决定 coverage 和 sync 需求 |
-| mutation: 建索引或更新 coverage | `shlog sync`（first-install 默认 Codex bootstrap）或 `shlog sync --cwd/--root/--selector` | 普通检索不要 `--prune`;Agent 有范围时优先 scoped sync；只有用户明确要求清理已消失 source 的旧索引记录才用 |
+| mutation: 建索引或更新 coverage | `shlog sync`（first-install 默认 Codex bootstrap）或 `shlog sync --cwd/--root/--selector` | 普通检索不要 `--prune`；Agent 有范围时优先 scoped sync。用户冷迁/压缩 raw 后应 `shlog cold add --root <archived>`，再 sync；`--prune` 只删 hot 与已注册 cold 都不存在的行 |
 
 ## 硬规则
 
@@ -32,7 +32,9 @@ description: "Use proactively for local Codex history and personal setup archaeo
 - `find --json` 结果优先跟随 `evidenceRead.argv` 读取证据；`matchSource = "session"` 时 `matchSeq = null`,不要伪造 `read-range --seq`。
 - `find` 默认按 relevance 排序；"最新/最近 + 关键词"用 `--sort ended`,必要时 `--exclude-session <current_uuid>` 排除 self-hit。
 - 只读 SQLite 只允许查 Sherlog index 的稳定 metadata；内容判断仍回到 `read-*`。
-- `sync` 只更新 index/coverage。coverage 缺失或确实 stale 时才同步同一范围；`sync --prune` 只在用户明确要丢弃已消失 source 的旧索引记录时使用。
+- `sync` 只更新 index/coverage。coverage 缺失或确实 stale 时才同步同一范围。
+- 用户把 Codex raw 冷迁到 `archived_sessions` 或压成 `.jsonl.zst` 后：检索仍走 Sherlog index；先 `shlog cold add --root <cold>` 注册冷根，再普通 `sync`。冷迁不是“该 prune 的历史”。
+- `sync --prune` 只删 **hot source 与已注册 cold root 中都不存在** 的索引行；不要为“对齐 coverage / 清理 index”随手 prune。只有用户明确要丢掉真 missing 历史时才 prune。
 
 ## Coverage / Failure Gate
 
@@ -68,4 +70,4 @@ description: "Use proactively for local Codex history and personal setup archaeo
 - `references/advanced-queries.md`: metadata SQLite projection、CJK/query 语义、缩范围策略。
 - `references/json-schema.md`: 需要解析完整 JSON 字段或 error shape。
 
-# skill-sync: distributable sherlog skill package, compressed entrypoint, 2026-07-12
+# skill-sync: distributable sherlog skill package, cold retention + prune presence, 2026-07-13

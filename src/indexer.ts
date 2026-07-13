@@ -2,6 +2,11 @@ import { createHash } from "node:crypto";
 import { createReadStream } from "node:fs";
 import { DEFAULT_DB_PATH, INDEX_VERSION, ensureDataDir, isCurrentIndexVersion } from "./env";
 import {
+  coldRootsPathForDb,
+  listColdPresentNativeSessionIds,
+  listColdRootPaths,
+} from "./cold-roots";
+import {
   cleanupMismatchedMessagesForSelector,
   countSessionsForSelector,
   deleteSessionsForSelectorExceptFilePaths,
@@ -26,6 +31,8 @@ interface SyncOptions {
   selector?: Selector;
   bestEffort?: boolean;
   prune?: boolean;
+  /** Extra cold roots for this run only (merged with registered cold roots). */
+  coldRoots?: string[];
 }
 
 type SyncOperation =
@@ -82,6 +89,7 @@ export async function syncSessions(options: SyncOptions = {}): Promise<SyncSumma
       skipped: 0,
       filtered: 0,
       removed: 0,
+      retainedCold: 0,
       errors: 0,
       errorDetails: [],
       selector,
@@ -133,6 +141,9 @@ export async function syncSessions(options: SyncOptions = {}): Promise<SyncSumma
 
       const bestEffort = Boolean(options.bestEffort);
       const retainedFilePaths = retainedIndexedFilePaths(unchangedFilePaths, operations);
+      const retainedNativeSessionIds = Boolean(options.prune)
+        ? coldPresentNativeSessionIds(dbPath, source.id, options.coldRoots)
+        : new Set<string>();
       summary.coverage = applyOperations(
         db,
         operations,
@@ -142,6 +153,7 @@ export async function syncSessions(options: SyncOptions = {}): Promise<SyncSumma
         selector,
         sourceSnapshot,
         retainedFilePaths,
+        retainedNativeSessionIds,
         !activeSourceDeferred,
       );
       if (sourceContentChanged && summary.coverage.written) {
@@ -342,6 +354,19 @@ function isUnchanged(
     && isCurrentIndexVersion(indexed.indexVersion);
 }
 
+function coldPresentNativeSessionIds(
+  dbPath: string,
+  sourceId: SessionSourceId,
+  extraColdRoots: string[] | undefined,
+): Set<string> {
+  const roots = new Set<string>(listColdRootPaths(coldRootsPathForDb(dbPath), sourceId));
+  for (const root of extraColdRoots ?? []) {
+    if (root.trim() !== "") roots.add(root);
+  }
+  if (roots.size === 0) return new Set();
+  return listColdPresentNativeSessionIds([...roots]);
+}
+
 function applyOperations(
   db: ReturnType<typeof openWriteDb>,
   operations: SyncOperation[],
@@ -351,6 +376,7 @@ function applyOperations(
   selector: Selector,
   sourceSnapshot: { fingerprint: string; fileSetFingerprint: string; fileCount: number },
   retainedFilePaths: Set<string>,
+  retainedNativeSessionIds: Set<string>,
   writeCoverage: boolean,
 ): CoverageWriteSummary {
   if (bestEffort) {
@@ -374,7 +400,14 @@ function applyOperations(
     }
     cleanupMismatchedMessagesForSelector(db, selector);
     if (prune) {
-      summary.removed += deleteSessionsForSelectorExceptFilePaths(db, selector, retainedFilePaths);
+      const pruneResult = deleteSessionsForSelectorExceptFilePaths(
+        db,
+        selector,
+        retainedFilePaths,
+        retainedNativeSessionIds,
+      );
+      summary.removed += pruneResult.removed;
+      summary.retainedCold += pruneResult.retainedCold;
     }
     const indexedSessionCount = countSessionsForSelector(db, selector);
     if (!writeCoverage) {
@@ -514,6 +547,7 @@ function sourceUnavailableSummary(selector: Selector, error: unknown): SyncSumma
     skipped: 0,
     filtered: 0,
     removed: 0,
+    retainedCold: 0,
     errors: 0,
     errorDetails: [],
     selector,

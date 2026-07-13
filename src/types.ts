@@ -242,6 +242,8 @@ export interface SyncSummary {
   skipped: number;
   filtered: number;
   removed: number;
+  /** Sessions kept during prune because they are still present under a cold root. */
+  retainedCold: number;
   errors: number;
   errorDetails: SyncErrorDetail[];
   selector: Selector;

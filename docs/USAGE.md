@@ -102,8 +102,30 @@ export SHLOG_DATA_DIR="$HOME/.config/shlog"
 
 Sync is strict by default. If any selected file fails to parse or write, `sync` exits non-zero with per-file diagnostics and does not commit partial coverage. Codex active-session append is the narrow exception to the old “source must stay byte-for-byte static” rule: each Codex file is read only through the byte boundary captured for the sync, and a verified append after that boundary does not fail the command. Stable sources and the bounded active prefix are committed together; JSON reports `coverage.staleReason: "source_content_changed"` and `recommendedAction: "query"`, and a later sync fills the tail. If an unindexed Codex file already changed before its bounded read opened, sync cannot prove that the old prefix was append-only; it defers that file and complete coverage while committing other stable operations, and reports `coverage.reason: "active_source_deferred"` with `recommendedAction: "sync"`. Truncation, verified prefix rewrite/replacement, source-file-set changes, and mid-sync changes from other sources remain strict failures. Previously indexed sessions whose source JSONL later disappears are retained by default, so raw log maintenance does not make historical `shlog find` or `read-*` results disappear.
 
+### Cold archive (hot / index / cold)
+
+Sherlog treats three layers as distinct:
+
+1. **Hot raw** — default Codex root `~/.codex/sessions` (what normal `sync` scans)
+2. **Index** — `~/.local/state/shlog/index.sqlite` (retrieval source of truth)
+3. **Cold raw** — e.g. `~/.codex/archived_sessions/.../rollout-*.jsonl.zst` (space saving; not the default sync root)
+
+Recommended space-saving flow:
+
+```bash
+shlog sync                                 # ensure history is indexed first
+# move old months out of ~/.codex/sessions into ~/.codex/archived_sessions
+# optional: zstd each rollout-*.jsonl to rollout-*.jsonl.zst (per-file, rg -z friendly)
+shlog cold add --root ~/.codex/archived_sessions
+shlog sync                                 # still retains history; removed=0 for cold-moved rows
+```
+
+`shlog cold add|list|remove` only registers cold roots next to the index (`cold-roots.json`). It does **not** re-parse session bodies. Presence is detected from Codex `rollout-*<uuid>.jsonl` / `.jsonl.zst` file names.
+
+`sync --prune` deletes indexed sessions that are missing from **both** the hot source snapshot **and** registered cold roots. Sessions still present under cold roots are kept (`retainedCold` in the summary). Register cold roots after archiving; without registration, prune still treats hot-missing rows as droppable. You can also pass one-off `--cold-root <dir>` on `sync` (repeatable).
+
 `find --json` evaluates selector freshness against the current raw source and reports coverage from that same assessment. `complete=false` with `freshness="stale"` does not make existing indexed hits unavailable: a non-empty Codex result remains usable when only the active tail changed, while a zero result receives a retry-oriented `nextAction`. Library-level synchronous queries that only read SQLite return `complete=false` / `freshness="not_checked"` and preserve `coveringSelectors` rather than claiming current completeness without inspecting raw files.
-Pass `--prune` only when you explicitly want to delete indexed sessions that are no longer present in the selected source snapshot.
+Pass `--prune` only when you explicitly want to drop sessions that are gone from hot **and** cold. Prefer `cold add` over treating archive as deletion.
 Pass `--best-effort` only when you explicitly want successful files written despite failures; best-effort sync does not record complete coverage.
 
 `sync` is not required before every query. Use `status --cwd` or `status --selector` to check coverage first. A fresh `{"kind":"all", ...}` coverage record covers narrower selectors under the same source and root; a high `stats.sessionCount` only means rows exist and is not itself a freshness proof. `staleReason: "source_content_changed"` means the selected file set stayed stable but existing source files changed. For Codex this commonly happens while the current conversation JSONL is still growing; when it keeps `recommendedAction: "query"`, agents should not sync before every active conversation query. Other sources may still recommend `sync` for the same stale reason. Read commands never initialize or refresh the index; if they return `index_unavailable`, run `shlog sync` for default Codex history or a scoped sync such as `shlog sync --cwd <project>`.

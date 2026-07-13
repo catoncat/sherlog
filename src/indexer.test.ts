@@ -467,6 +467,7 @@ describe("syncSessions", () => {
     const summary = await syncSessions({ dbPath, selector, prune: true });
 
     expect(summary.removed).toBe(1);
+    expect(summary.retainedCold).toBe(0);
     expect(summary.coverage.sourceFileCount).toBe(1);
     expect(summary.coverage.indexedSessionCount).toBe(1);
 
@@ -474,6 +475,64 @@ describe("syncSessions", () => {
     expect(found.results.map((result) => result.sessionUuid)).toEqual([
       "22222222-2222-4222-8222-222222222222",
     ]);
+  });
+
+  test("sync --prune retains sessions still present under a cold root as zst", async () => {
+    const base = mkdtempSync(join(tmpdir(), "cxs-indexer-cold-prune-"));
+    tempDirs.push(base);
+    const root = join(base, "sessions");
+    const coldRoot = join(base, "archived_sessions");
+    const day = join(root, "2026", "04", "22");
+    const coldDay = join(coldRoot, "2026", "04", "22");
+    mkdirSync(day, { recursive: true });
+    mkdirSync(coldDay, { recursive: true });
+
+    const coldId = "11111111-1111-4111-8111-111111111111";
+    const hotId = "22222222-2222-4222-8222-222222222222";
+    const goneId = "33333333-3333-4333-8333-333333333333";
+    const coldHotPath = join(day, `rollout-2026-04-22T10-00-00-${coldId}.jsonl`);
+    const hotPath = join(day, `rollout-2026-04-22T11-00-00-${hotId}.jsonl`);
+    const gonePath = join(day, `rollout-2026-04-22T12-00-00-${goneId}.jsonl`);
+
+    for (const [path, id, needle] of [
+      [coldHotPath, coldId, "needle cold"],
+      [hotPath, hotId, "needle hot"],
+      [gonePath, goneId, "needle gone"],
+    ] as const) {
+      writeFileSync(
+        path,
+        [
+          line("session_meta", { id, cwd: "/tmp/cold-prune" }),
+          line("event_msg", { type: "user_message", message: needle }),
+        ].join("\n"),
+      );
+    }
+
+    const dbPath = join(base, "index.sqlite");
+    const selector = { kind: "all" as const, root };
+    await syncSessions({ dbPath, selector });
+
+    // Simulate cold migrate + zstd: move cold session out of hot, leave as .jsonl.zst
+    const coldZst = join(coldDay, `rollout-2026-04-22T10-00-00-${coldId}.jsonl.zst`);
+    writeFileSync(coldZst, "not-real-zst-bytes");
+    rmSync(coldHotPath);
+    rmSync(gonePath);
+
+    const summary = await syncSessions({
+      dbPath,
+      selector,
+      prune: true,
+      coldRoots: [coldRoot],
+    });
+
+    expect(summary.removed).toBe(1);
+    expect(summary.retainedCold).toBe(1);
+    expect(summary.coverage.sourceFileCount).toBe(1);
+    expect(summary.coverage.indexedSessionCount).toBe(2);
+
+    const found = findSessions(dbPath, "needle", 10, selector);
+    expect(found.results.map((result) => result.sessionUuid).sort()).toEqual([coldId, hotId].sort());
+    expect(found.results.some((result) => result.sessionUuid === goneId)).toBe(false);
   });
 
   test("strict sync refuses an unavailable source root instead of deleting indexed rows", async () => {

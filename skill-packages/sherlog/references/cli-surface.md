@@ -78,12 +78,25 @@ Options:
 | `--selector <json>` | 结构化同步范围；日期范围等高级范围用这个 |
 | `--db <path>` | 覆盖默认数据库 |
 | `--best-effort` | 即使部分文件失败也继续写入成功部分;不写 complete coverage |
-| `--prune` | 显式删除所选 source 中已经消失的旧索引记录 |
+| `--prune` | 删除 hot snapshot 与已注册/本轮 `--cold-root` 中都不存在的旧索引行；cold-present 保留并计入 `retainedCold` |
+| `--cold-root <dir>` | 本轮额外 cold root（可重复）；与 `shlog cold add` 合并，供 `--prune` 识别冷存 |
 | `--json` | 成功时把 `SyncSummary` 打到 stdout |
 
 严格模式成功时，`sync` 会更新当前 source snapshot 中仍可见的文件，并写 coverage。Codex JSONL 若在读取后仅继续追加，命令仍成功：coverage 对应已读 byte 边界，并返回 `staleReason: "source_content_changed"`、`recommendedAction: "query"`；其他稳定 source 同时落库，后续 sync 再补活跃尾部。尚未索引的新 Codex 文件若在有界读取前已变化、无法证明前缀安全，本轮会保守延后该文件和 coverage，成功摘要返回 `reason: "active_source_deferred"`、`recommendedAction: "sync"`，其他稳定 source 仍落库。截断、可证明的前缀改写、source file set 变化以及非 Codex source 的同步中变化仍保持严格失败。默认保留已经索引过、但 raw JSONL 后来从 source 中消失的旧 session；查询时不需要切换 root 去追 raw 文件位置。
 
-只有显式传 `--prune` 时，`sync` 才把 selector 范围内的 index 与当前 source snapshot 对齐；源文件已删除的旧 row 会被移除，并计入 `removed`。源文件仍存在但被过滤或不再能解析成 session 时，仍按当前文件状态删除或报错。
+只有显式传 `--prune` 时，`sync` 才删除 hot 与 cold 都不存在的旧 row，计入 `removed`；仍在 cold root 下的会话保留。源文件仍存在但被过滤或不再能解析成 session 时，仍按当前文件状态删除或报错。
+
+## cold
+
+Purpose: 注册 cold raw 根目录。冷迁/压缩后让 `sync --prune` 把 cold-present 当成保留，而不是 missing。
+
+```bash
+"${SHLOG_BIN:-${CXS_BIN:-shlog}}" cold add --root ~/.codex/archived_sessions --json
+"${SHLOG_BIN:-${CXS_BIN:-shlog}}" cold list --json
+"${SHLOG_BIN:-${CXS_BIN:-shlog}}" cold remove --root ~/.codex/archived_sessions --json
+```
+
+配置写在 index 同目录的 `cold-roots.json`。只做 presence（Codex `rollout-*<uuid>.jsonl(.zst)` 文件名），不重解析正文，也不把 cold root 变成默认同步源。
 
 Example:
 

@@ -8,6 +8,13 @@ import {
   PROGRAM_NAME,
   statsReadoutEnabled,
 } from "./env";
+import {
+  addColdRoot,
+  coldRootsPathForDb,
+  ColdRootError,
+  listColdRootEntries,
+  removeColdRoot,
+} from "./cold-roots";
 import { IndexSchemaUpgradeRequiredError, IndexUnavailableError, listCoverageRecords, withReadDb } from "./db";
 import { evaluateCoverageRecord, evaluateRequestedCoverage } from "./coverage-freshness";
 import { buildEvidenceReadAction } from "./evidence-read";
@@ -99,7 +106,16 @@ program
   .option("--cwd <path>", "同步指定 cwd selector")
   .option("--db <path>", "覆盖默认数据库路径", DEFAULT_DB_PATH)
   .option("--best-effort", "即使部分文件失败也继续写入可成功部分")
-  .option("--prune", "删除所选范围内已从 source 消失的旧索引行")
+  .option(
+    "--prune",
+    "删除所选范围内 hot source 与已注册 cold root 中都不存在的旧索引行（cold-present 会保留）",
+  )
+  .option(
+    "--cold-root <dir>",
+    "本轮额外 cold root（可重复）；与 shlog cold add 注册的 root 合并，供 --prune 识别冷存",
+    collectValues,
+    [],
+  )
   .option("--json", "输出 JSON")
   .action(async (options) => {
     try {
@@ -111,6 +127,7 @@ program
         selector,
         bestEffort: options.bestEffort,
         prune: options.prune,
+        coldRoots: options.coldRoot ?? [],
       });
       if (options.json) {
         console.log(JSON.stringify(summary, null, 2));
@@ -145,6 +162,90 @@ program
         return;
       }
       throw error;
+    }
+  });
+
+const coldCommand = program
+  .command("cold")
+  .description("注册 cold raw 根目录；sync --prune 时保留仍在冷存中的已索引会话");
+
+coldCommand
+  .command("add")
+  .description("注册一个 cold root（只记路径；不重解析会话正文）")
+  .requiredOption("--root <dir>", "cold sessions 根目录，如 ~/.codex/archived_sessions")
+  .option("--source <id>", `session source (public: ${publicSourceLabel()})`, "codex")
+  .option("--db <path>", "覆盖默认数据库路径（cold-roots.json 与 index 同目录）", DEFAULT_DB_PATH)
+  .option("--json", "输出 JSON")
+  .action((options) => {
+    try {
+      const sourceId = publicSource(options.source);
+      const configPath = coldRootsPathForDb(options.db);
+      const entry = addColdRoot(configPath, options.root, sourceId);
+      const payload = { ok: true, configPath, entry };
+      if (options.json) {
+        console.log(JSON.stringify(payload, null, 2));
+        return;
+      }
+      console.log(`cold root registered (${entry.sourceId}): ${entry.root}`);
+      console.log(`config: ${configPath}`);
+    } catch (error) {
+      emitColdRootError(error, Boolean(options.json));
+    }
+  });
+
+coldCommand
+  .command("list")
+  .description("列出已注册 cold roots")
+  .option("--source <id>", `过滤 source (public: ${publicSourceLabel()})`)
+  .option("--db <path>", "覆盖默认数据库路径", DEFAULT_DB_PATH)
+  .option("--json", "输出 JSON")
+  .action((options) => {
+    try {
+      const sourceId = options.source ? publicSource(options.source) : undefined;
+      const configPath = coldRootsPathForDb(options.db);
+      const roots = listColdRootEntries(configPath, sourceId);
+      if (options.json) {
+        console.log(JSON.stringify({ configPath, roots }, null, 2));
+        return;
+      }
+      if (roots.length === 0) {
+        console.log("no cold roots registered");
+        console.log(`config: ${configPath}`);
+        return;
+      }
+      for (const entry of roots) {
+        console.log(`${entry.sourceId}\t${entry.root}\t${entry.addedAt}`);
+      }
+      console.log(`config: ${configPath}`);
+    } catch (error) {
+      emitColdRootError(error, Boolean(options.json));
+    }
+  });
+
+coldCommand
+  .command("remove")
+  .description("取消注册 cold root（不删除冷文件，不删除索引）")
+  .requiredOption("--root <dir>", "要取消的 cold root")
+  .option("--source <id>", `session source (public: ${publicSourceLabel()})`, "codex")
+  .option("--db <path>", "覆盖默认数据库路径", DEFAULT_DB_PATH)
+  .option("--json", "输出 JSON")
+  .action((options) => {
+    try {
+      const sourceId = publicSource(options.source);
+      const configPath = coldRootsPathForDb(options.db);
+      const removed = removeColdRoot(configPath, options.root, sourceId);
+      if (options.json) {
+        console.log(JSON.stringify({ ok: true, removed, configPath, root: options.root, sourceId }, null, 2));
+        return;
+      }
+      if (removed) {
+        console.log(`cold root removed (${sourceId}): ${options.root}`);
+      } else {
+        console.log(`cold root not registered (${sourceId}): ${options.root}`);
+      }
+      console.log(`config: ${configPath}`);
+    } catch (error) {
+      emitColdRootError(error, Boolean(options.json));
     }
   });
 
@@ -892,6 +993,34 @@ function emitSelectorError(error: SelectorParseError, jsonMode: boolean): void {
     console.error(error.message);
   }
   process.exitCode = 1;
+}
+
+function emitColdRootError(error: unknown, jsonMode: boolean): void {
+  if (error instanceof ColdRootError) {
+    if (jsonMode) {
+      console.log(
+        JSON.stringify(
+          {
+            error: {
+              code: "invalid_cold_root",
+              message: error.message,
+            },
+          },
+          null,
+          2,
+        ),
+      );
+    } else {
+      console.error(error.message);
+    }
+    process.exitCode = 1;
+    return;
+  }
+  if (error instanceof SourceOptionError) {
+    emitSourceError(error, jsonMode);
+    return;
+  }
+  throw error;
 }
 
 function syncSelector(options: { selector?: string; root?: string; cwd?: string; source: SessionSourceId }): Selector {

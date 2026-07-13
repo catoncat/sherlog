@@ -92,23 +92,32 @@ export function deleteSessionsForSelectorExceptFilePaths(
   db: Db,
   selector: Selector,
   retainedFilePaths: Set<string>,
-): number {
+  retainedNativeSessionIds: Set<string> = new Set(),
+): { removed: number; retainedCold: number } {
   const where = selectorWhereSql(selector, "sessions");
   const rows = db
-    .prepare<typeof where.params, { id: number; filePath: string }>(`
-      SELECT id, file_path AS filePath
+    .prepare<typeof where.params, { id: number; filePath: string; nativeSessionId: string }>(`
+      SELECT id, file_path AS filePath, native_session_id AS nativeSessionId
       FROM sessions
       WHERE ${where.conditions.join(" AND ")}
     `)
-    .all(...where.params) as Array<{ id: number; filePath: string }>;
+    .all(...where.params) as Array<{ id: number; filePath: string; nativeSessionId: string }>;
 
+  const coldIds = new Set(
+    [...retainedNativeSessionIds].map((id) => id.toLowerCase()),
+  );
   let removed = 0;
+  let retainedCold = 0;
   for (const row of rows) {
     if (retainedFilePaths.has(row.filePath)) continue;
+    if (coldIds.has(row.nativeSessionId.toLowerCase())) {
+      retainedCold += 1;
+      continue;
+    }
     deleteSessionById(db, row.id);
     removed += 1;
   }
-  return removed;
+  return { removed, retainedCold };
 }
 
 export function cleanupMismatchedMessagesForSelector(db: Db, selector: Selector): number {
