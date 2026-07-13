@@ -1,0 +1,67 @@
+skill-packages/sherlog/references/failure-cookbook.md
+  s_7f55de6b248d1d::t_a0e3a094080d1e 14,56-57
+docs/ARCHITECTURE.md
+  s_7f55de6b248d1d::t_b9cc6362a4c4d0 53
+src/indexer.test.ts
+  s_7f55de6b248d1d::t_01810b1caf738e 470,480-535
+  s_7f55de6b248d1d::t_ec439aa66aa478 536-537
+src/indexer.ts
+  s_7f55de6b248d1d::t_e509fc49eb1520 92,144-146,156,357-369,379,403-410,550
+  s_7f55de6b248d1d::t_1d295a6eaa0ea1 5-8,34-35
+  s_7f55de6b248d1d::t_0c3db2e937e538 4
+skill-packages/sherlog/references/cli-surface.md
+  s_7f55de6b248d1d::t_90cefce2537ea4 81-82,87-99
+package.json
+  s_7f55de6b248d1d::t_93c79abfa97e2d 3
+docs/COLD_RETENTION.md
+  s_7f55de6b248d1d::t_b41041dab60b2d 1,4,10,12,14,16-18,20,22-26,28,30-31,33,35-36,38,40,42-47,49,52,55-56,58,60,62-63,65-76,78-83,85-86,88,90,92-96,98,100-103,105,107,109,111,113,115,117-119,121-122,124-126,128,130-132,134,136-143,145,147,150-151,154,156-163,165,167-169,171,173-176,178,180-194,196,198,200,202,204,206-216,219-221,223,225-228,230,232,234-268,270,272-275,277,279,281-287,289,291,293,295-299,301,303,305,307-322,324,326,328-331,333-334
+  s_7f55de6b248d1d::t_7584b16a25ce03 2,6,9,11,13,15,19,21,27,29,32,34,37,39,41,48,50-51,53-54,57,59,61,64,77,84,87,89,91,97,99,104,106,108,110,112,114,116,120,123,127,129,133,135,144,146,148-149,152-153,155,164,166,170,172,177,179,195,197,199,201,203,205,217-218,222,224,229,231,233,269,271,276,278,280,288,290,292,294,300,302,304,306,323,325,327,332
+  s_7f55de6b248d1d::t_0bb247ed54a121 3,5,7-8
+src/cli.ts
+  s_7f55de6b248d1d::t_2fcc5cb5277637 11-17,109-118,130
+  s_7f55de6b248d1d::t_45961536efd4d1 168-251,998-1023
+  s_7f55de6b248d1d::t_a38f4934d8469f 1024-1025
+docs/USAGE.md
+  s_7f55de6b248d1d::t_658bf04aa2214a 105-126,128
+src/db/coverage-store.test.ts
+  s_7f55de6b248d1d::t_86ec6053194aa9 53,60-61,64-135
+  s_7f55de6b248d1d::t_a5021acfecf064 136
+src/format.ts
+  s_7f55de6b248d1d::t_34afe13d0b6268 27-29
+skill-packages/sherlog/references/progressive-workflow.md
+  s_7f55de6b248d1d::t_6b7ca00aaaf615 19
+src/types.ts
+  s_7f55de6b248d1d::t_b352380f598196 245-246
+src/db/coverage-store.ts
+  s_7f55de6b248d1d::t_87ee05c88ed629 106-108,113
+  s_7f55de6b248d1d::t_8f9c0c5b54384d 95-96,99-100,104,110,114-116,120
+src/format.test.ts
+  s_7f55de6b248d1d::t_ff5de109ae4988 79,110
+skill-packages/sherlog/SKILL.md
+  s_7f55de6b248d1d::t_84205202573ef6 73
+  s_7f55de6b248d1d::t_91c4e021bca096 24,35-37
+docs/INDEX_COVERAGE_DESIGN.md
+  s_7f55de6b248d1d::t_4dd4cdf7f61866 208-209,212
+src/cold-roots.ts
+  s_7f55de6b248d1d::t_31d3da98ebdc37 1-178
+src/cold-roots.test.ts
+  s_7f55de6b248d1d::t_c1f1c27179cb79 1-62
+package-lock.json
+  s_7f55de6b248d1d::t_d647f006244cab 3,9
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.12",
+  "base_commit_sha": "43992dd1bf3457453397d2a77878bdfa0164bb00",
+  "prompts": {},
+  "sessions": {
+    "s_7f55de6b248d1d": {
+      "agent_id": {
+        "tool": "pi",
+        "id": "019f5948-b12d-74f3-a7a7-bdd1f98d8ddb",
+        "model": "grok-4.5"
+      },
+      "human_author": "catoncat <git@chen.rs>"
+    }
+  }
+}
