@@ -14,6 +14,7 @@ describe("buildEvidenceReadAction", () => {
       sourceId: "codex",
       sessionRef: "11111111-1111-4111-8111-111111111111",
       seq: 7,
+      query: "ranking weights",
       before: 2,
       after: 2,
       argv: [
@@ -26,6 +27,8 @@ describe("buildEvidenceReadAction", () => {
         "2",
         "--after",
         "2",
+        "--query",
+        "ranking weights",
       ],
     });
   });

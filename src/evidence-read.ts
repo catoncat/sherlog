@@ -13,6 +13,7 @@ export type EvidenceReadAction =
       sourceId: SessionSourceId;
       sessionRef: string;
       seq: number;
+      query?: string;
       before: number;
       after: number;
       argv: string[];
@@ -87,24 +88,28 @@ export function buildEvidenceReadAction(
     };
   }
 
+  const argv = [
+    PROGRAM_NAME,
+    "read-range",
+    result.sessionRef,
+    "--seq",
+    String(result.matchSeq),
+    "--before",
+    String(DEFAULT_READ_RANGE_BEFORE),
+    "--after",
+    String(DEFAULT_READ_RANGE_AFTER),
+  ];
+  if (result.query) argv.push("--query", result.query);
+
   return {
     kind: "read-range",
     reason: "message_match",
     sourceId: result.sourceId,
     sessionRef: result.sessionRef,
     seq: result.matchSeq,
+    ...(result.query ? { query: result.query } : {}),
     before: DEFAULT_READ_RANGE_BEFORE,
     after: DEFAULT_READ_RANGE_AFTER,
-    argv: [
-      PROGRAM_NAME,
-      "read-range",
-      result.sessionRef,
-      "--seq",
-      String(result.matchSeq),
-      "--before",
-      String(DEFAULT_READ_RANGE_BEFORE),
-      "--after",
-      String(DEFAULT_READ_RANGE_AFTER),
-    ],
+    argv,
   };
 }

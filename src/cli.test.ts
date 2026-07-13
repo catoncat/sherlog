@@ -1334,6 +1334,7 @@ describe("shlog cli", { timeout: 20_000 }, () => {
     const result = await runCli(["find", "health check", "--db", dbPath]);
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toContain("next: shlog read-range 44444444-4444-4444-8444-444444444444 --seq 0");
+    expect(result.stdout).toContain("--query 'health check'");
     expect(result.stdout).not.toContain("next: cxs window");
   });
 
@@ -1765,6 +1766,124 @@ describe("shlog cli", { timeout: 20_000 }, () => {
     const payload2 = JSON.parse(page2.stdout) as { totalCount: number; hasMore: boolean };
     expect(payload2.totalCount).toBe(4);
     expect(payload2.hasMore).toBe(false);
+  });
+
+  test("read-range JSON elides huge matched messages while preserving query evidence", async () => {
+    const base = mkdtempSync(join(tmpdir(), "cxs-cli-elide-range-"));
+    tempDirs.push(base);
+    const sessionsRoot = join(base, "sessions", "2026", "04", "21");
+    mkdirSync(sessionsRoot, { recursive: true });
+
+    const huge = `${"A".repeat(1_200)} alpha ${"gap ".repeat(300)} evidence ${"B".repeat(1_200)}`;
+    writeFileSync(
+      join(sessionsRoot, "rollout-2026-04-21T10-00-00-99999999-9999-4999-8999-999999999999.jsonl"),
+      [
+        line("session_meta", { id: "99999999-9999-4999-8999-999999999999", cwd: "/tmp/elide-range" }),
+        line("turn_context", { model: "gpt-5.4" }),
+        line("event_msg", { type: "user_message", message: huge }),
+      ].join("\n"),
+    );
+
+    const dbPath = join(base, "index.sqlite");
+    await syncSessions({ dbPath, rootDir: join(base, "sessions") });
+
+    const result = await runCli([
+      "read-range",
+      "99999999-9999-4999-8999-999999999999",
+      "--query",
+      "alpha evidence",
+      "--before",
+      "0",
+      "--after",
+      "0",
+      "--json",
+      "--db",
+      dbPath,
+    ]);
+
+    expect(result.exitCode).toBe(0);
+    const payload = JSON.parse(result.stdout) as {
+      anchorSeq: number;
+      messages: Array<{ seq: number; role: string; timestamp: string; sessionUuid: string; contentText: string; elision?: { originalCharCount: number; omittedCharCount: number; strategy: string; query?: string; hint: string } }>;
+    };
+    const message = payload.messages[0]!;
+    expect(payload.anchorSeq).toBe(0);
+    expect(message.seq).toBe(0);
+    expect(message.role).toBe("user");
+    expect(message.timestamp).toBe("2026-04-21T00:00:00.000Z");
+    expect(message.sessionUuid).toBe("99999999-9999-4999-8999-999999999999");
+    expect(message.contentText).toContain("evidence");
+    expect(message.contentText.length).toBeLessThan(1_000);
+    expect(message.elision).toMatchObject({
+      originalCharCount: huge.length,
+      strategy: "around_query",
+      query: "alpha evidence",
+    });
+    expect(message.elision!.omittedCharCount).toBeGreaterThan(0);
+    expect(message.elision!.hint).toContain("--max-message-chars");
+  });
+
+  test("read-page elides huge no-match messages and leaves small messages unchanged", async () => {
+    const base = mkdtempSync(join(tmpdir(), "cxs-cli-elide-page-"));
+    tempDirs.push(base);
+    const sessionsRoot = join(base, "sessions", "2026", "04", "21");
+    mkdirSync(sessionsRoot, { recursive: true });
+
+    const huge = `${"START".repeat(200)} ${"middle".repeat(200)} ${"END".repeat(200)}`;
+    writeFileSync(
+      join(sessionsRoot, "rollout-2026-04-21T10-00-00-10101010-1010-4010-8010-101010101010.jsonl"),
+      [
+        line("session_meta", { id: "10101010-1010-4010-8010-101010101010", cwd: "/tmp/elide-page" }),
+        line("turn_context", { model: "gpt-5.4" }),
+        line("event_msg", { type: "user_message", message: huge }),
+        line("event_msg", { type: "agent_message", message: "small message stays whole" }),
+      ].join("\n"),
+    );
+
+    const dbPath = join(base, "index.sqlite");
+    await syncSessions({ dbPath, rootDir: join(base, "sessions") });
+
+    const jsonResult = await runCli([
+      "read-page",
+      "10101010-1010-4010-8010-101010101010",
+      "--offset",
+      "0",
+      "--limit",
+      "2",
+      "--json",
+      "--db",
+      dbPath,
+    ]);
+
+    expect(jsonResult.exitCode).toBe(0);
+    const payload = JSON.parse(jsonResult.stdout) as {
+      messages: Array<{ contentText: string; elision?: { originalCharCount: number; omittedCharCount: number; strategy: string; hint: string } }>;
+    };
+    expect(payload.messages[0]?.contentText).toContain("START");
+    expect(payload.messages[0]?.contentText).toContain("END");
+    expect(payload.messages[0]?.contentText).not.toContain("middlemiddlemiddlemiddlemiddlemiddle");
+    expect(payload.messages[0]?.elision).toMatchObject({ originalCharCount: huge.length, strategy: "head_tail" });
+    expect(payload.messages[1]?.contentText).toBe("small message stays whole");
+    expect(payload.messages[1]?.elision).toBeUndefined();
+
+    const textResult = await runCli([
+      "read-page",
+      "10101010-1010-4010-8010-101010101010",
+      "--offset",
+      "0",
+      "--limit",
+      "1",
+      "--max-message-chars",
+      "1500",
+      "--db",
+      dbPath,
+    ]);
+
+    expect(textResult.exitCode).toBe(0);
+    expect(textResult.stdout).toContain("elided");
+    expect(textResult.stdout).toContain("--max-message-chars");
+    expect(textResult.stdout).toContain("2026-04-21T00:00:00.000Z");
+    expect(textResult.stdout).toContain("END".repeat(200));
   });
 
   test("sync exits non-zero by default when per-file indexing fails", async () => {

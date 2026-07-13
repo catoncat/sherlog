@@ -190,6 +190,16 @@ export interface MessageRecord {
   contentText: string;
   timestamp: string;
   sourceKind: string;
+  elision?: MessageElision;
+}
+
+export interface MessageElision {
+  originalCharCount: number;
+  displayedCharCount: number;
+  omittedCharCount: number;
+  strategy: "head_tail" | "around_query";
+  query?: string;
+  hint: string;
 }
 
 export interface FindResult {

@@ -102,6 +102,8 @@ Purpose: 搜索相关 session，返回最小必要命中。用于 semantic recal
 
 text header 带效率回述:`shlog find "q" · 检索 ~N 条 · 结果 R · Xms`(`检索 ~N` = 范围内语料规模诚实分母,`--json` 里是 `scannedMessageCount` / `elapsedMs`)。`read-range` / `read-page` 的 header 带「读取 K 条 / 本 session 共 T 条 · Xms」和 `total=… · hasMore=… · Xms`。大规模调查时可用这些真实数字做一句简短尾注,**不要据此编造「省 X%」**。
 
+`find --json` 的每个结果会带 `evidenceRead`，优先执行里面的 `argv` 去读取内容证据。message-level 命中通常是 `read-range --seq ... --query ...`，这样后续超大消息省略时仍能围绕 query term 保留证据 span；session-level 命中可能是 `read-range --query ...` 或 fallback `read-page`。
+
 效率回述默认开,环境变量 `SHLOG_STATS=0`(或 `off`/`false`/`no`)可关闭文本 header 里的注解(`检索 ~N 条 / 读取 K 条 / Xms`);`--json` 的 `scannedMessageCount` / `elapsedMs` 与 `read-page` 的 `total/hasMore` 等功能字段始终保留。关闭时文本里没有可锚的数字,直接省掉效率尾注、别硬编。
 
 零结果不是结束条件。`find --json` 会在同一次调用中评估 raw source freshness，因此 `coverage.complete` / `freshness` / `staleReason` 与 `nextAction` 使用同一 snapshot；纯 SQLite query facade 无法检查 raw 时则诚实返回 `complete=false` / `freshness=not_checked`，但保留 `coveringSelectors`。`--json` 下如果返回 `nextAction`,按它选择/检查同一 selector；text 输出也会打印 `next:` 步骤。Codex `find` 对非空结果会忽略 `source_content_changed` 软 stale,避免当前会话尾部变化反复逼 agent 同步；此时 `complete=false` 表示最新尾部未获证明，不表示已有索引不可查询。若非空结果仍返回 `nextAction.reason=stale_or_missing_coverage`,通常是 coverage 缺失、source file 集合变化或非 Codex source 保守同步；需要完整结论时按 `nextAction.commands` 同步并重试。fresh coverage 下仍无结果,才可以说没找到。
@@ -135,6 +137,7 @@ Notes:
 
 - 必须显式传 `<sessionUuid>` 或 `find` 返回的 `<sessionRef>`
 - 必须二选一提供 `--seq` 或 `--query`
+- 默认会确定性省略超大单条消息；`--max-message-chars <n>` 控制单条消息保留预算，`0` 表示不省略。JSON 会在被省略的 message 上返回 `elision` metadata。
 - 可选 `--source codex|claude-code|pi`;省略等价于 Codex。`<source>:<uuid>` qualifier 会直接决定读取 source；若同时传 `--source`,两者必须匹配。
 
 Example:
@@ -142,11 +145,14 @@ Example:
 ```bash
 "${SHLOG_BIN:-${CXS_BIN:-shlog}}" read-range <sessionUuid> --seq 12 --before 4 --after 8 --json
 "${SHLOG_BIN:-${CXS_BIN:-shlog}}" read-range <sessionUuid> --query "IME" --before 4 --after 8 --json
+"${SHLOG_BIN:-${CXS_BIN:-shlog}}" read-range <sessionUuid> --seq 12 --query "exact clue" --max-message-chars 2000 --json
 ```
 
 ## read-page
 
 Purpose: 顺序分页读取某个 session 的消息。metadata projection 只能给候选;要确认"当时说了什么/是否有意义",用 `read-page` 或 `read-range`。
+
+默认会确定性省略超大单条消息；`--max-message-chars <n>` 控制单条消息保留预算，`0` 表示不省略。JSON 会在被省略的 message 上返回 `elision` metadata。
 
 可选 `--source codex|claude-code|pi`;省略等价于 Codex。
 如果传入 `claude-code:<uuid>` 或 `pi:<uuid>` 这类 `sessionRef`,无需再传对应 `--source`。
@@ -155,6 +161,7 @@ Example:
 
 ```bash
 "${SHLOG_BIN:-${CXS_BIN:-shlog}}" read-page <sessionUuid> --offset 0 --limit 40 --json
+"${SHLOG_BIN:-${CXS_BIN:-shlog}}" read-page <sessionUuid> --offset 0 --limit 40 --max-message-chars 2000 --json
 ```
 
 ## list

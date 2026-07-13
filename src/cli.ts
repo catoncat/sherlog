@@ -35,6 +35,7 @@ import {
   listSessionSummaries,
   SessionNotFoundError,
 } from "./query";
+import { DEFAULT_MAX_MESSAGE_CHARS } from "./query/message-elision";
 import { canonicalizeSelector, parseSelectorJson, SelectorParseError, selectorSource } from "./selector";
 import { collectStatus } from "./status";
 import { SyncLockTimeoutError } from "./sync-lock";
@@ -213,6 +214,7 @@ program
   .option("--query <query>", "用 query 在该 session 内重新定位命中点")
   .option("--before <n>", "前文条数", "2")
   .option("--after <n>", "后文条数", "2")
+  .option("--max-message-chars <n>", "单条超大消息最多保留的字符数；0 表示不省略", String(DEFAULT_MAX_MESSAGE_CHARS))
   .option("--db <path>", "覆盖默认数据库路径", DEFAULT_DB_PATH)
   .option("--json", "输出 JSON")
   .action((sessionUuid, options) => {
@@ -223,6 +225,7 @@ program
         query: options.query,
         before: parsePositiveInt(options.before, 2),
         after: parsePositiveInt(options.after, 2),
+        maxMessageChars: parseNonNegativeInt(options.maxMessageChars, DEFAULT_MAX_MESSAGE_CHARS),
       });
       const elapsedMs = Math.round(performance.now());
       if (options.json) {
@@ -250,6 +253,7 @@ program
   .option("--source <id>", `session source (public: ${publicSourceLabel()})`)
   .option("--offset <n>", "起始 offset", "0")
   .option("--limit <n>", "页大小", "20")
+  .option("--max-message-chars <n>", "单条超大消息最多保留的字符数；0 表示不省略", String(DEFAULT_MAX_MESSAGE_CHARS))
   .option("--db <path>", "覆盖默认数据库路径", DEFAULT_DB_PATH)
   .option("--json", "输出 JSON")
   .action((sessionUuid, options) => {
@@ -260,6 +264,7 @@ program
         sessionRefForSource(sessionUuid, sourceId),
         parseNonNegativeInt(options.offset, 0),
         parsePositiveInt(options.limit, 20),
+        { maxMessageChars: parseNonNegativeInt(options.maxMessageChars, DEFAULT_MAX_MESSAGE_CHARS) },
       );
       const elapsedMs = Math.round(performance.now());
       if (options.json) {
@@ -846,26 +851,32 @@ function buildSessionNotFoundNextAction(
 
 function buildReadRangeRetryArgv(
   sessionRef: string,
-  options: { seq?: string; query?: string; before?: string; after?: string; db?: string },
+  options: { seq?: string; query?: string; before?: string; after?: string; maxMessageChars?: string; db?: string },
 ): string[] {
   const argv = [PROGRAM_NAME, "read-range", sessionRef];
   if (options.seq !== undefined) argv.push("--seq", options.seq);
   if (options.query !== undefined) argv.push("--query", options.query);
   if (options.before !== undefined) argv.push("--before", options.before);
   if (options.after !== undefined) argv.push("--after", options.after);
+  if (isNonDefaultMaxMessageChars(options.maxMessageChars)) argv.push("--max-message-chars", options.maxMessageChars!);
   if (options.db) argv.push("--db", options.db);
   return argv;
 }
 
 function buildReadPageRetryArgv(
   sessionRef: string,
-  options: { offset?: string; limit?: string; db?: string },
+  options: { offset?: string; limit?: string; maxMessageChars?: string; db?: string },
 ): string[] {
   const argv = [PROGRAM_NAME, "read-page", sessionRef];
   if (options.offset !== undefined) argv.push("--offset", options.offset);
   if (options.limit !== undefined) argv.push("--limit", options.limit);
+  if (isNonDefaultMaxMessageChars(options.maxMessageChars)) argv.push("--max-message-chars", options.maxMessageChars!);
   if (options.db) argv.push("--db", options.db);
   return argv;
+}
+
+function isNonDefaultMaxMessageChars(value: string | undefined): boolean {
+  return value !== undefined && value !== String(DEFAULT_MAX_MESSAGE_CHARS);
 }
 
 function emitSelectorError(error: SelectorParseError, jsonMode: boolean): void {
