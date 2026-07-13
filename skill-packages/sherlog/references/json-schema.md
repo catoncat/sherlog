@@ -41,6 +41,7 @@ Top-level shape:
   matchTimestamp: string | null;
   score: number;
   snippet: string;
+  evidenceRead: EvidenceReadAction; // 仅 CLI JSON 输出注入；优先执行它读取内容证据
 }
 ```
 
@@ -49,7 +50,45 @@ Top-level shape:
 as the read command input; for Codex it is usually the bare UUID, while
 Claude Code and Pi refs are source-qualified such as `claude-code:<id>` or `pi:<id>`.
 
-`matchSource = "session"` means the hit came from session-level fields such as title, derived summary, compact handoff, or reasoning summary rather than a concrete message. In that case `matchSeq` is `null`; use `read-page` first instead of fabricating a `read-range --seq` anchor.
+`matchSource = "session"` means the hit came from session-level fields such as title, derived summary, compact handoff, or reasoning summary rather than a concrete message. In that case `matchSeq` is `null`; follow `evidenceRead.argv` instead of fabricating a `read-range --seq` anchor.
+
+`EvidenceReadAction`:
+
+```ts
+type EvidenceReadAction =
+  | {
+      kind: "read-range";
+      reason: "message_match";
+      sourceId: "codex" | "claude-code" | "pi";
+      sessionRef: string;
+      seq: number;
+      query?: string;
+      before: number;
+      after: number;
+      argv: string[];
+    }
+  | {
+      kind: "read-range";
+      reason: "session_level_match";
+      sourceId: "codex" | "claude-code" | "pi";
+      sessionRef: string;
+      query: string;
+      before: number;
+      after: number;
+      argv: string[];
+    }
+  | {
+      kind: "read-page";
+      reason: "session_level_match";
+      sourceId: "codex" | "claude-code" | "pi";
+      sessionRef: string;
+      offset: number;
+      limit: number;
+      argv: string[];
+    };
+```
+
+优先执行 `evidenceRead.argv`。message-level `read-range` 在有原 query 时会同时带 `--seq` 和 `--query`，用于保持稳定 seq anchor 并让 read command 在超大消息省略时围绕 query term 保留证据 span。session-level hit 有 query 时会用 `read-range --query` 重新定位真实 message anchor；没有 query 时才 fallback `read-page`。
 
 `QueryNextAction` appears on `find` / `list` when the command cannot prove the target coverage is fresh enough for the requested conclusion. For Codex `find`, non-empty results no longer get a retry gate for `source_content_changed` soft stale, which commonly means the current session file is still being appended. If non-empty `find` still returns `stale_or_missing_coverage`, treat it as a harder risk such as missing coverage, a changed source file set, or a non-Codex source staying conservative unless a follow-up `status` says otherwise.
 
@@ -272,6 +311,22 @@ errors in `--json` mode for expected index setup and read failures:
   contentText: string;
   timestamp: string;
   sourceKind: string;
+  elision?: MessageElision;
+}
+```
+
+`read-range` / `read-page` 默认会对超大单条消息做确定性省略。被省略的 message 保留 `sessionUuid`、`seq`、`role`、`timestamp`、`sourceKind`，并把 `contentText` 替换成保留片段加显式省略 marker；未省略的小消息没有 `elision` 字段。传 `--max-message-chars 0` 可关闭单条消息省略。
+
+`MessageElision`:
+
+```ts
+{
+  originalCharCount: number;
+  displayedCharCount: number;
+  omittedCharCount: number;
+  strategy: "head_tail" | "around_query";
+  query?: string;
+  hint: string; // 例如 rerun read with --max-message-chars N
 }
 ```
 

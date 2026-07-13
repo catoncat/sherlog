@@ -75,7 +75,7 @@ export function printFindResults(
     if (result.matchSeq === null) {
       console.log(chalk.gray(`next: ${PROGRAM_NAME} read-page ${result.sessionRef} --offset 0 --limit 40`));
     } else {
-      console.log(chalk.gray(`next: ${PROGRAM_NAME} read-range ${result.sessionRef} --seq ${result.matchSeq}`));
+      console.log(chalk.gray(`next: ${PROGRAM_NAME} read-range ${result.sessionRef} --seq ${result.matchSeq} --query ${shellArg(query)}`));
     }
   }
   printNextAction(nextAction);
@@ -103,7 +103,8 @@ export function printReadRangeResult(
   for (const message of messages) {
     const marker = message.seq === anchorSeq ? chalk.green(">>") : "  ";
     const role = message.role === "user" ? chalk.blue("U") : chalk.white("A");
-    console.log(`${marker} [${message.seq}] ${role} ${trimTranscriptMessage(message.contentText)}`);
+    console.log(`${marker} [${message.seq}] ${role}${message.elision ? ` ${message.timestamp}` : ""} ${formatTranscriptMessage(message)}`);
+    printElisionMetadata(message);
   }
 }
 
@@ -126,7 +127,8 @@ export function printReadPage(
 
   for (const message of messages) {
     const role = message.role === "user" ? chalk.blue("U") : chalk.white("A");
-    console.log(`[${message.seq}] ${role} ${trimTranscriptMessage(message.contentText)}`);
+    console.log(`[${message.seq}] ${role}${message.elision ? ` ${message.timestamp}` : ""} ${formatTranscriptMessage(message)}`);
+    printElisionMetadata(message);
   }
 }
 
@@ -207,6 +209,26 @@ function trimSummary(text: string): string {
 
 function trimTranscriptMessage(text: string): string {
   return trimText(text, TRANSCRIPT_TEXT_BUDGET);
+}
+
+function formatTranscriptMessage(message: MessageRecord): string {
+  if (message.elision) return collapseWhitespace(message.contentText);
+  return trimTranscriptMessage(message.contentText);
+}
+
+function printElisionMetadata(message: MessageRecord): void {
+  if (!message.elision) return;
+  const elision = message.elision;
+  console.log(chalk.gray(`   elided ${elision.omittedCharCount}/${elision.originalCharCount} chars (${elision.strategy}); ${elision.hint}`));
+}
+
+function shellArg(value: string): string {
+  if (/^[A-Za-z0-9_./:@=-]+$/.test(value)) return value;
+  return `'${value.replaceAll("'", "'\\''")}'`;
+}
+
+function collapseWhitespace(text: string): string {
+  return trimText(text, Number.MAX_SAFE_INTEGER);
 }
 
 function trimText(text: string, limit: number): string {

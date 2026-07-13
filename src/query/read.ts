@@ -2,6 +2,7 @@ import { coverageEntriesForSession, getMessagesForPage, getMessagesForRange, get
 import { rerankHits } from "../ranking";
 import { DEFAULT_SESSION_SOURCE_ID, isSessionSourceId, type FindResult, type SessionRecord, type SessionSourceId } from "../types";
 import type { Db } from "../db";
+import { elideMessages } from "./message-elision";
 import { searchMessageHits } from "./search";
 
 export class SessionNotFoundError extends Error {
@@ -22,7 +23,7 @@ export class SessionNotFoundError extends Error {
 export function getMessageRange(
   dbPath: string,
   sessionUuid: string,
-  options: { seq?: number; query?: string; before: number; after: number },
+  options: { seq?: number; query?: string; before: number; after: number; maxMessageChars?: number },
 ): {
   session: SessionRecord;
   anchorSeq: number;
@@ -38,7 +39,11 @@ export function getMessageRange(
 
     const rangeStartSeq = Math.max(0, anchorSeq - options.before);
     const rangeEndSeq = anchorSeq + options.after;
-    const messages = getMessagesForRange(db, session.id, rangeStartSeq, rangeEndSeq);
+    const messages = elideMessages(getMessagesForRange(db, session.id, rangeStartSeq, rangeEndSeq), {
+      anchorSeq,
+      query: options.query,
+      maxMessageChars: options.maxMessageChars,
+    });
     return {
       session,
       anchorSeq,
@@ -55,6 +60,7 @@ export function getMessagePage(
   sessionUuid: string,
   offset: number,
   limit: number,
+  options: { maxMessageChars?: number } = {},
 ): {
   session: SessionRecord;
   offset: number;
@@ -67,7 +73,9 @@ export function getMessagePage(
   return withSourceAwareReadDb(dbPath, (db) => {
     const session = getSessionRecord(db, sessionUuid);
     if (!session) throw new SessionNotFoundError(sessionUuid);
-    const messages = getMessagesForPage(db, session.id, offset, limit);
+    const messages = elideMessages(getMessagesForPage(db, session.id, offset, limit), {
+      maxMessageChars: options.maxMessageChars,
+    });
     const totalCount = session.messageCount;
     const hasMore = offset + messages.length < totalCount;
     return {

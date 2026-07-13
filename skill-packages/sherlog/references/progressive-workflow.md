@@ -18,7 +18,7 @@ Hard rules:
 - `sync` only updates index/coverage; normal retrieval does not need `sync` unless coverage is missing or stale. Bare `sync` is only a first-install default Codex bootstrap; scoped agent work should still use `sync --cwd` / `sync --root` / `sync --selector`.
 - Do not use `sync --prune` for normal retrieval.
 - `find` default sort is relevance; use `--sort ended` only when the user's question is time-oriented.
-- `matchSource = "session"` means `matchSeq = null`; use `read-page` instead of inventing a seq.
+- `find --json` results include `evidenceRead`; follow `evidenceRead.argv` for content verification. If `matchSource = "session"`, `matchSeq = null`; do not invent a `read-range --seq`.
 - Current public sources are `codex`, experimental `claude-code`, and experimental `pi`; `find` omits `--source` to search all public indexed sources by default. Pass `--source codex`, `--source claude-code`, or `--source pi` only to narrow or diagnose. Other source-scoped commands still omit `--source` as Codex-compatible default. Claude Code and Pi are part of the normal CLI surface now, but they are still not stable raw-format promises.
 
 ## Scenario 1: Metadata Projection
@@ -63,13 +63,13 @@ sqlite3 -readonly "$DB_PATH" \
 "${SHLOG_BIN:-${CXS_BIN:-shlog}}" sync --root /Users/me/.codex/sessions --json
 ```
 
-候选出来后读内容:
+候选出来后优先执行结果里的 `evidenceRead.argv` 读内容；message-level 命中通常会同时带 `--seq` 和 `--query`，session-level 命中可能用 `read-range --query` 重新定位:
 
 ```bash
-"${SHLOG_BIN:-${CXS_BIN:-shlog}}" read-range <sessionRef> --seq <matchSeq> --before 4 --after 8 --json
+"${SHLOG_BIN:-${CXS_BIN:-shlog}}" read-range <sessionRef> --seq <matchSeq> --query "cf tunnel" --before 2 --after 2 --json
 ```
 
-如果 `matchSeq` 是 `null`,改用:
+如果没有 `evidenceRead` 或需要手动 fallback,`matchSeq = null` 时用:
 
 ```bash
 "${SHLOG_BIN:-${CXS_BIN:-shlog}}" read-page <sessionRef> --offset 0 --limit 40 --json

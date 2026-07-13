@@ -29,7 +29,7 @@ description: "Use proactively for local Codex history and personal setup archaeo
 - 回答"当时说了什么/决定了什么"前必须用 `read-range` / `read-page` 读内容；`find`、title、summary 只能定位候选。
 - `find` 默认跨 public indexed sources 搜索；只有用户指定、缩小范围或诊断时才加 `--source codex|claude-code|pi`。
 - 后续读取优先使用 `find --json` 返回的 `sessionRef`；不要从 uuid 自己猜 source。
-- `matchSource = "session"` 时 `matchSeq = null`;先 `read-page`,不要伪造 `read-range --seq`。
+- `find --json` 结果优先跟随 `evidenceRead.argv` 读取证据；`matchSource = "session"` 时 `matchSeq = null`,不要伪造 `read-range --seq`。
 - `find` 默认按 relevance 排序；"最新/最近 + 关键词"用 `--sort ended`,必要时 `--exclude-session <current_uuid>` 排除 self-hit。
 - 只读 SQLite 只允许查 Sherlog index 的稳定 metadata；内容判断仍回到 `read-*`。
 - `sync` 只更新 index/coverage。coverage 缺失或确实 stale 时才同步同一范围；`sync --prune` 只在用户明确要丢弃已消失 source 的旧索引记录时使用。
