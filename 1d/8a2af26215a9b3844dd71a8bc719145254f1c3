@@ -1,0 +1,54 @@
+skill-packages/sherlog/references/failure-cookbook.md
+  s_0b665d2221e34d::t_813721ee1f8d26 3,9-11,13,15-20,26-27,30,33-34,39,42-45,49,54,59,63,71-73,82-83,91,95
+  s_0b665d2221e34d::t_0f0a5bb43f9f4a 4,12,14,21-22,53,67,69,77,79-81,84-89,99
+  s_0b665d2221e34d::t_a62477338b35b8 90
+skill-packages/sherlog/references/progressive-workflow.md
+  s_0b665d2221e34d::t_2d0ed762e5f892 3,20,30,34-35,38,47,51,53,60,63-66,72,75,77,84-85,88,92,94-97,101-103,106
+  s_0b665d2221e34d::t_315d85c352e1eb 12,17
+  s_0b665d2221e34d::t_c094c5fcc7f89a 89,91,93,100
+  s_0b665d2221e34d::t_745f89d35b5129 7,33,40-42,44,48,55-57,67,79,90,110
+  s_0e62747d00f13a::t_7f0ae67411da71 69,81
+skill-packages/sherlog/SKILL.md
+  s_0b665d2221e34d::t_9cbf3d67212cfe 8
+  s_0b665d2221e34d::t_2be4b2a545844d 56,58,60-62
+  s_0b665d2221e34d::t_abcde75047f72d 3,10,16,18-40,44-46,48,50-52,59,64
+skill-packages/sherlog/references/advanced-queries.md
+  s_0b665d2221e34d::t_9c31bef1e29e30 50,123
+  s_0b665d2221e34d::t_7155d966607839 41,44-45,84,90,119-120
+  s_0b665d2221e34d::t_3d75ec7d859e95 77,88,110
+AGENTS.md
+  s_0b665d2221e34d::t_93fcdebdad4e7d 9-11,19
+skill-packages/sherlog/references/cli-surface.md
+  s_0b665d2221e34d::t_58ce0f6cc4b965 7
+  s_0b665d2221e34d::t_819ad011806c7a 8,12,14,19,23-24,27,29,32-35,42,47,52,54,58-59,62,66,69,71,74-76,80,84,89,91-92,95,97,99,101-104,113,119,123,126,129,133,139
+  s_0b665d2221e34d::t_1306bd514f3686 10,13,15,38,40,46,48-51,53,56-57,60,90,93,107-108,116,121,131,143
+  s_0b665d2221e34d::t_11789a13912053 140
+package.json
+  s_0b665d2221e34d::t_82b3750e96ef39 3
+package-lock.json
+  s_0b665d2221e34d::t_3d085e7960cd82 3,9
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.12",
+  "base_commit_sha": "1d8a2af26215a9b3844dd71a8bc719145254f1c3",
+  "prompts": {},
+  "sessions": {
+    "s_0b665d2221e34d": {
+      "agent_id": {
+        "tool": "pi",
+        "id": "019f607f-ca24-746e-b04b-f2aa83d5734e",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "catoncat <git@chen.rs>"
+    },
+    "s_0e62747d00f13a": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f5fa1-7018-7883-b7b5-b35f5eacf2b5",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "catoncat <git@chen.rs>"
+    }
+  }
+}
