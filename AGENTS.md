@@ -6,9 +6,9 @@
 
 当前接受的产品边界：
 
-- 命令面固定为：`status`、`sync`、`find`、`read-range`、`read-page`、`list`、`stats`
-- 主工作流固定为：首次安装可 `sync` 初始化默认 Codex index；agent 日常检索走 `status -> ensure selector coverage -> find/list -> read-range/read-page`
-- `sync` 是唯一会修改索引的命令；其余命令只读 SQLite
+- 命令面固定为：`status`、`sync`、`cold`、`find`、`read-range`、`read-page`、`list`、`stats`
+- 主工作流固定为：先按问题选择 metadata projection / semantic recall / content read / coverage diagnosis；首次安装可用 `sync` 初始化默认 Codex index，coverage 不足时才做同范围 sync
+- `sync` 与 `cold add/remove` 会写 Sherlog 状态；检索命令只读 SQLite，`status` 只读 raw metadata
 - 默认接受手动增量同步，不做 watcher / daemon / realtime sync
 - 这个仓库可以作为其他 sidecar / GUI 的 retrieval engine，但本仓库自身不以 GUI 为目标
 
@@ -16,7 +16,7 @@
 
 - 检索主链是 `message/session recall -> session heuristic rerank -> progressive read`
 - `status` 只返回执行上下文、source inventory、index 状态与 coverage 状态；`status --selector` 只读地报告目标 selector 的 coverage/freshness 和 recommendedAction；它可以扫描 raw session metadata，但不写 index、不回答内容问题
-- 内容回答只能来自 Sherlog index；source inventory 只能用于构造 selector 和判断可能的同步范围，不能作为内容真相源
+- 常规内容回答先来自 Sherlog index projection（`read-range` / `read-page`）；当 projection 明确不足以保留完整 tool call、patch、长代码或原始事件时，agent 可以先用 Sherlog 定位 session，再从该 session 的 hot plain raw 或逐文件 cold zstd 取完整原文证据。raw fallback 是 agent-side 取证，不是 `shlog` 检索/读取能力；source inventory 仍只用于 selector/coverage，不能作为内容真相源
 - `sync` 是建立 coverage 的唯一入口；裸 `sync` 是 first-install bootstrap，等价于默认 Codex root 的 canonical `all` selector；`--cwd` / `--root` / `--selector` 仍是日常 agent 范围控制入口；只读命令不得隐式触发 sync
 - 查找前不要求无条件 sync；只有目标 selector coverage 缺失或 stale 时才同步。fresh `all(root)` coverage 可以覆盖同 root 下更窄 selector
 - `find` 默认按 relevance 排序；“最新/最近 + 关键词”应使用 `find <query> --sort ended`，必要时 `--exclude-session` 排除当前会话/self-hit

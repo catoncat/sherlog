@@ -1,216 +1,99 @@
 # Failure Cookbook
 
+Apply `SKILL.md` **Canonical policy**. This file maps failures to recovery actions; it does not redefine sort / coverage / cold / prune policy.
+
 ## 快速表
 
 | 症状 | 先跑 | 处理 |
 | --- | --- | --- |
-| `find` 有结果但 JSON/text 同时给 `nextAction.reason=stale_or_missing_coverage` | 需要完整结论时按 `nextAction.commands` 或 `nextAction.steps` 跑建议的 `sync` | 新版 Codex `find` 已不会因当前会话尾部 `source_content_changed` / `recommendedAction: "query"` 软 stale 拦住非空结果；若仍有 nextAction,通常是 coverage 缺失、source set 变化或非 Codex source 保守同步 |
-| `find` 零结果但用户坚持存在 | 对相关 public source 跑 `status --source <id> --cwd <path> --json` 或 `status --source <id> --selector '<json>' --json` | 看每个目标范围的 `requestedCoverage`；必要时按 source 同步；再带同范围查询 |
-| `sync` 非零退出带 per-file errors | `sync --root <dir> --json 2>&1` 或 `sync --selector '<json>' --json 2>&1` | 看 `errorDetails[]`；默认严格模式；只在允许部分成功时加 `--best-effort` |
-| 旧安装版 `sync` 返回 `selector_required` | 更新 CLI，或原命令补 `--root`、`--cwd` / `--selector` | 当前版本裸 `sync` 应能 first-install bootstrap；旧版需要显式范围 |
-| `find/list/stats/read-*` 输出 `index_unavailable` | 看 JSON `nextAction` 或直接 `sync` | 索引还没建立；普通 first install 跑 `sync`，项目范围优先 `sync --cwd <path>` |
-| `find/list/stats/read-*` 输出 `index_schema_upgrade_required` | 原范围跑一次 `sync --source codex ...` | 已有 index 是旧 schema；只读命令不迁移，`sync` 是唯一写入口 |
-| `read-range/read-page` 输出 `session_not_found` | 看 JSON `nextAction`，再 `status --source <id> --json` | 只代表当前 index 没有这个 `sessionRef`；可能未同步、coverage stale、source/id 不匹配。必要时同 source scoped sync 后重试 |
-| raw JSONL 从当前 source snapshot 中消失后担心查不到 | 直接 `find/list/read-*` 查 Sherlog index | Sherlog 默认保留已索引历史；不要引导用户改查另一个 root。用户若已冷迁到 archived/zst：先 `cold add --root <archived>`；不要为冷迁跑 `sync --prune` |
-| `stats/list/find` 报 `database is locked` | 原命令重试一次 | 多半是 SQLite 忙；仍失败就先跳过 `stats` 直接读 |
-| 同一主题多条 uuid | `find -n 10 --json` | 按 `startedAt`、`cwd`、`matchCount` 选 |
-| 最新/最近 + 关键词被当前会话抢结果 | `find <query> --sort ended --exclude-session <uuid>` | 默认 `find` 是 relevance 排序；时间问题显式用 `--sort ended` 并排除 self-hit |
-| metadata-only 问题很慢或结果过宽 | 只读 SQLite 查 Sherlog index,再 `read-page` 验证候选 | 这是 skill-guidance 问题:agent 把 `status` 或 `find` 用成了通用入口 |
-| 中文/CJK 零结果 | 无 | 换至少两字中文、英文关键词，或先用 selector 缩范围 |
-| 用户问“最近本项目讨论了什么” | `list --cwd <abs_cwd> --sort ended --json` | 这是 metadata/listing 问题；索引不可用或 coverage 不明时再 `status --cwd` |
-| 用户说“在 X 项目里” | `status --json` | 从 `sourceInventory.cwdGroups` 选择 cwd selector |
-| 从其他 cwd 调用找不到 db | `stats --json` | 看 `dbPath`；必要时显式传 `--db` |
-| `unsupported_source` | 检查 source id 拼写；`find` 可省略 `--source` 或用 `--source all`，窄化时用 `--source codex` / `--source claude-code` / `--source pi` | 当前公开 source 是 `codex`、experimental `claude-code` 和 experimental `pi`；不要因为 source id 写错就跳回 raw source root |
+| `find` 有结果且仍返回 coverage `nextAction` | 读 `nextAction` | 按 canonical Coverage policy 判断是否需要完整结论与 scoped sync |
+| `find` 零结果但用户坚持存在 | `status --source <id> --cwd <repo-cwd> --json` 或同 selector status | coverage 不足才 sync；同范围重查 |
+| `sync` 非零 + per-file errors | 原范围 `sync ... --json 2>&1` | 看 `errorDetails[]`；仅用户接受 partial 时 `--best-effort` |
+| 旧 CLI `selector_required` | 更新 CLI，或补 `--root/--cwd/--selector` | 当前裸 `sync` 可 first-install bootstrap |
+| `index_unavailable` | bare `sync` 或 scoped `sync --cwd <repo-cwd>` | 索引未建立 |
+| `index_schema_upgrade_required` | 原范围 `sync --source codex ...` | 只读命令不迁移 |
+| `session_not_found` | 看 `nextAction` + 同 source `status` | 当前 index 无此 ref；可能未同步 / source 错 / coverage 问题 |
+| 冷迁后担心历史丢了 | `find/list/read-*` | 默认 retain；确认 cold 已注册。完整 raw 细节走 progressive raw fallback |
+| `database is locked` | 重试一次 | 仍忙则跳过 `stats`，稍后重试读命令 |
+| 同主题多 uuid | `find -n 10 --json` | 按 `startedAt` / `cwd` / `matchCount` 选，再执行 `evidenceRead` |
+| metadata 问题却 broad find/status | 只读 SQLite + `read-*` | 标 `skill-guidance-issue`，改用 metadata primitive |
+| CJK 零结果 | 换词 | ≥2 字中文、英文标识符、或缩 selector |
+| `unsupported_source` | 修正 source id | public: `codex` / experimental `claude-code` / `pi` |
+| 找不到 db | `stats --json` 看 `dbPath` | 必要时 `--db` |
 
 ## Find zero results but user insists it exists
 
-先看 `find --json` / `list --json` 有没有 `nextAction`。有就判断它是否是硬 coverage 风险，不要只在零结果时才看；没有也不要直接放弃,先确认目标范围 coverage。
+1. 看 `find --json` / `list --json` 的 `nextAction`。
+2. 检查同一目标范围：
 
 ```bash
-"${SHLOG_BIN:-${CXS_BIN:-shlog}}" status --source codex --json
-"${SHLOG_BIN:-${CXS_BIN:-shlog}}" status --source claude-code --json
+"${SHLOG_BIN:-${CXS_BIN:-shlog}}" status --source codex --cwd <repo-cwd> --json
 ```
 
-如果目标范围没有 fresh coverage，先看 `requestedCoverage.staleReason` 和 `recommendedAction`。`source_content_changed` / `recommendedAction: "query"` 通常只是 Codex 当前或最近 session 还在写尾部,可以先查；`missing` / `source_set_changed` / `recommendedAction: "sync"` 再同步明确范围。cwd/root 用快捷方式，日期窗再用 selector：
-
-```bash
-"${SHLOG_BIN:-${CXS_BIN:-shlog}}" status --source codex --cwd /Users/me/work/foo --json
-"${SHLOG_BIN:-${CXS_BIN:-shlog}}" sync --source codex --cwd /Users/me/work/foo
-```
-
-如果 `status --selector` 返回 `recommendedAction: "query"`，跳过 `sync`。
-
-然后查询时继续带同一个 selector。
+3. 按 canonical Coverage policy query 或 scoped sync。
+4. 保持同一 selector 重试查询，再判断是否真无结果。
 
 ## Sync non-zero with per-file errors
 
 ```bash
-"${SHLOG_BIN:-${CXS_BIN:-shlog}}" sync --root /Users/me/.codex/sessions --json 2>&1
+"${SHLOG_BIN:-${CXS_BIN:-shlog}}" sync --root <sessions-root> --json 2>&1
 ```
 
-处理规则：
-
-- 默认不要忽略，先看是坏 JSONL、权限问题还是别的解析失败。
-- 只有用户明确接受 partial index 时，才用 `--best-effort`。
-- `--best-effort` 不写 complete coverage。
-- 不要为普通历史查询加 `--prune`。`--prune` 只删 hot 与已注册 cold 中都不存在的行；冷迁后应 `cold add`，不是 prune。
-- 冷迁官方路径：先 `sync` 索引 → 搬家/可选 zstd → `cold add --root ~/.codex/archived_sessions` → 普通 `sync`。整包 tar.zst 不是 cold presence 源。
+- 默认严格：先判断坏 JSONL / 权限 / 解析失败。
+- 仅用户接受 partial index 时用 `--best-effort`；它不写 complete coverage。
+- 冷迁顺序：先 sync 建索引 → 搬家/可选逐文件 zstd → `cold add --root <cold-root>` → 普通 sync。
+- 整包 tar.zst 不是 cold presence 源；逐文件 cold zst 也不会被 sync 重建。
 
 ## index_unavailable
 
-`find` / `read-range` / `read-page` / `list` / `stats` 都读 Sherlog 自己的 SQLite 索引。第一次安装后还没跑过 `sync` / `sync --root` / `sync --cwd` / `sync --selector` 时，这些命令会在 `--json` 模式下返回:
-
-```json
-{
-  "error": {
-    "code": "index_unavailable",
-    "message": "index not found: ...",
-    "dbPath": "...",
-    "hint": "Run `shlog sync` first ...",
-    "nextAction": {
-      "kind": "bootstrap_index",
-      "commands": [
-        { "label": "default Codex history", "when": "first install or unscoped history query", "recommended": true, "argv": ["shlog", "sync"], "selector": { "source": "codex", "kind": "all", "root": "..." } },
-        { "label": "current working directory only", "when": "question is explicitly scoped to the current working directory", "recommended": false, "argv": ["shlog", "sync", "--cwd", "..."], "selector": { "source": "codex", "kind": "cwd", "root": "...", "cwd": "..." } }
-      ]
-    }
-  }
-}
-```
-
-处理方式:
+`--json` 返回 `error.code = index_unavailable` 与 bootstrap `nextAction`。
 
 ```bash
 "${SHLOG_BIN:-${CXS_BIN:-shlog}}" sync
-# 或者已有明确项目范围时:
-"${SHLOG_BIN:-${CXS_BIN:-shlog}}" sync --cwd /Users/me/work/foo
-"${SHLOG_BIN:-${CXS_BIN:-shlog}}" sync --root /Users/me/.codex/sessions
+# or scoped:
+"${SHLOG_BIN:-${CXS_BIN:-shlog}}" sync --cwd <repo-cwd>
 ```
-
-没有单独 `init` 命令；裸 `sync` 会创建默认 Codex index，`sync --root` / `sync --cwd` / `sync --selector` 会创建并更新对应范围的索引。
 
 ## index_schema_upgrade_required
 
-source-aware 读命令遇到旧 index schema 时不会写库迁移，而是在 `--json`
-模式下返回:
-
-```json
-{
-  "error": {
-    "code": "index_schema_upgrade_required",
-    "message": "index schema is too old for source-aware read commands: ...",
-    "dbPath": "...",
-    "missingColumns": ["sessions.source_id", "coverage.source_id"],
-    "hint": "Run `shlog sync --source codex --root <sessions-root>` ..."
-  }
-}
-```
-
-处理方式: 用同一个目标范围跑 `sync --source codex --root ...`、`sync --cwd ...`
-或 `sync --selector ...`。不要让 `find/list/read-*` 直接查 raw JSONL，也不要用
-只读 SQLite 手写迁移。
+用同一目标范围跑 `sync --source codex --root/--cwd/--selector`；不要用只读 SQLite 手写迁移。
 
 ## Database is locked or SQLITE_BUSY
 
-- 先重试原命令一次。
-- 如果只是想读取历史，不一定非得先拿 `stats`。
-- 如果你刚跑过 `sync` 或怀疑别的进程正占着 db，先等一下再重试。
+重试一次。纯读取不必先 `stats`；刚 `sync` 过则稍后再试。
 
 ## Slow or over-broad Sherlog use
 
-症状:
+症状：metadata-only 问题却 broad `status` + broad `find`。
 
-- 用户只问最早/最新、数量、分布、大 session、某 cwd 下有哪些 session。
-- agent 先跑 broad `status`,再跑 broad `find`,花了很久还要人工判断。
-- 结果需要的是 session metadata,不是全文相关性。
+处理：
 
-处理方式:
-
-1. 把它归类为 `skill-guidance-issue`,不是 shlog CLI recall/ranking bug。
-2. 对 Sherlog SQLite index 做只读 metadata projection。
-3. 用 `read-page` / `read-range` 验证最终候选的内容。
-
-Example:
-
-```bash
-DB_PATH="$("${SHLOG_BIN:-${CXS_BIN:-shlog}}" status --json | jq -r '.context.dbPath')"
-sqlite3 -readonly "$DB_PATH" \
-  "SELECT session_uuid, started_at, message_count, cwd, title
-   FROM sessions
-   ORDER BY started_at ASC
-   LIMIT 20;"
-"${SHLOG_BIN:-${CXS_BIN:-shlog}}" read-page <sessionUuid> --offset 0 --limit 20 --json
-```
-
-不要改查 raw session files;正常历史检索的 projection 也应该来自 Sherlog index。
-
-## Current project discussion query
-
-用户问“最近本项目讨论了什么”时，这是 metadata/listing primitive。先列当前 repo 最近 session:
-
-```bash
-"${SHLOG_BIN:-${CXS_BIN:-shlog}}" list --cwd /absolute/path/to/current/repo --sort ended -n 8 --json
-```
-
-如果返回 `index_unavailable`,或者用户明确怀疑目标范围没被索引,再诊断 coverage:
-
-```bash
-"${SHLOG_BIN:-${CXS_BIN:-shlog}}" status --cwd /absolute/path/to/current/repo --json
-"${SHLOG_BIN:-${CXS_BIN:-shlog}}" sync --cwd /absolute/path/to/current/repo --json
-```
-
-然后至少再看：
-
-- `title`
-- `summaryText`
-- `read-page` 开头 6 到 8 条
-- `read-page` 结尾 6 到 8 条
-
-## Recent keyword query
-
-用户问“最新一次 X / 最近哪个 session 提到 X”时:
-
-```bash
-"${SHLOG_BIN:-${CXS_BIN:-shlog}}" find "X" --cwd /absolute/path/to/current/repo --sort ended --exclude-session <current_session_uuid> --json -n 5
-```
-
-不要直接用默认 `find "X"` 下“最新”结论；默认排序是 relevance。只有索引不可用、coverage 不明或结果明显缺失时,再 `status --cwd` / `sync --cwd`。
+1. 标 `skill-guidance-issue`。
+2. 只读 SQLite metadata projection（见 advanced-queries）。
+3. `read-*` 验证最终候选。
 
 ## --json error shape 速查
 
-不同子命令在 `--json` 下的 error 形状不一致，解析时按命令分流:
-
-| 命令 | error 出口 | 形状 |
+| 命令 | 出口 | 形状要点 |
 | --- | --- | --- |
-| 旧安装版 `sync` 缺 selector | stdout | `{ "error": { "code": "selector_required", "message": "..." } }` |
-| `sync` invalid selector | stdout | `{ "error": { "code": "invalid_selector", "message": "..." } }` |
-| `sync` per-file 错 | stderr | `SyncSummary`，看 `errors / errorDetails[]` |
-| `sync` Codex 活跃尾部软 stale | stdout | 成功的 `SyncSummary`；`coverage.written=true`、`staleReason=source_content_changed`、`recommendedAction=query`，稍后重试补尾部 |
-| `sync` Codex 新活跃文件读取前已变化 | stdout | 成功的 `SyncSummary`；`coverage.written=false`、`reason=active_source_deferred`、`recommendedAction=sync`，稳定 source 已落库，重试补该文件 |
-| `sync` 锁超时 | stderr | `{ "error": <message string> }` |
-| `status` invalid selector | stdout | `{ "error": { "code": "invalid_selector", "message": "..." } }` |
-| `find / read-range / read-page / list / stats` 索引不存在 | stdout | `{ "error": { "code": "index_unavailable", "message": "...", "dbPath": "...", "hint": "...", "nextAction": { "kind": "bootstrap_index", "commands": [...] } } }` |
-| `find / read-range / read-page / list / stats` 旧 index schema | stdout | `{ "error": { "code": "index_schema_upgrade_required", "message": "...", "dbPath": "...", "missingColumns": ["..."], "hint": "..." } }` |
-| `read-range / read-page` session 未索引 | stdout | `{ "error": { "code": "session_not_found", "sessionRef": "...", "sourceId": "...", "nativeSessionId": "...", "hint": "...", "nextAction": { "kind": "check_coverage_then_retry_read", "commands": [...] } } }` |
-| 任意命令传未知 source | stdout | `{ "error": { "code": "unsupported_source", "source": "...", "message": "Public sources in this release: codex|claude-code|pi." } }` |
-| `find / read-range / read-page / list / stats` 其他异常 | 进程异常退出 | 直接非零退出 |
+| 旧 `sync` 缺 selector | stdout | `selector_required` |
+| `sync` invalid selector | stdout | `invalid_selector` |
+| `sync` per-file 错 | stderr | `SyncSummary.errorDetails[]` |
+| `sync` Codex soft stale | stdout | success + `source_content_changed` + `recommendedAction=query` |
+| `sync` active source deferred | stdout | success + `coverage.written=false` + `recommendedAction=sync` |
+| `sync` 锁超时 | stderr | `{ "error": <string> }` |
+| `status` invalid selector | stdout | `invalid_selector` |
+| find/read/list/stats 无 index | stdout | `index_unavailable` + `nextAction` |
+| 旧 schema | stdout | `index_schema_upgrade_required` |
+| read 未索引 session | stdout | `session_not_found` + `nextAction` |
+| 未知 source | stdout | `unsupported_source` |
+
+字段细节见 `json-schema.md`。
 
 ## Schema drift
 
-source of truth 永远是：
-
-- 仓库内 `src/types.ts`
-- 仓库内 `src/cli.ts`
-
-如果字段、命令、flag 变了：
-
-- 先更新 `references/*.md`
-- 再更新 `SKILL.md`
-- 最后 bump `skill-sync` 日期
+代码真相：`src/types.ts`、`src/cli.ts`。变更顺序：references → `SKILL.md` → 更新 `skill-sync` 标记。
 
 ## 来源
 
-- 仓库内 `src/cli.ts`
-- 仓库内 `src/types.ts`
-- 仓库内 `src/env.ts`
-- 仓库内 `src/query.ts`
+- `src/cli.ts`, `src/types.ts`, `src/env.ts`, `src/query.ts`

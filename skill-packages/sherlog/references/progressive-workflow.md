@@ -1,123 +1,110 @@
 # Progressive Workflow
 
-## Core Rule
-
-Start by choosing the retrieval primitive, not by running a fixed command chain.
-
-1. Metadata projection -> read-only SQLite/bash/jq over the Sherlog index.
-2. Semantic recall -> `find`.
-3. Content verification -> `read-range` / `read-page`.
-4. Coverage or freshness diagnosis -> `status`, then `sync` only when needed.
-
-Hard rules:
-
-- Sherlog index is the normal history source of truth; do not query raw source JSONL or alternate source roots during normal retrieval.
-- Read-only SQLite can shortlist sessions, counts, dates, cwd distributions, and other stable metadata.
-- Stable session metadata fields are `source_id`, `native_session_id`, `session_key`, `session_uuid`, `started_at`, `ended_at`, `cwd`, `title`, `summary_text`, `message_count`, `source_root`, `file_path`.
-- Content claims require `read-range` or `read-page`.
-- `sync` only updates index/coverage; normal retrieval does not need `sync` unless coverage is missing or stale. Bare `sync` is only a first-install default Codex bootstrap; scoped agent work should still use `sync --cwd` / `sync --root` / `sync --selector`.
-- Do not use `sync --prune` for normal retrieval. After cold-archiving Codex raw, run `cold add --root <archived>` so prune (if ever used) keeps cold-present sessions; cold archive is not "history to drop".
-- `find` default sort is relevance; use `--sort ended` only when the user's question is time-oriented.
-- `find --json` results include `evidenceRead`; follow `evidenceRead.argv` for content verification. If `matchSource = "session"`, `matchSeq = null`; do not invent a `read-range --seq`.
-- Current public sources are `codex`, experimental `claude-code`, and experimental `pi`; `find` omits `--source` to search all public indexed sources by default. Pass `--source codex`, `--source claude-code`, or `--source pi` only to narrow or diagnose. Other source-scoped commands still omit `--source` as Codex-compatible default. Claude Code and Pi are part of the normal CLI surface now, but they are still not stable raw-format promises.
+Apply `SKILL.md` **Canonical policy** in every scenario; this file provides branches and completion criteria, not alternate policy definitions.
 
 ## Scenario 1: Metadata Projection
 
-用户说：`查下我们机器上最早的有意义的对话是哪个`
-
-先用只读 SQLite 快速列候选。这里只判断 metadata,不读 raw files:
+用户说：`查下最早的有意义的对话是哪个`
 
 ```bash
 DB_PATH="$("${SHLOG_BIN:-${CXS_BIN:-shlog}}" status --json | jq -r '.context.dbPath')"
 sqlite3 -readonly "$DB_PATH" \
-  "SELECT session_uuid, started_at, message_count, cwd, title
+  "SELECT session_key, started_at, message_count, cwd, title
    FROM sessions
    WHERE message_count > 0
    ORDER BY started_at ASC
    LIMIT 10;"
+"${SHLOG_BIN:-${CXS_BIN:-shlog}}" read-page <session_key> --offset 0 --limit 20 --json
 ```
 
-然后挑候选 session,用 Sherlog content primitive 验证是否"有意义":
-
-```bash
-"${SHLOG_BIN:-${CXS_BIN:-shlog}}" read-page <sessionUuid> --offset 0 --limit 20 --json
-```
-
-不要用 `find` 或 broad `status` 去回答这种 metadata-first 问题。
+完成：候选来自 index metadata；“有意义”已用 `read-*` 验证。
 
 ## Scenario 2: Semantic Recall
 
 用户说：`上次我配 cf tunnel 是怎么弄的`
 
-这类需要主题召回,用 `find`:
-
 ```bash
 "${SHLOG_BIN:-${CXS_BIN:-shlog}}" find "cf tunnel" --json -n 5
 ```
 
-如果命令返回 `index_unavailable`,先初始化默认 index 或同步目标范围；如果你需要确认目标范围 coverage,再用 `status` / `sync`:
-
-```bash
-"${SHLOG_BIN:-${CXS_BIN:-shlog}}" sync
-"${SHLOG_BIN:-${CXS_BIN:-shlog}}" status --root /Users/me/.codex/sessions --selector '{"kind":"all"}' --json
-"${SHLOG_BIN:-${CXS_BIN:-shlog}}" sync --root /Users/me/.codex/sessions --json
-```
-
-候选出来后优先执行结果里的 `evidenceRead.argv` 读内容；message-level 命中通常会同时带 `--seq` 和 `--query`，session-level 命中可能用 `read-range --query` 重新定位:
+对候选始终执行 `evidenceRead.argv`；不要根据 `matchSeq` 自己重建命令。示例形状可能是：
 
 ```bash
 "${SHLOG_BIN:-${CXS_BIN:-shlog}}" read-range <sessionRef> --seq <matchSeq> --query "cf tunnel" --before 2 --after 2 --json
+# session-level hit 也可能由 evidenceRead 给出：
+"${SHLOG_BIN:-${CXS_BIN:-shlog}}" read-range <sessionRef> --query "cf tunnel" --before 2 --after 2 --json
 ```
 
-如果没有 `evidenceRead` 或需要手动 fallback,`matchSeq = null` 时用:
+只有旧 CLI 结果完全没有 `evidenceRead` 时，才 fallback `read-page <sessionRef>`。
+
+完成：已读内容证据，不只 title/snippet。
+
+## Scenario 3: Current Project Discussion
+
+用户说：`最近这个项目讨论了什么`
 
 ```bash
-"${SHLOG_BIN:-${CXS_BIN:-shlog}}" read-page <sessionRef> --offset 0 --limit 40 --json
+"${SHLOG_BIN:-${CXS_BIN:-shlog}}" list --cwd <repo-cwd> --sort ended -n 8 --json
+"${SHLOG_BIN:-${CXS_BIN:-shlog}}" read-page <sessionRef> --offset 0 --limit 8 --json
 ```
 
-## Scenario 3: Coverage Diagnosis
+索引不可用或 coverage 可疑时再 `status --cwd <repo-cwd>` / `sync --cwd <repo-cwd>`。
+
+完成：候选 metadata 已列出；最终结论已读取相关 session 的开头、结尾或命中上下文。
+
+## Scenario 4: Recent Keyword
+
+用户说：`最新一次提到 X 是哪个 session`
+
+```bash
+"${SHLOG_BIN:-${CXS_BIN:-shlog}}" find "X" --cwd <repo-cwd> --sort ended --exclude-session <current-session-ref> --json -n 5
+```
+
+随后执行首个候选的 `evidenceRead.argv`。
+
+完成：已验证 session 内容确实提到 X，并按 `endedAt` 判断最新，不只依赖排序后的 snippet。
+
+## Scenario 5: Coverage Diagnosis
 
 用户说：`为什么这个 repo 的历史查不到`
 
-这类才以 `status` 开始:
-
 ```bash
-"${SHLOG_BIN:-${CXS_BIN:-shlog}}" status --cwd /absolute/path/to/current/repo --json
+"${SHLOG_BIN:-${CXS_BIN:-shlog}}" status --cwd <repo-cwd> --json
 ```
 
-看 `requestedCoverage.recommendedAction`:
+按 `SKILL.md` Coverage policy 和返回的 `recommendedAction` 处理；需要 sync 时保持同一 selector/cwd/root。
 
-- `"query"` + `freshness: "fresh"`: coverage fresh,继续 `find` / `list`。
-- `"query"` + `freshness: "stale"` + `staleReason: "source_content_changed"`: Codex 软 stale,通常是当前/最近 session 的 source file 尾部变化；先继续 `find` / `list`,只有需要最新尾部或完整审计时才同步。
-- `"sync"`: coverage 缺失或 source file 集合变化,同范围同步。
+完成：已 retry 必要操作；仅在可证明 coverage 足够后下“没找到”结论。
 
-```bash
-"${SHLOG_BIN:-${CXS_BIN:-shlog}}" sync --cwd /absolute/path/to/current/repo --json
-```
-
-不要为了 coverage diagnosis 改查 raw source files;问题应该通过 Sherlog coverage/index 状态解释。
-
-## Scenario 4: Content Verification
+## Scenario 6: Content Verification
 
 用户说：`这个 session 里当时到底决定了什么`
 
-如果已有 `sessionUuid`,直接读内容:
-
 ```bash
-"${SHLOG_BIN:-${CXS_BIN:-shlog}}" read-range <sessionUuid> --query "决定" --before 6 --after 10 --json
+"${SHLOG_BIN:-${CXS_BIN:-shlog}}" read-range <sessionRef> --query "决定" --before 6 --after 10 --json
+"${SHLOG_BIN:-${CXS_BIN:-shlog}}" read-page <sessionRef> --offset 0 --limit 60 --json
 ```
 
-窗口还不够时翻页:
+完成：内容结论来自足够的 `read-*` projection。
+
+## Scenario 7: Raw Full-Text Fallback
+
+只在 `read-*` projection 明确不足以回答完整 tool call / patch / 长代码 / 原始事件时进入：
+
+1. 先用 Sherlog 定位 `sessionRef` / 时间 / cwd / source。
+2. cold 路径来自 `shlog cold list --json` 或用户明确路径。
+3. 在对应 raw root 取证：hot 通常是 plain `*.jsonl`；cold 可能是逐文件 `*.jsonl.zst`。
+4. 这是 agent-side fallback，不是 `shlog` 子命令，也不代表 cold zst 可被 sync 重建。
 
 ```bash
-"${SHLOG_BIN:-${CXS_BIN:-shlog}}" read-page <sessionUuid> --offset 0 --limit 60 --json
+"${SHLOG_BIN:-${CXS_BIN:-shlog}}" cold list --json
+rg "exact clue" <hot-or-cold-root> --glob '*.jsonl'
+rg -z "exact clue" <cold-root> --glob '*.jsonl.zst'
+zstd -d <cold-session-file>.jsonl.zst -o /tmp/sherlog-session.jsonl
 ```
 
-metadata、title、summary 只能帮助定位;不要只凭这些字段下内容结论。
+完成：已先定位 session；只读取相关 raw；回答明确区分 index projection 与 raw transcript 证据。
 
 ## 来源
 
-- 仓库内 `README.md`
-- 仓库内 `src/query.ts`
-- 仓库内 `src/query/read.ts`
-- 仓库内 `src/types.ts`
+- `src/query.ts`, `src/query/read.ts`, `src/types.ts`, `src/cold-roots.ts`

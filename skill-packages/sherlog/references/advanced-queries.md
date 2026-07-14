@@ -38,27 +38,16 @@
 
 ## 缩范围：什么时候 `list` 胜过 `find`
 
-优先 `list` 的情况：
-
-- 用户给了项目名、repo、cwd
-- 用户给了大致日期或“前几天 / 那周 / 昨天”
-- 用户只记得“在那个项目里做过”，却没有强关键词
-
-典型做法：
+优先 `list`：有项目/cwd/日期、弱关键词。时间+关键词见 progressive-workflow Scenario 4。
 
 ```bash
-"${SHLOG_BIN:-${CXS_BIN:-shlog}}" list --cwd hammerspoon --since 2026-04-15 --json
-```
-
-然后对候选 session 再跑：
-
-```bash
-"${SHLOG_BIN:-${CXS_BIN:-shlog}}" read-range <sessionUuid> --query "IME" --json
+"${SHLOG_BIN:-${CXS_BIN:-shlog}}" list --cwd <repo-cwd> --since <YYYY-MM-DD> --json
+"${SHLOG_BIN:-${CXS_BIN:-shlog}}" read-range <sessionRef> --query "IME" --json
 ```
 
 ## Read-only SQLite metadata projection
 
-当问题只需要 session metadata projection 时,可以直接只读查询 Sherlog SQLite index。SQLite 是加速投影工具,不是内容证据工具；最后仍用 `read-page` / `read-range` 验证内容。
+当问题只需要 session metadata projection 时,可以直接只读查询 Sherlog SQLite index。SQLite 是加速投影工具,不是内容证据工具；常规内容仍用 `read-page` / `read-range` 验证。完整 raw 细节走 progressive-workflow 的 raw full-text fallback，不要在 metadata 查询里直接扫 source root。
 
 稳定可查字段只限:
 
@@ -85,20 +74,20 @@ DB_PATH="$("${SHLOG_BIN:-${CXS_BIN:-shlog}}" status --json | jq -r '.context.dbP
 
 ```bash
 sqlite3 -readonly "$DB_PATH" \
-  "SELECT session_uuid, started_at, message_count, cwd, title
+  "SELECT session_key, started_at, message_count, cwd, title
    FROM sessions
    WHERE message_count > 0
    ORDER BY started_at ASC
    LIMIT 20;"
 ```
 
-某 cwd 下最近 session 候选:
+某 cwd 下最近 session 候选（参数化传入目标 cwd，不拼接不可信输入）:
 
 ```bash
 sqlite3 -readonly "$DB_PATH" \
-  "SELECT session_uuid, ended_at, message_count, title
+  "SELECT session_key, ended_at, message_count, title
    FROM sessions
-   WHERE cwd = '/absolute/path/to/repo'
+   WHERE cwd = '<repo-cwd>'
    ORDER BY ended_at DESC
    LIMIT 20;"
 ```
@@ -118,7 +107,7 @@ sqlite3 -readonly "$DB_PATH" \
 
 ```bash
 sqlite3 -readonly "$DB_PATH" \
-  "SELECT session_uuid, message_count, started_at, ended_at, cwd, title
+  "SELECT session_key, message_count, started_at, ended_at, cwd, title
    FROM sessions
    ORDER BY message_count DESC
    LIMIT 20;"
@@ -127,11 +116,11 @@ sqlite3 -readonly "$DB_PATH" \
 拿到候选后验证内容:
 
 ```bash
-"${SHLOG_BIN:-${CXS_BIN:-shlog}}" read-page <sessionUuid> --offset 0 --limit 30 --json
-"${SHLOG_BIN:-${CXS_BIN:-shlog}}" read-range <sessionUuid> --query "关键词" --before 4 --after 8 --json
+"${SHLOG_BIN:-${CXS_BIN:-shlog}}" read-page <sessionRef> --offset 0 --limit 30 --json
+"${SHLOG_BIN:-${CXS_BIN:-shlog}}" read-range <sessionRef> --query "关键词" --before 4 --after 8 --json
 ```
 
-不要在 metadata projection 里查询 raw source JSONL;正常历史检索的 metadata 和内容都应回到 Sherlog index / Sherlog read commands。
+metadata projection 只查 Sherlog index。常规内容证据用 `read-*` projection；只有 projection 不够时才进入 raw full-text fallback。
 
 ## 同 title 的多变体 session
 
