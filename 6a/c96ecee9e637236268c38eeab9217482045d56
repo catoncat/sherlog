@@ -1,0 +1,20 @@
+package.json
+  s_c49bc0e60b487e::t_824866a90b6a02 16-17
+  s_c49bc0e60b487e::t_4c1d26cae88bda 3
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.14",
+  "base_commit_sha": "6ac96ecee9e637236268c38eeab9217482045d56",
+  "prompts": {},
+  "sessions": {
+    "s_c49bc0e60b487e": {
+      "agent_id": {
+        "tool": "pi",
+        "id": "019f854a-9b10-7b45-bc8f-70f5cb5ed609",
+        "model": "qwen3.8-max-preview"
+      },
+      "human_author": "catoncat <git@chen.rs>"
+    }
+  }
+}
