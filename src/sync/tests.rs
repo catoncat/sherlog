@@ -1724,3 +1724,53 @@ fn pagination_fallback_identity_and_repeated_metadata_stay_stable() {
     assert_eq!((retained.removed, retained.retained_cold), (0, 1));
     assert_eq!(projection_view(&db, &stem).1.len(), 2);
 }
+
+fn claude_line(session_id: &str, kind: &str, text: &str, second: u64) -> String {
+    serde_json::json!({
+        "type": kind,
+        "sessionId": session_id,
+        "cwd": "/work/resume",
+        "timestamp": format!("2026-09-26T00:00:{second:02}Z"),
+        "message": {"content": text},
+    })
+    .to_string()
+}
+
+#[test]
+fn claude_code_resume_copy_keeps_both_files_as_distinct_sessions() {
+    let temp = tempdir().unwrap();
+    let root = temp.path().join("projects");
+    let project = root.join("-work-resume");
+    fs::create_dir_all(&project).unwrap();
+    let parent = "11111111-1111-4111-8111-111111111111";
+    let resumed = "22222222-2222-4222-8222-222222222222";
+    let history = [
+        claude_line(parent, "user", "original question", 1),
+        claude_line(parent, "assistant", "original answer", 2),
+    ];
+    fs::write(
+        project.join(format!("{parent}.jsonl")),
+        format!("{}\n", history.join("\n")),
+    )
+    .unwrap();
+    // Claude Code resumes into a new file that copies the parent's records,
+    // parent sessionId included, before continuing under its own id.
+    let mut copied = history.to_vec();
+    copied.push(claude_line(resumed, "user", "resumed follow-up", 3));
+    fs::write(
+        project.join(format!("{resumed}.jsonl")),
+        format!("{}\n", copied.join("\n")),
+    )
+    .unwrap();
+
+    let db = temp.path().join("index.sqlite");
+    let selected = Selector::All {
+        source: SourceId::ClaudeCode,
+        root: root.to_string_lossy().into_owned(),
+    };
+    let report = run(SyncRequest::new(&db, selected)).unwrap();
+    assert_eq!((report.scanned, report.added), (2, 2));
+    let reader = IndexReader::open(&db).unwrap();
+    assert!(reader.check_invariants().unwrap().is_valid());
+    assert_eq!(reader.stats(SourceId::ClaudeCode).unwrap().session_count, 2);
+}
