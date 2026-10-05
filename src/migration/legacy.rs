@@ -29,6 +29,19 @@ pub(super) struct V7Fingerprint {
     pub coverage_count: u64,
 }
 
+impl V7Fingerprint {
+    /// A stable marker is mixed into the digest instead of an absent column
+    /// value, so a legacy table without the column and one storing explicit
+    /// NULLs never produce the same fingerprint.
+    fn update_coverage_digest_marker(hasher: &mut Hasher, has_set_fingerprint: bool) {
+        if has_set_fingerprint {
+            hasher.update(b"COV14");
+        } else {
+            hasher.update(b"COV13");
+        }
+    }
+}
+
 #[derive(Debug)]
 pub(super) struct CopyOutcome {
     pub receipt: CommitReceipt,
@@ -160,17 +173,30 @@ pub(super) fn fingerprint_v7(path: &Path) -> MigrationResult<V7Fingerprint> {
         hash_missing_table(&mut hasher, "source_file_meta_cache");
         0
     };
+    // The coverage table is only fingerprinted here, never copied: v8 starts
+    // with coverage cleared. The `source_file_set_fingerprint` column was
+    // added by 0.4.4 without bumping `INDEX_VERSION`, so real v7 databases
+    // exist in both 13- and 14-column shapes under the same version string.
+    // Probe the column instead of assuming it, or the fingerprint query fails
+    // with `no such column` and the whole migration aborts.
     let coverage_count = if table_exists(&connection, "coverage")? {
-        hash_query(
-            &connection,
-            &mut hasher,
-            "coverage",
+        let has_set_fingerprint =
+            column_exists(&connection, "coverage", "source_file_set_fingerprint")?;
+        let sql = if has_set_fingerprint {
             "SELECT source_id, selector_key, selector_json, selector_kind, root, cwd, \
                     from_date, to_date, source_fingerprint, source_file_set_fingerprint, \
                     source_file_count, indexed_session_count, completed_at, index_version \
-             FROM coverage ORDER BY selector_key",
-        )?
+             FROM coverage ORDER BY selector_key"
+        } else {
+            "SELECT source_id, selector_key, selector_json, selector_kind, root, cwd, \
+                    from_date, to_date, source_fingerprint, source_file_count, \
+                    indexed_session_count, completed_at, index_version \
+             FROM coverage ORDER BY selector_key"
+        };
+        V7Fingerprint::update_coverage_digest_marker(&mut hasher, has_set_fingerprint);
+        hash_query(&connection, &mut hasher, "coverage", sql)?
     } else {
+        V7Fingerprint::update_coverage_digest_marker(&mut hasher, false);
         hash_missing_table(&mut hasher, "coverage");
         0
     };

@@ -3,7 +3,7 @@ use std::fs::{self, DirBuilder, File, OpenOptions};
 use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::process;
-use std::time::{SystemTime, UNIX_EPOCH};
+use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 #[cfg(unix)]
 use std::os::unix::fs::DirBuilderExt;
@@ -17,6 +17,9 @@ use crate::sync::SyncLock;
 use super::error::{MigrationError, MigrationResult};
 
 const LOCK_SUFFIX: &str = ".sync.lock";
+
+/// How long a `.v7.bak.*` backup stays exempt from stale-backup cleanup.
+const BACKUP_GRACE_PERIOD: Duration = Duration::from_secs(24 * 60 * 60);
 
 #[derive(Debug)]
 pub(super) struct MigrationArtifacts {
@@ -426,6 +429,57 @@ pub(super) fn remove_empty_staging(staging_dir: &Path) -> MigrationResult<()> {
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(()),
         Err(error) => Err(error.into()),
     }
+}
+
+/// Remove stale `.v7.bak.<run_id>` backups left behind by earlier failed
+/// migration attempts. Releases before the coverage-column probe refused to
+/// start on legacy v7 tables that lacked the 0.4.4
+/// `source_file_set_fingerprint` column, and every failed attempt left a fresh
+/// backup behind, so affected users may hold several byte-identical backups.
+///
+/// Best effort and never fatal: backups modified within the last day are
+/// always kept (an in-flight or recently failed attempt may still need them),
+/// and among older backups the single newest one survives so a convenience
+/// copy of the legacy data always remains. The active database itself is
+/// untouched and stays the source of truth until the atomic publish.
+pub(super) fn remove_stale_backups(active: &Path) -> MigrationResult<()> {
+    let parent = active
+        .parent()
+        .ok_or_else(|| MigrationError::Publish(format!("{} has no parent", active.display())))?;
+    let file_name = active
+        .file_name()
+        .ok_or_else(|| MigrationError::Publish(format!("{} has no file name", active.display())))?;
+    let prefix = {
+        let mut value = OsString::from(file_name);
+        value.push(".v7.bak.");
+        value
+    };
+    let now = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap_or_default();
+    let cutoff = now.checked_sub(BACKUP_GRACE_PERIOD).unwrap_or_default();
+    let mut stale: Vec<(SystemTime, PathBuf)> = Vec::new();
+    for entry in fs::read_dir(parent)? {
+        let entry = entry?;
+        let name = entry.file_name();
+        if !name
+            .as_encoded_bytes()
+            .starts_with(prefix.as_encoded_bytes())
+        {
+            continue;
+        }
+        let modified = entry.metadata()?.modified().unwrap_or(UNIX_EPOCH);
+        if modified.duration_since(UNIX_EPOCH).unwrap_or_default() >= cutoff {
+            continue;
+        }
+        stale.push((modified, entry.path()));
+    }
+    // Keep the newest stale backup; older ones are redundant copies.
+    stale.sort_by(|a, b| b.0.cmp(&a.0));
+    for (_, path) in stale.into_iter().skip(1) {
+        let _ = fs::remove_file(path);
+    }
+    Ok(())
 }
 
 pub(super) fn sync_file(path: &Path) -> MigrationResult<()> {
