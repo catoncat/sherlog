@@ -475,7 +475,7 @@ pub(super) fn remove_stale_backups(active: &Path) -> MigrationResult<()> {
         stale.push((modified, entry.path()));
     }
     // Keep the newest stale backup; older ones are redundant copies.
-    stale.sort_by(|a, b| b.0.cmp(&a.0));
+    stale.sort_by_key(|(modified, _)| std::cmp::Reverse(*modified));
     for (_, path) in stale.into_iter().skip(1) {
         let _ = fs::remove_file(path);
     }
