@@ -26,7 +26,8 @@ use artifacts::{
     LegacyWriterLock, MigrationArtifacts, append_suffix, confirm_publication_durability,
     consolidate_active_v7, create_consistent_backup, ensure_supported_platform, match_permissions,
     prepare_staging, preserve_sealed_database, publish_next, quarantine_database_group,
-    quarantine_staging, remove_empty_staging, restore_backup_atomically, seal_next,
+    quarantine_staging, remove_empty_staging, remove_stale_backups, restore_backup_atomically,
+    seal_next,
 };
 pub(crate) use cold_fence::ColdConfigFence;
 pub use error::{MigrationError, MigrationResult};
@@ -122,6 +123,13 @@ fn migrate_with_failure(
     let stale_failed = append_suffix(&artifacts.failed_next, ".preexisting");
     let quarantined_preexisting_next =
         quarantine_database_group(&artifacts.canonical_next, &stale_failed)?;
+    // Earlier releases of this migrator refused to start on legacy v7 tables
+    // without the 0.4.4 `source_file_set_fingerprint` column. Every failed
+    // attempt left a fresh backup behind, so affected users may have several
+    // byte-identical `.v7.bak.*` files crowding the data directory. Retain at
+    // most the newest one (plus a read-only snapshot copy) before writing any
+    // new artifacts.
+    remove_stale_backups(&request.active_db)?;
     let mut cold_fence = ColdConfigFence::inspect(&request.cold_roots_config)?;
     let cold_roots = cold_fence.cold_roots(&request.cwd)?;
     prepare_staging(&artifacts)?;

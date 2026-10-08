@@ -1,6 +1,7 @@
 use std::fs;
 use std::io::{Seek, SeekFrom, Write};
 use std::path::{Path, PathBuf};
+use std::time::{Duration, SystemTime};
 
 use rusqlite::{Connection, params};
 
@@ -674,6 +675,173 @@ impl Fixture {
             .map(|entry| entry.unwrap().file_name().to_string_lossy().into_owned())
             .collect()
     }
+}
+
+fn drop_coverage_set_fingerprint_column(connection: &Connection) {
+    // Rebuild the coverage table exactly as 0.4.3 and earlier wrote it: no
+    // `source_file_set_fingerprint` column, same 13 remaining columns.
+    connection
+        .execute_batch(
+            "CREATE TABLE coverage_legacy (
+               id INTEGER PRIMARY KEY AUTOINCREMENT,
+               source_id TEXT NOT NULL DEFAULT 'codex',
+               selector_key TEXT NOT NULL UNIQUE,
+               selector_json TEXT NOT NULL,
+               selector_kind TEXT NOT NULL,
+               root TEXT NOT NULL,
+               cwd TEXT,
+               from_date TEXT,
+               to_date TEXT,
+               source_fingerprint TEXT NOT NULL,
+               source_file_count INTEGER NOT NULL,
+               indexed_session_count INTEGER NOT NULL,
+               completed_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+               index_version TEXT NOT NULL
+             );
+             INSERT INTO coverage_legacy(
+               source_id, selector_key, selector_json, selector_kind, root,
+               source_fingerprint, source_file_count, indexed_session_count,
+               index_version
+             )
+             SELECT source_id, selector_key, selector_json, selector_kind, root,
+                    source_fingerprint, source_file_count, indexed_session_count,
+                    index_version
+             FROM coverage;
+             DROP TABLE coverage;
+             ALTER TABLE coverage_legacy RENAME TO coverage;",
+        )
+        .unwrap();
+}
+
+fn set_file_mtime(path: &Path, time: SystemTime) {
+    let file = fs::File::options().write(true).open(path).unwrap();
+    file.set_times(std::fs::FileTimes::new().set_modified(time))
+        .unwrap();
+}
+
+#[test]
+fn migration_accepts_legacy_v7_without_source_file_set_fingerprint() {
+    let fixture = Fixture::new();
+    let connection = Connection::open(&fixture.db).unwrap();
+    drop_coverage_set_fingerprint_column(&connection);
+    connection.close().unwrap();
+
+    let report = migrate_v7_to_v8(&fixture.request()).unwrap();
+
+    assert_eq!(report.session_count, 2);
+    assert_eq!(report.message_count, 2);
+    assert_eq!(report.coverage_rows_cleared, 1);
+    let reader = IndexReader::open(&fixture.db).unwrap();
+    assert_eq!(reader.layout(), IndexLayout::V8);
+    assert_eq!(reader.stats(SourceId::Codex).unwrap().session_count, 2);
+}
+
+#[test]
+fn v7_fingerprint_distinguishes_missing_and_null_set_fingerprint_columns() {
+    let temp = tempfile::tempdir().unwrap();
+    let nullable = temp.path().join("nullable-v7.sqlite");
+    let missing = temp.path().join("missing-v7.sqlite");
+    for (path, with_column) in [(&nullable, true), (&missing, false)] {
+        let connection = Connection::open(path).unwrap();
+        create_v7(
+            path,
+            Path::new("/tmp/fingerprint-hot.jsonl"),
+            Path::new("/tmp/fingerprint-cold.jsonl"),
+        );
+        if with_column {
+            // The fixture column is NOT NULL, so rebuild it nullable and store
+            // explicit NULLs. Only the marker mixed into the digest can then
+            // tell the two schema shapes apart.
+            connection
+                .execute_batch(
+                    "CREATE TABLE coverage_nullable (
+                       id INTEGER PRIMARY KEY AUTOINCREMENT,
+                       source_id TEXT NOT NULL DEFAULT 'codex',
+                       selector_key TEXT NOT NULL UNIQUE,
+                       selector_json TEXT NOT NULL,
+                       selector_kind TEXT NOT NULL,
+                       root TEXT NOT NULL,
+                       cwd TEXT,
+                       from_date TEXT,
+                       to_date TEXT,
+                       source_fingerprint TEXT NOT NULL,
+                       source_file_set_fingerprint TEXT,
+                       source_file_count INTEGER NOT NULL,
+                       indexed_session_count INTEGER NOT NULL,
+                       completed_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                       index_version TEXT NOT NULL
+                     );
+                     INSERT INTO coverage_nullable(
+                       source_id, selector_key, selector_json, selector_kind, root,
+                       source_fingerprint, source_file_count, indexed_session_count,
+                       index_version
+                     )
+                     SELECT source_id, selector_key, selector_json, selector_kind, root,
+                            source_fingerprint, source_file_count, indexed_session_count,
+                            index_version
+                     FROM coverage;
+                     DROP TABLE coverage;
+                     ALTER TABLE coverage_nullable RENAME TO coverage;
+                     UPDATE coverage SET source_file_set_fingerprint = NULL;",
+                )
+                .unwrap();
+        } else {
+            drop_coverage_set_fingerprint_column(&connection);
+        }
+        connection.close().unwrap();
+    }
+
+    let nullable = fingerprint_v7(&nullable).unwrap();
+    let missing = fingerprint_v7(&missing).unwrap();
+
+    assert_eq!(nullable.session_count, missing.session_count);
+    assert_eq!(nullable.coverage_count, missing.coverage_count);
+    assert_ne!(nullable.digest, missing.digest);
+}
+
+#[test]
+fn migration_cleans_stale_backups_from_earlier_failed_attempts() {
+    let fixture = Fixture::new();
+    let old_backup = append_suffix(&fixture.db, ".v7.bak.1111111111111111111-1");
+    let newer_backup = append_suffix(&fixture.db, ".v7.bak.2222222222222222222-2");
+    fs::write(&old_backup, b"older stale backup").unwrap();
+    fs::write(&newer_backup, b"newer stale backup").unwrap();
+    // Both timestamps are far enough in the past to be outside the cleanup
+    // grace period; the newest one must survive as the retained copy.
+    set_file_mtime(
+        &old_backup,
+        SystemTime::UNIX_EPOCH + Duration::from_secs(1_700_000_000),
+    );
+    set_file_mtime(
+        &newer_backup,
+        SystemTime::UNIX_EPOCH + Duration::from_secs(1_750_000_000),
+    );
+
+    let report = migrate_v7_to_v8(&fixture.request()).unwrap();
+
+    assert_eq!(report.session_count, 2);
+    assert_eq!(
+        IndexReader::open(&fixture.db).unwrap().layout(),
+        IndexLayout::V8
+    );
+    assert!(!old_backup.exists());
+    assert!(newer_backup.exists());
+    assert_eq!(fs::read(&newer_backup).unwrap(), b"newer stale backup");
+    assert!(report.backup_db.exists());
+}
+
+#[test]
+fn migration_still_accepts_current_v7_with_source_file_set_fingerprint() {
+    let fixture = Fixture::new();
+
+    let report = migrate_v7_to_v8(&fixture.request()).unwrap();
+
+    assert_eq!(report.session_count, 2);
+    assert_eq!(report.coverage_rows_cleared, 1);
+    assert_eq!(
+        IndexReader::open(&fixture.db).unwrap().layout(),
+        IndexLayout::V8
+    );
 }
 
 fn create_v7(db_path: &Path, hot_file: &Path, cold_hot_path: &Path) {
