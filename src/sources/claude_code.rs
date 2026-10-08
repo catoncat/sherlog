@@ -129,11 +129,13 @@ pub(crate) fn project(
         }));
     }
 
-    let native_session_id = if session_id.is_empty() {
-        fallback_session_id(file)
-    } else {
-        session_id
-    };
+    // Claude Code names each transcript `<sessionId>.jsonl`. A resumed session
+    // copies its parent's records, parent `sessionId` included, into a new
+    // file, so the first record's id can name another file's session. The
+    // filename is the file's own identity whenever it has Claude Code's form.
+    let native_session_id = file_session_uuid(file)
+        .or_else(|| (!session_id.is_empty()).then_some(session_id))
+        .unwrap_or_else(|| fallback_session_id(file));
     let session_key = format!("claude-code:{native_session_id}");
     let fallback = fallback_timestamp(file);
     let (started_at, ended_at) = time_range(&documents, [], &fallback);
@@ -164,6 +166,19 @@ pub(crate) fn project(
         read_proof: read.proof,
         checkpoint,
     })))
+}
+
+fn file_session_uuid(file: &SourceFile) -> Option<String> {
+    let stem = file.file_path.file_stem()?.to_str()?;
+    is_uuid(stem).then(|| stem.to_owned())
+}
+
+fn is_uuid(value: &str) -> bool {
+    value.len() == 36
+        && value.bytes().enumerate().all(|(index, byte)| match index {
+            8 | 13 | 18 | 23 => byte == b'-',
+            _ => byte.is_ascii_hexdigit(),
+        })
 }
 
 fn accepted_record(record: &Map<String, Value>) -> Option<AcceptedRecord> {
