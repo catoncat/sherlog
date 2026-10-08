@@ -124,7 +124,7 @@ fn migrate_with_failure(
     let quarantined_preexisting_next =
         quarantine_database_group(&artifacts.canonical_next, &stale_failed)?;
     // Earlier releases of this migrator refused to start on legacy v7 tables
-    // without the 0.4.4 `source_file_set_fingerprint` column. Every failed
+    // without the 0.3.15 `source_file_set_fingerprint` column. Every failed
     // attempt left a fresh backup behind, so affected users may have several
     // byte-identical `.v7.bak.*` files crowding the data directory. Retain at
     // most the newest one (plus a read-only snapshot copy) before writing any

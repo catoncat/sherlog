@@ -175,7 +175,7 @@ pub(super) fn fingerprint_v7(path: &Path) -> MigrationResult<V7Fingerprint> {
     };
     // The coverage table is only fingerprinted here, never copied: v8 starts
     // with coverage cleared. The `source_file_set_fingerprint` column was
-    // added by 0.4.4 without bumping `INDEX_VERSION`, so real v7 databases
+    // added by 0.3.15 without bumping `INDEX_VERSION`, so real v7 databases
     // exist in both 13- and 14-column shapes under the same version string.
     // Probe the column instead of assuming it, or the fingerprint query fails
     // with `no such column` and the whole migration aborts.

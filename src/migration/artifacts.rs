@@ -433,7 +433,7 @@ pub(super) fn remove_empty_staging(staging_dir: &Path) -> MigrationResult<()> {
 
 /// Remove stale `.v7.bak.<run_id>` backups left behind by earlier failed
 /// migration attempts. Releases before the coverage-column probe refused to
-/// start on legacy v7 tables that lacked the 0.4.4
+/// start on legacy v7 tables that lacked the 0.3.15
 /// `source_file_set_fingerprint` column, and every failed attempt left a fresh
 /// backup behind, so affected users may hold several byte-identical backups.
 ///
