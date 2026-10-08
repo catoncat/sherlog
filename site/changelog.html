@@ -198,6 +198,21 @@
   <main>
     <section>
       <div class="release-header">
+        <span class="release-version">v0.6.1</span>
+        <span class="release-date">2026-10-08</span>
+      </div>
+      <ul class="en">
+        <li><strong>Claude Code resumed sessions no longer stall indexing.</strong> A resumed session is a new transcript that starts with a copy of its parent's records, so both files collapsed into one session and every sync rolled back with <code>1 source_files have stale next_seq</code>. Session identity now comes from the transcript filename. Contributed by @odysseus0 (#124).</li>
+        <li><strong>Legacy v7 indexes migrate again.</strong> Indexes whose <code>coverage</code> table predates the <code>source_file_set_fingerprint</code> column (v0.3.15) aborted the v7 &rarr; v8 migration with <code>no such column</code>. The migrator now probes the column, and stale <code>.v7.bak.*</code> backups left by earlier failed attempts are trimmed to the newest one before a new attempt. Contributed by @jiangge (#125).</li>
+      </ul>
+      <ul class="zh">
+        <li><strong>Claude Code 续写会话不再卡住索引。</strong>续写会话是一个新的 transcript，开头复制了父会话的记录，此前两个文件会折叠成同一个 session，每次 sync 都以 <code>1 source_files have stale next_seq</code> 回滚。现在 session 身份取自 transcript 文件名。由 @odysseus0 贡献（#124）。</li>
+        <li><strong>旧版 v7 索引可以再次迁移。</strong><code>coverage</code> 表早于 <code>source_file_set_fingerprint</code> 列（v0.3.15）的索引，在 v7 &rarr; v8 迁移时会报 <code>no such column</code> 中止。迁移器现在先探测该列；之前失败尝试留下的多份 <code>.v7.bak.*</code> 备份在新一次尝试前只保留最新一份。由 @jiangge 贡献（#125）。</li>
+      </ul>
+    </section>
+
+    <section>
+      <div class="release-header">
         <span class="release-version">v0.6.0</span>
         <span class="release-date">2026-09-17</span>
       </div>
@@ -476,8 +491,8 @@
   </main>
 
   <footer>
-    <span class="en">Standalone Rust source &middot; native v0.6.0 &middot; historical npm releases retained below</span>
-    <span class="zh">Standalone Rust 源码 &middot; 原生 v0.6.0 &middot; 下方保留历史 npm 版本记录</span>
+    <span class="en">Standalone Rust source &middot; native v0.6.1 &middot; historical npm releases retained below</span>
+    <span class="zh">Standalone Rust 源码 &middot; 原生 v0.6.1 &middot; 下方保留历史 npm 版本记录</span>
   </footer>
 
   <script>

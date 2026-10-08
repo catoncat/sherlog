@@ -1,6 +1,6 @@
 {
   "name": "sherlog-development",
-  "version": "0.6.0",
+  "version": "0.6.1",
   "private": true,
   "type": "module",
   "description": "Eval harness workspace for the native Sherlog CLI",
