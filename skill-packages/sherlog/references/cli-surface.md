@@ -20,6 +20,7 @@
 - **`find` vs `list`**：`find` 按内容召回；`list` 按项目/时间浏览，关键词弱时用。
 - **`list --cwd` vs `find --cwd`**：`list --cwd` 是 case-insensitive metadata substring filter；`find --cwd` 构造 exact cwd selector。两者的 coverage 语义不同，不要混用。
 - **same selector**：`status`、必要的 `sync`、retry 必须用相同 source/root/selector，否则 coverage proof 不匹配。
+- **读全 vs 写一**：`find` 省略 `--source` 搜全部 source，`sync` 省略 `--source` 只写默认 Codex。非 Codex source 的 freshness 必须显式 `shlog sync --source <id>`；裸 `shlog sync` 会留下一头显示 `covered`、实际已经过期的索引。
 - **source-qualified `sessionRef`**：跨 source 读取用 `find` 返回的 `sessionRef`（如 `claude-code:<native-id>`、`dsh:<native-id>`）；bare UUID 被默认按 Codex 解释，不要从 UUID 猜 source。
 - **`--max-message-chars 0`**：正文过长会 elision；关键句不可见时用 0 禁用 elision 读取全文。
 - **strict vs `--best-effort`**：strict 遇错误不发布 complete coverage；`--best-effort` 可提交成功 projection，但带 `errorDetails` 且不表示 complete。

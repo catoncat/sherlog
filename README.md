@@ -47,9 +47,16 @@ shlog read-range <sessionRef> --seq <matchSeq>   # read around a match
 shlog read-page <sessionRef> --offset 0 --limit 20  # read from the top
 ```
 
+`find` searches all public sources by default; `sync` writes only one. A bare `shlog sync` refreshes the default Codex index, and its text output says so explicitly. Sessions from `pi`, `claude-code`, and `dsh` need their own sync before a miss is trustworthy:
+
+```bash
+shlog sync --source pi
+shlog status --source pi --json     # recommendedAction decides query vs sync
+```
+
 `find` prints one compact block per candidate — date, source, cwd, anchor, title, digest, matched snippet — and a ready-to-run `read:` line. Ten results are about 2k tokens; add `--json` only when you need the full machine contract (`evidenceRead`, coverage, `zeroResults`), which is roughly 4–5× larger.
 
-If `find` suggests a coverage gap, run the suggested `sync` and retry. For project-scoped work:
+If `find` suggests a coverage gap, run the suggested `sync` and retry; the suggestion names the source it wants refreshed, so on a query that spans sources it tells you to run `shlog sync --source <id>` rather than a bare `shlog sync`. For project-scoped work:
 
 ```bash
 shlog status --cwd /Users/you/work/project --json

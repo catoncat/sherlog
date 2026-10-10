@@ -71,7 +71,7 @@ shlog status --cwd <repo-cwd> --json
 ```
 
 - `fresh + complete`：refine query；
-- `missing/stale + sync`：同 source/root/cwd sync 后 retry；
+- `missing/stale + sync`：同 source/root/cwd 用 `shlog sync --source <id>` 后再 retry；source 不是 codex 时不能用裸 `shlog sync` 代替；
 - `source_content_changed + query`：现有 index 可先查，只有 latest tail 重要时再 sync。
 
 完成：必要操作已重试；只在 coverage 可证明时下完整 miss 结论。

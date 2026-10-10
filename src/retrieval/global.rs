@@ -123,7 +123,11 @@ pub fn merge_find_summaries(
     let next_action = if !coverage_actions.is_empty() {
         Some(build_cross_source_coverage_next_action(&coverage_actions))
     } else if results.is_empty() {
-        Some(build_cross_source_zero_results_next_action())
+        let sources = summaries
+            .iter()
+            .flat_map(|summary| summary.source_ids.iter().copied())
+            .collect::<Vec<_>>();
+        Some(build_cross_source_zero_results_next_action(&sources))
     } else {
         None
     };
@@ -201,15 +205,21 @@ fn merged_coverage_freshness(
     }
 }
 
-fn build_cross_source_zero_results_next_action() -> QueryNextAction {
+fn build_cross_source_zero_results_next_action(sources: &[SourceId]) -> QueryNextAction {
+    let source_list = sources
+        .iter()
+        .map(|source| source.as_str())
+        .collect::<Vec<_>>()
+        .join(", ");
     QueryNextAction {
         kind: QueryNextActionKind::ChooseSelectorThenCheckCoverage,
         reason: QueryNextActionReason::ZeroResultsWithoutSelector,
         selector: None,
         steps: vec![
-            "Run shlog status --source <id> for each relevant public source and selector."
+            format!("This find searched {source_list}."),
+            "For each of those sources, run shlog status --source <id> for the same selector."
                 .to_owned(),
-            "If any source reports requestedCoverage.recommendedAction as sync, run shlog sync --source <id> for that source and selector."
+            "If a source reports requestedCoverage.recommendedAction as sync, run shlog sync --source <id> for that source and selector. Bare shlog sync refreshes only the default Codex source."
                 .to_owned(),
             "Retry this find before concluding nothing exists.".to_owned(),
         ],

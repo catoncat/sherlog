@@ -17,7 +17,11 @@ pub(super) fn write_json(writer: &mut dyn Write, value: &impl Serialize) -> Resu
     writeln!(writer).map_err(AppError::output)
 }
 
-pub(super) fn write_sync_text(writer: &mut dyn Write, report: &SyncReport) -> Result<(), AppError> {
+pub(super) fn write_sync_text(
+    writer: &mut dyn Write,
+    report: &SyncReport,
+    default_source_selected: bool,
+) -> Result<(), AppError> {
     writeln!(writer, "shlog sync").map_err(AppError::output)?;
     writeln!(
         writer,
@@ -25,6 +29,21 @@ pub(super) fn write_sync_text(writer: &mut dyn Write, report: &SyncReport) -> Re
         serde_json::to_string(&report.selector).map_err(AppError::output)?
     )
     .map_err(AppError::output)?;
+    if default_source_selected {
+        let synced = report.selector.source().as_str();
+        writeln!(
+            writer,
+            "scope:    --source was not given, so this refreshed only the default source {synced}; other sources are unchanged."
+        )
+        .map_err(AppError::output)?;
+        let others = crate::identity::SourceId::ALL
+            .iter()
+            .filter(|source| source.as_str() != synced)
+            .map(|source| source.as_str())
+            .collect::<Vec<_>>()
+            .join("|");
+        writeln!(writer, "next:     shlog sync --source <{others}>").map_err(AppError::output)?;
+    }
     writeln!(writer, "scanned:  {}", report.scanned).map_err(AppError::output)?;
     writeln!(writer, "added:    {}", report.added).map_err(AppError::output)?;
     writeln!(writer, "updated:  {}", report.updated).map_err(AppError::output)?;
@@ -958,5 +977,66 @@ mod tests {
             String::from_utf8(out).unwrap(),
             "shlog list\n\n[1] 2026-09-11 · /repo · 1 msg\n  收尾\n  summary: assistant: 先看 git status\n  read: shlog read-page 0199-bbbb --offset 0 --limit 40 --db /db.sqlite\n"
         );
+    }
+
+    fn sync_report(source: SourceId) -> SyncReport {
+        SyncReport {
+            scanned: 1,
+            added: 0,
+            updated: 0,
+            skipped: 1,
+            filtered: 0,
+            removed: 0,
+            retained_cold: 0,
+            errors: 0,
+            error_details: vec![],
+            selector: Selector::All {
+                source,
+                root: "/raw".to_owned(),
+            },
+            coverage: crate::model::CoverageWriteSummary {
+                written: true,
+                selector: Selector::All {
+                    source,
+                    root: "/raw".to_owned(),
+                },
+                source_fingerprint: "f".to_owned(),
+                source_file_set_fingerprint: "s".to_owned(),
+                source_file_count: 1,
+                indexed_session_count: 1,
+                reason: None,
+                stale_reason: None,
+                recommended_action: None,
+            },
+        }
+    }
+
+    /// A bare `shlog sync` refreshes one source. Say so, and name the others,
+    /// instead of leaving the reader to discover it from a stale index.
+    #[test]
+    fn sync_text_discloses_the_default_source_when_none_was_requested() {
+        let mut out = Vec::new();
+        write_sync_text(&mut out, &sync_report(SourceId::Codex), true).unwrap();
+        let text = String::from_utf8(out).unwrap();
+        assert!(text.contains("shlog sync\n"), "{text}");
+        assert!(
+            text.contains(
+                "scope:    --source was not given, so this refreshed only the default source codex"
+            ),
+            "{text}"
+        );
+        assert!(
+            text.contains("next:     shlog sync --source <claude-code|pi|dsh>"),
+            "{text}"
+        );
+    }
+
+    #[test]
+    fn sync_text_stays_quiet_when_a_source_was_explicit() {
+        let mut out = Vec::new();
+        write_sync_text(&mut out, &sync_report(SourceId::Pi), false).unwrap();
+        let text = String::from_utf8(out).unwrap();
+        assert!(!text.contains("scope:"), "{text}");
+        assert!(!text.contains("next:     shlog sync"), "{text}");
     }
 }

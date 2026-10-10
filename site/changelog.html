@@ -198,6 +198,21 @@
   <main>
     <section>
       <div class="release-header">
+        <span class="release-version">v0.6.2</span>
+        <span class="release-date">2026-10-10</span>
+      </div>
+      <ul class="en">
+        <li><strong>Misses stop hiding a stale index.</strong> A zero-result <code>find</code> used to point at a bare <code>shlog sync</code>, which refreshes only the default Codex source. Following that advice left <code>pi</code>, <code>claude-code</code> and <code>dsh</code> indexes stale while the result header still read <code>covered</code>, turning &ldquo;the index is out of date&rdquo; into &ldquo;this never happened&rdquo;. Zero-result guidance now names the searched sources and hands back the <code>shlog sync --source &lt;id&gt;</code> command that actually repairs them.</li>
+        <li><strong>Bare <code>shlog sync</code> says what it skipped.</strong> Text output prints a <code>scope:</code> line stating that no <code>--source</code> was given so only the default source was refreshed, plus a <code>next:</code> line listing the other sources. Behavior is unchanged; the scope is no longer implicit.</li>
+      </ul>
+      <ul class="zh">
+        <li><strong>零结果不再掩盖过期索引。</strong>零结果的 <code>find</code> 以前指向裸 <code>shlog sync</code>，而它只刷新默认 Codex 源。照做之后 <code>pi</code> / <code>claude-code</code> / <code>dsh</code> 的索引仍是旧的，结果头部却写着 <code>covered</code>，把“索引过期”变成了“从没发生过”。现在零结果提示会点名本次搜索的 source，并给出真正能修复的 <code>shlog sync --source &lt;id&gt;</code> 命令。</li>
+        <li><strong>裸 <code>shlog sync</code> 会说明它跳过了什么。</strong>文本输出新增 <code>scope:</code> 行，说明未传 <code>--source</code> 所以只刷新了默认源；并用 <code>next:</code> 行列出其他 source。行为不变，scope 不再是隐含的。</li>
+      </ul>
+    </section>
+
+    <section>
+      <div class="release-header">
         <span class="release-version">v0.6.1</span>
         <span class="release-date">2026-10-08</span>
       </div>
@@ -491,8 +506,8 @@
   </main>
 
   <footer>
-    <span class="en">Standalone Rust source &middot; native v0.6.1 &middot; historical npm releases retained below</span>
-    <span class="zh">Standalone Rust 源码 &middot; 原生 v0.6.1 &middot; 下方保留历史 npm 版本记录</span>
+    <span class="en">Standalone Rust source &middot; native v0.6.2 &middot; historical npm releases retained below</span>
+    <span class="zh">Standalone Rust 源码 &middot; 原生 v0.6.2 &middot; 下方保留历史 npm 版本记录</span>
   </footer>
 
   <script>

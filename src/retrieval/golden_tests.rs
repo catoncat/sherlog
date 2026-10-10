@@ -4,9 +4,10 @@ use super::*;
 use crate::identity::SourceId;
 use crate::index::DocumentKind;
 use crate::model::{
-    CoverageFreshness, FindMatchRole, FindMatchedField, FindResult, FindSort, MatchSource,
-    MessageRecord, MessageRole, ZeroResultsReason,
+    CoverageFreshness, CoverageStatus, FindMatchRole, FindMatchedField, FindResult, FindSort,
+    FindSummary, MatchSource, MessageRecord, MessageRole, QueryNextActionReason, ZeroResultsReason,
 };
+use crate::selector::Selector;
 
 const RANK_NOW: i64 = 1_777_766_400_000; // 2026-05-03T00:00:00Z
 
@@ -364,6 +365,32 @@ fn zero_result_helpers_match_ts_mixed_language_guidance() {
     assert!(diagnosis.hints[0].contains("do not treat this miss as proof"));
 }
 
+/// Regression for the reported miss: a zero-result `find` used to tell the
+/// reader to run bare `shlog sync`, which only refreshes the default Codex
+/// source, so following the advice never repaired a stale `pi` index.
+#[test]
+fn zero_result_next_action_names_the_searched_source() {
+    let selector = Selector::All {
+        source: SourceId::Pi,
+        root: "/Users/me/.pi/agent/sessions".to_owned(),
+    };
+    let action = build_zero_results_next_action(SourceId::Pi, Some(&selector), "this find");
+    let steps = action.steps.join("\n");
+    assert!(steps.contains("shlog status --source pi"), "{steps}");
+    assert!(steps.contains("shlog sync --source pi"), "{steps}");
+    assert!(
+        steps.contains("Bare shlog sync refreshes only the default Codex source"),
+        "{steps}"
+    );
+
+    let unscoped = build_zero_results_next_action(SourceId::Dsh, None, "this command");
+    let unscoped_steps = unscoped.steps.join("\n");
+    assert!(
+        unscoped_steps.contains("shlog sync --source dsh"),
+        "{unscoped_steps}"
+    );
+}
+
 #[test]
 fn global_merge_uses_rrf_and_stable_cross_source_order() {
     assert_eq!(
@@ -386,6 +413,59 @@ fn global_merge_uses_rrf_and_stable_cross_source_order() {
     assert_eq!(merged[0].score, 1.0 / 61.0);
     assert_eq!(merged[0].rank, 1);
     assert_eq!(merged[1].rank, 2);
+}
+
+/// The cross-source zero-result guidance must name exactly the sources that
+/// were searched, so the reader can sync each of them instead of guessing.
+#[test]
+fn cross_source_zero_result_next_action_lists_searched_sources() {
+    let summary = merge_find_summaries(
+        "missing thing",
+        FindSort::Relevance,
+        &[],
+        &[
+            empty_summary(SourceId::Pi),
+            empty_summary(SourceId::ClaudeCode),
+        ],
+        10,
+    )
+    .unwrap();
+    let action = summary.next_action.expect("zero results get guidance");
+    assert_eq!(
+        action.reason,
+        QueryNextActionReason::ZeroResultsWithoutSelector
+    );
+    let steps = action.steps.join("\n");
+    assert!(
+        steps.contains("This find searched pi, claude-code"),
+        "{steps}"
+    );
+    assert!(steps.contains("shlog sync --source <id>"), "{steps}");
+    assert!(
+        steps.contains("Bare shlog sync refreshes only the default Codex source"),
+        "{steps}"
+    );
+}
+
+fn empty_summary(source: SourceId) -> FindSummary {
+    FindSummary {
+        query: "missing thing".to_owned(),
+        source_ids: vec![source],
+        sort: FindSort::Relevance,
+        excluded_sessions: vec![],
+        results: vec![],
+        scanned_message_count: 0,
+        coverage: CoverageStatus {
+            requested: None,
+            complete: true,
+            freshness: CoverageFreshness::Fresh,
+            stale_reason: None,
+            covering_selectors: vec![],
+        },
+        coverage_by_source: None,
+        next_action: None,
+        zero_results: None,
+    }
 }
 
 #[test]

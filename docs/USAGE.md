@@ -128,6 +128,8 @@ shlog find "deployment failure" --source claude-code
 shlog read-page claude-code:<native-session-id> --offset 0 --limit 20
 ```
 
+写入与读取的 source 默认值不对称：`find` 默认搜全部 source，而 `sync` 默认只写 Codex。裸 `shlog sync` 不会刷新 `pi` / `claude-code` / `dsh` 的索引，文本输出会打印一行 `scope:` 说明这次只刷了哪个 source，并给出其余 source 的 `--source` 命令。跨 source 结论依赖 freshness 时，对每个相关 source 单独 `shlog sync --source <id>`，或先跑 `shlog status --source <id> --json` 看 `recommendedAction`。
+
 未知 source 在扫描/查询前返回 `unsupported_source`。
 
 ## Selector 与 coverage scope
@@ -204,7 +206,7 @@ shlog status --inventory --json
 - `coveringSelectors`
 - `recommendedAction`: `query | sync`
 
-`find/list` 中的 coverage 只来自 stored SQLite proof，不做 live raw scan；其 `freshness` 当前为 `not_checked`，即使 `complete=true`（文本输出里的 `covered`）也只表示存在 compatible covering record。结果仍可作为 best-effort candidate。若零结果或答案要求 latest/completeness，先运行同 selector 的 `status`：`recommendedAction=query` 时无需 sync，`recommendedAction=sync` 时才同步同范围并重试。
+`find/list` 中的 coverage 只来自 stored SQLite proof，不做 live raw scan；其 `freshness` 当前为 `not_checked`，即使 `complete=true`（文本输出里的 `covered`）也只表示存在 compatible covering record。结果仍可作为 best-effort candidate。若零结果或答案要求 latest/completeness，先运行同 selector 的 `status`：`recommendedAction=query` 时无需 sync，`recommendedAction=sync` 时才同步同范围并重试。零结果的 `nextAction` 会点名本次搜索的 source 并给出带 `--source` 的 sync 命令；`sync` 省略 `--source` 只刷新默认 Codex，不要用它去补其他 source。
 
 ## Sync
 
@@ -212,12 +214,15 @@ shlog status --inventory --json
 
 ```bash
 shlog sync --json
+shlog sync --source pi --json
 shlog sync --cwd /Users/you/work/project --json
 shlog sync --source claude-code --root "$HOME/.claude/projects" --json
 shlog sync --best-effort --json
 shlog sync --prune --json
 shlog sync --prune --cold-root /archive/codex --json
 ```
+
+`sync` 省略 `--source` 时只刷新默认 Codex 源（并作为首次安装的 bootstrap）；其他 source 必须显式 `--source <id>`。文本输出在这种情况下会打印 `scope:` / `next:` 两行说明。
 
 默认 strict：选中输入出现 scan/parse/projection/revalidation error 时命令非零，不发布部分 complete coverage。`--best-effort` 可提交成功文件并在 `errorDetails` 报告失败，但不会把不完整运行标成 complete coverage。
 

@@ -1,5 +1,6 @@
 use std::collections::HashSet;
 
+use crate::identity::SourceId;
 use crate::model::{
     CoverageFreshness, QueryNextAction, QueryNextActionKind, QueryNextActionReason,
     ZeroResultsDiagnosis, ZeroResultsReason,
@@ -103,18 +104,21 @@ pub fn build_zero_result_diagnosis(
 }
 
 pub fn build_zero_results_next_action(
+    source: SourceId,
     selector: Option<&Selector>,
     command_label: &str,
 ) -> QueryNextAction {
+    let source = source.as_str();
     if let Some(selector) = selector {
         return QueryNextAction {
             kind: QueryNextActionKind::CheckCoverageThenRetry,
             reason: QueryNextActionReason::ZeroResultsWithUnconfirmedSelectorCoverage,
             selector: Some(selector.clone()),
             steps: vec![
-                "Run shlog status for the same selector.".to_owned(),
-                "If status requestedCoverage.recommendedAction is sync, run shlog sync for the same selector."
-                    .to_owned(),
+                format!("Run shlog status --source {source} for the same selector."),
+                format!(
+                    "If status requestedCoverage.recommendedAction is sync, run shlog sync --source {source} for the same selector. Bare shlog sync refreshes only the default Codex source."
+                ),
                 format!(
                     "Retry {command_label} with the same selector before concluding nothing exists."
                 ),
@@ -128,9 +132,9 @@ pub fn build_zero_results_next_action(
         selector: None,
         steps: vec![
             "Choose the narrowest relevant root, cwd, or date selector.".to_owned(),
-            "Run shlog status for that selector.".to_owned(),
+            format!("Run shlog status --source {source} for that selector."),
             format!(
-                "If status requestedCoverage.recommendedAction is sync, run shlog sync for that selector, then retry {command_label}."
+                "If status requestedCoverage.recommendedAction is sync, run shlog sync --source {source} for that selector. Bare shlog sync refreshes only the default Codex source. Then retry {command_label}."
             ),
         ],
         commands: None,

@@ -162,7 +162,7 @@ impl NativeAppServices {
                 .map_err(|error| map_index_error(error, reader.path(), &self.cwd, &self.paths))?;
             let next_action = results
                 .is_empty()
-                .then(|| build_zero_results_next_action(Some(&selector), "this find"));
+                .then(|| build_zero_results_next_action(source, Some(&selector), "this find"));
             summaries.push(FindSummary {
                 query: args.query.clone(),
                 source_ids: vec![source],
@@ -406,12 +406,13 @@ impl NativeAppServices {
         &self,
         report: &SyncReport,
         json: bool,
+        default_source_selected: bool,
         writer: &mut dyn Write,
     ) -> Result<(), AppError> {
         if json {
             write_json(writer, report)
         } else {
-            write_sync_text(writer, report)
+            write_sync_text(writer, report, default_source_selected)
         }
     }
 
@@ -644,7 +645,7 @@ impl AppServices for NativeAppServices {
         request.pending_cold_roots = pending_cold_roots;
 
         match run_with_cutover(request, &mut cold_fence) {
-            Ok(report) => self.emit_sync_report(&report, args.json, stdout),
+            Ok(report) => self.emit_sync_report(&report, args.json, args.source.is_none(), stdout),
             Err(failure) => {
                 let report = failure.report;
                 let writer: &mut dyn Write = if args.json && !args.best_effort {
@@ -652,7 +653,7 @@ impl AppServices for NativeAppServices {
                 } else {
                     stdout
                 };
-                self.emit_sync_report(&report, args.json, writer)?;
+                self.emit_sync_report(&report, args.json, args.source.is_none(), writer)?;
                 Err(AppError::command_failed_silent())
             }
         }
@@ -814,7 +815,7 @@ impl AppServices for NativeAppServices {
             coverage: indexed_coverage(&records, selector.as_ref()),
             next_action: results
                 .is_empty()
-                .then(|| build_zero_results_next_action(selector.as_ref(), "this command")),
+                .then(|| build_zero_results_next_action(source, selector.as_ref(), "this command")),
             results,
         };
         if args.json {
