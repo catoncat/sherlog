@@ -198,6 +198,23 @@
   <main>
     <section>
       <div class="release-header">
+        <span class="release-version">v0.6.3</span>
+        <span class="release-date">2026-11-03</span>
+      </div>
+      <ul class="en">
+        <li><strong>Codex history that Codex compressed is indexed.</strong> Codex compresses a rollout that has been idle for 7 days into <code>rollout-*.jsonl.zst</code> and deletes the plain file. <code>shlog sync</code> only read <code>.jsonl</code>, so a fresh install saw almost none of its history (8,589 of 8,601 rollouts on one test machine). Sync now streams compressed rollouts through the same privacy allowlist; both forms project the same sessions, and a rollout that moves between forms (compression, resume, archiving into <code>archived_sessions</code>) keeps its session instead of becoming a duplicate. Contributed by @odysseus0 (#126).</li>
+        <li><strong>Archiving no longer rolls back a sync.</strong> Codex archives a session by moving its rollout into <code>archived_sessions/</code>; syncing that root left a second cursor on the session and every sync rolled back. The session now moves to its new path. Older <code>&lt;base&gt;_&lt;segment&gt;</code> rollouts without <code>history_base</code> get their own session instead of colliding with their base. Contributed by @odysseus0 (#126).</li>
+        <li><strong>The first sync after upgrading re-reads Codex files once.</strong> The Codex interpretation marker changed, so every Codex file is replayed in full on the next sync; later syncs skip unchanged files as usual. Also: a truncated <code>.jsonl.zst</code> is reported as a per-file failure instead of indexing a partial session, and <code>--prune</code> keeps a session bound to a compressed rollout while Codex resumes it.</li>
+      </ul>
+      <ul class="zh">
+        <li><strong>被 Codex 压缩的历史也能索引了。</strong>Codex 会把闲置 7 天的 rollout 压成 <code>rollout-*.jsonl.zst</code> 并删除原 <code>.jsonl</code>，而 <code>shlog sync</code> 以前只读 <code>.jsonl</code>，新装几乎看不到历史（一台测试机上 8,601 个 rollout 中有 8,589 个是压缩的）。现在 sync 会流式解压并走同一套隐私 allowlist；两种形态投影出相同的会话，rollout 在两种形态之间切换（压缩、恢复、归档到 <code>archived_sessions</code>）时保留原会话，不会变成重复。由 @odysseus0 贡献（#126）。</li>
+        <li><strong>归档不再让 sync 回滚。</strong>Codex 归档会把 rollout 挪到 <code>archived_sessions/</code>，以前同步该目录会给会话多挂一个游标，每次 sync 都回滚。现在会话会换绑到新路径。没有 <code>history_base</code> 的旧 <code>&lt;base&gt;_&lt;segment&gt;</code> 分段 rollout 有了自己的会话，不再和 base 撞在一起。由 @odysseus0 贡献（#126）。</li>
+        <li><strong>升级后第一次 sync 会把 Codex 文件重读一遍。</strong>Codex 解析标记变了，下一次 sync 会整份重放所有 Codex 文件；之后无变化的文件照常跳过。另外：截断的 <code>.jsonl.zst</code> 会报为单文件失败，不再索引半个会话；Codex 恢复压缩会话期间，<code>--prune</code> 不会删掉还绑在压缩文件上的会话。</li>
+      </ul>
+    </section>
+
+    <section>
+      <div class="release-header">
         <span class="release-version">v0.6.2</span>
         <span class="release-date">2026-10-10</span>
       </div>
@@ -506,8 +523,8 @@
   </main>
 
   <footer>
-    <span class="en">Standalone Rust source &middot; native v0.6.2 &middot; historical npm releases retained below</span>
-    <span class="zh">Standalone Rust 源码 &middot; 原生 v0.6.2 &middot; 下方保留历史 npm 版本记录</span>
+    <span class="en">Standalone Rust source &middot; native v0.6.3 &middot; historical npm releases retained below</span>
+    <span class="zh">Standalone Rust 源码 &middot; 原生 v0.6.3 &middot; 下方保留历史 npm 版本记录</span>
   </footer>
 
   <script>
