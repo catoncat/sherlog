@@ -120,14 +120,21 @@ npx skills add -g catoncat/sherlog
    ```
 
    完成：tap `Formula/sherlog.rb` 的 `version` 与 sha256 对应该 Release。
-6. 立刻部署官网。Pages 项目 `sherlog-site`（自定义域 `sherlog.net`）**没有接 Git**，push tag 不会更新站点。用 wrangler OAuth，账号必须是拥有该项目的 `1x02790@gmail.com`：
+6. 立刻部署官网。Pages 项目 `sherlog-site`（自定义域 `sherlog.net`）**没有接 Git**，push tag 不会更新站点。账号必须是拥有该项目的 `1x02790@gmail.com`。部署一律用 `wrangler pages deploy`，认证任选其一：
+   - wrangler 已登录（`npx wrangler@4 whoami` 是该账号）：直接部署。
+   - wrangler 未登录但 `cf` CLI 已登录（`cf auth whoami` 是该账号，scope 含 `pages:write`）：把 `cf` 的 OAuth token 只放在这一条命令的环境变量里交给 wrangler，不要打印或写进文件。不要用 `cf` 部署：`cf pages deploy` 不支持旧版 Pages，它建议的 `cf deploy` 部署到 Pages on Workers，不会更新 `sherlog-site`。
 
    ```bash
-   wrangler whoami
-   cd site && wrangler pages deploy . --project-name sherlog-site --branch main --commit-hash "$(git rev-parse HEAD)"
+   cd site
+   # wrangler 已登录
+   npx wrangler@4 pages deploy . --project-name sherlog-site --branch main --commit-hash "$(git rev-parse HEAD)"
+   # 只有 cf 已登录（macOS 上 cf 的配置路径）
+   CLOUDFLARE_API_TOKEN="$(jq -r .oauth_token ~/Library/Preferences/cloudflare/config/default.json)" \
+   CLOUDFLARE_ACCOUNT_ID="$(cf auth whoami | jq -r '.accounts[0].id')" \
+   npx wrangler@4 pages deploy . --project-name sherlog-site --branch main --commit-hash "$(git rev-parse HEAD)"
    ```
 
-   完成：`curl` https://sherlog.net 与 `/changelog` 显示新版本；`wrangler pages deployment list --project-name sherlog-site` 的 Production 行是本次 commit。
+   完成：`curl` https://sherlog.net、`/changelog`、`/upgrade` 都显示新版本（自定义域可能比部署 URL 晚几秒）；`cf pages deployments list --project-name sherlog-site --env production` 或 `npx wrangler@4 pages deployment list --project-name sherlog-site` 的 Production 行是本次 commit。
 7. 用户明确要求更新本机 PATH 时再装：`brew update && brew upgrade catoncat/sherlog/sherlog`，或跑 Release 里的 `install.sh`。未要求则保持全局 CLI 不动。
    完成：`shlog --version` 对得上，或 closeout 写明仍是旧版。
 
