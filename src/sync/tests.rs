@@ -2305,3 +2305,46 @@ fn compressing_an_indexed_rollout_in_place_counts_as_an_update() {
     assert_eq!((report.added, report.updated), (0, 1));
     assert!(report.coverage.written);
 }
+
+/// While a resumed rollout exists in both forms the scan selects only the
+/// plain file. If that file is left out of the write (deferred while Codex
+/// appends to it, or refused under `--best-effort`), `--prune` must still see
+/// the session's raw file as present and keep the session bound to the
+/// compressed twin.
+#[test]
+fn prune_keeps_a_session_whose_compressed_twin_is_shadowed_by_an_omitted_plain_file() {
+    let temp = tempdir().unwrap();
+    let root = temp.path().join("sessions");
+    let id = "cececece-cece-4ece-8ece-cececececece";
+    let name = format!("rollout-2026-08-15T00-00-00-{id}.jsonl");
+    let plain = root.join("2026/08/15").join(&name);
+    fs::create_dir_all(plain.parent().unwrap()).unwrap();
+    write_compressed_rollout(
+        &PathBuf::from(format!("{}.zst", plain.to_string_lossy())),
+        &rollout_bytes(id, 1),
+    );
+    let db = temp.path().join("index.sqlite");
+    run(SyncRequest::new(&db, selector(&root))).unwrap();
+    let before = projection_view(&db, id);
+
+    // Resume materializes the plain twin; a stray copy of it elsewhere in the
+    // root makes both plain files refused duplicates of one session.
+    fs::write(&plain, rollout_bytes(id, 2)).unwrap();
+    let copy = root.join("2026/08/16").join(&name);
+    fs::create_dir_all(copy.parent().unwrap()).unwrap();
+    fs::copy(&plain, &copy).unwrap();
+    let mut request = SyncRequest::new(&db, selector(&root));
+    request.best_effort = true;
+    request.prune = true;
+    let report = run(request).unwrap();
+    assert_eq!((report.errors, report.removed), (2, 0));
+    let after = projection_view(&db, id);
+    assert_eq!(after, before);
+    assert!(
+        IndexReader::open(&db)
+            .unwrap()
+            .check_invariants()
+            .unwrap()
+            .is_valid()
+    );
+}

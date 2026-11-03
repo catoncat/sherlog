@@ -418,9 +418,17 @@ fn run_with_snapshot_hook_and_cutover(
         HashSet::new()
     };
 
+    // A selected file also retains its storage twin: the scan shadows a
+    // compressed Codex rollout behind its plain form, and a session still
+    // bound to the twin has its raw file present even if the selected file is
+    // left out of this write (deferred, invalid or a refused duplicate).
     let retained_hot_paths = before_files
         .iter()
-        .map(|file| file.file_path.to_string_lossy().into_owned())
+        .flat_map(|file| {
+            std::iter::once(file.file_path.clone())
+                .chain(SourceCatalog.superseded_path(file.source_id, &file.file_path))
+        })
+        .map(|path| path.to_string_lossy().into_owned())
         .collect::<HashSet<_>>();
     let write_result = write_index(
         &request,
