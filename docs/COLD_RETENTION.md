@@ -4,11 +4,13 @@
 
 Sherlog 把 raw transcript 与 searchable projection 分开管理。用户可以压缩/移动旧 Codex JSONL，同时让 SQLite 中的历史 session 继续可查；cold registration 只保护显式 prune，不承担重建索引的职责。
 
+Codex 自己会把闲置 rollout 压缩为同目录的 `rollout-*.jsonl.zst`。这不是 cold：被 sync 的 root（包括 `~/.codex/archived_sessions`）下的 `.jsonl.zst` 是 hot raw，`sync` 会解压索引（见 `docs/SOURCE_CONTRACTS.md` Codex storage forms）。本文的 cold root 指登记后只做 presence 的 archive root。
+
 ## 三层状态
 
-1. **Hot raw**：source adapter 正常扫描的 plain transcript root，例如 `~/.codex/sessions`。
+1. **Hot raw**：被 `sync` 扫描的 transcript root，例如 `~/.codex/sessions`；Codex 的 plain `.jsonl` 与 `.jsonl.zst` 都在此层。
 2. **Index projection**：`~/.local/state/shlog/index.sqlite`；`find`、`read-*`、`list`、`stats` 的唯一内容真相。
-3. **Cold raw**：用户管理的 archive root，例如逐文件 `rollout-*.jsonl.zst`。
+3. **Cold raw**：用户登记、但不作为 `--root` sync 的 archive root，例如逐文件 `rollout-*.jsonl.zst`。
 
 v8 没有 metadata sidecar。cold registration 存在 SQLite `cold_roots` 表；legacy `cold-roots.json` 只可能由旧发布版留下，当前 native CLI 不创建或更新它，只在首次 v8 bootstrap/migration 时作为 one-shot import 输入。
 
@@ -64,7 +66,7 @@ shlog sync --source codex --prune --json
 ...<uuid>.jsonl.zst
 ```
 
-它不会读取 zstd body，也不会验证 archive 内容与 indexed projection 相同。因此归档正确性由用户的 move/compress verification 保证。
+它不会读取 zstd body，也不会验证 archive 内容与 indexed projection 相同。因此归档正确性由用户的 move/compress verification 保证。要让 archive 中的 rollout 可检索（包括从未索引过的），把该目录作为 `--root` sync；那时它是 hot root，`.jsonl.zst` 会被解压索引。
 
 Claude Code 与 Pi adapter 可以正常 sync/query，但带 cold root 的 destructive prune 尚未定义可靠 identity mapping；这类操作 fail closed，而不是猜测并删除。
 
@@ -144,7 +146,7 @@ shlog cold remove --root /archive/codex --source codex --json
 shlog sync --source codex --prune --json
 ```
 
-恢复误移走的 hot raw 不需要特殊命令：把验证过的 plain JSONL 放回正确 source root，再运行同范围 `sync`。如果 projection 已被 prune，而只剩 `.jsonl.zst`，当前 `sync` 不会自动解压重建；先由用户恢复 plain JSONL，或从可靠 backup 恢复 index。
+恢复误移走的 hot raw 不需要特殊命令：把验证过的 plain JSONL 或 Codex `rollout-*.jsonl.zst` 放回正确 source root（或对其所在目录用 `--root`），再运行同范围 `sync`。只在 registered cold root 中的文件不会被解压重建。
 
 ## Failure handling
 

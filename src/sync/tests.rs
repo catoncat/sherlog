@@ -1397,7 +1397,7 @@ fn codex_response_item_rollouts_are_indexed_without_injected_context() {
 
 #[test]
 fn codex_interpretation_upgrade_replays_empty_and_nonempty_consumed_cursors() {
-    for (legacy_count, version) in [(0, "v1"), (1, "v1"), (1, "v2")] {
+    for (legacy_count, version) in [(0, "v1"), (1, "v1"), (1, "v2"), (1, "v3")] {
         let temp = tempdir().unwrap();
         let root = temp.path().join("sessions");
         let id = "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee";
@@ -1773,4 +1773,666 @@ fn claude_code_resume_copy_keeps_both_files_as_distinct_sessions() {
     let reader = IndexReader::open(&db).unwrap();
     assert!(reader.check_invariants().unwrap().is_valid());
     assert_eq!(reader.stats(SourceId::ClaudeCode).unwrap().session_count, 2);
+}
+
+fn source_file_paths(db: &Path) -> Vec<String> {
+    let connection = Connection::open(db).unwrap();
+    let mut statement = connection
+        .prepare("SELECT file_path FROM source_files ORDER BY file_path")
+        .unwrap();
+    statement
+        .query_map([], |row| row.get::<_, String>(0))
+        .unwrap()
+        .collect::<Result<Vec<_>, _>>()
+        .unwrap()
+}
+
+fn session_file_path(db: &Path) -> Vec<(String, String)> {
+    let connection = Connection::open(db).unwrap();
+    let mut statement = connection
+        .prepare("SELECT file_path, source_root FROM session_rows ORDER BY file_path")
+        .unwrap();
+    statement
+        .query_map([], |row| Ok((row.get(0)?, row.get(1)?)))
+        .unwrap()
+        .collect::<Result<Vec<_>, _>>()
+        .unwrap()
+}
+
+/// Codex archives a session by moving its rollout from the dated hot tree to
+/// `archived_sessions/`. Syncing the archive root must rebind the existing
+/// session to the new path, not attach a second source file to it.
+#[test]
+fn archived_move_rebinds_the_session_to_its_new_path() {
+    let temp = tempdir().unwrap();
+    let hot = temp.path().join("sessions");
+    let archived = temp.path().join("archived_sessions");
+    fs::create_dir_all(&archived).unwrap();
+    let id = "019f9033-a3bd-7b00-9a37-50e2f05e455e";
+    let name = format!("rollout-2026-08-15T00-00-00-{id}.jsonl");
+    let hot_path = hot.join("2026/08/15").join(&name);
+    let archived_path = archived.join(&name);
+    write_session(
+        &hot_path,
+        id,
+        "/work",
+        &[("user_message", "before archive")],
+    );
+    let db = temp.path().join("index.sqlite");
+    run(SyncRequest::new(&db, selector(&hot))).unwrap();
+
+    // The session grows after the indexed snapshot, then Codex archives it,
+    // so the stale hot cursor's next_seq no longer matches the session.
+    append_message(&hot_path, "agent_message", "after archive", 2);
+    fs::rename(&hot_path, &archived_path).unwrap();
+
+    let report = run(SyncRequest::new(&db, selector(&archived))).unwrap();
+    assert_eq!(report.errors, 0, "{:?}", report.error_details);
+    let reader = IndexReader::open(&db).unwrap();
+    assert!(reader.check_invariants().unwrap().is_valid());
+    assert_eq!(
+        source_file_paths(&db),
+        vec![archived_path.to_string_lossy().into_owned()]
+    );
+    assert_eq!(
+        session_file_path(&db),
+        vec![(
+            archived_path.to_string_lossy().into_owned(),
+            archived.to_string_lossy().into_owned()
+        )]
+    );
+    let (_, messages) = projection_view(&db, id);
+    assert_eq!(messages.len(), 2);
+
+    // A later hot sync with prune neither resurrects nor drops the session.
+    let mut request = SyncRequest::new(&db, selector(&hot));
+    request.prune = true;
+    request.cold_roots = vec![archived.clone()];
+    let report = run(request).unwrap();
+    assert_eq!(report.errors, 0, "{:?}", report.error_details);
+    assert_eq!(session_file_path(&db).len(), 1);
+    assert_eq!(source_file_paths(&db).len(), 1);
+    assert!(
+        IndexReader::open(&db)
+            .unwrap()
+            .check_invariants()
+            .unwrap()
+            .is_valid()
+    );
+}
+
+/// The same move inside one root without `--prune` must not leave a second
+/// cursor at the vanished path either.
+#[test]
+fn hot_move_without_prune_keeps_one_source_file() {
+    let temp = tempdir().unwrap();
+    let root = temp.path().join("sessions");
+    let id = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
+    let original = root.join(format!("2026/08/15/rollout-original-{id}.jsonl"));
+    let moved = root.join(format!("2026/08/16/rollout-original-{id}.jsonl"));
+    write_session(&original, id, "/work", &[("user_message", "one")]);
+    let db = temp.path().join("index.sqlite");
+    run(SyncRequest::new(&db, selector(&root))).unwrap();
+
+    append_message(&original, "agent_message", "two", 2);
+    fs::create_dir_all(moved.parent().unwrap()).unwrap();
+    fs::rename(&original, &moved).unwrap();
+    let report = run(SyncRequest::new(&db, selector(&root))).unwrap();
+    assert_eq!(report.errors, 0, "{:?}", report.error_details);
+    assert!(
+        IndexReader::open(&db)
+            .unwrap()
+            .check_invariants()
+            .unwrap()
+            .is_valid()
+    );
+    assert_eq!(
+        source_file_paths(&db),
+        vec![moved.to_string_lossy().into_owned()]
+    );
+    assert_eq!(projection_view(&db, id).1.len(), 2);
+}
+
+/// A copy is not a move: while the indexed path still exists, a second file
+/// with the same session identity is refused on its own.
+#[test]
+fn archived_copy_is_a_per_file_duplicate_error() {
+    let temp = tempdir().unwrap();
+    let hot = temp.path().join("sessions");
+    let archived = temp.path().join("archived_sessions");
+    fs::create_dir_all(&archived).unwrap();
+    let id = "cccccccc-cccc-4ccc-8ccc-cccccccccccc";
+    let other = "dddddddd-dddd-4ddd-8ddd-dddddddddddd";
+    let name = format!("rollout-2026-08-15T00-00-00-{id}.jsonl");
+    let hot_path = hot.join("2026/08/15").join(&name);
+    write_session(&hot_path, id, "/work", &[("user_message", "kept")]);
+    let db = temp.path().join("index.sqlite");
+    run(SyncRequest::new(&db, selector(&hot))).unwrap();
+    fs::copy(&hot_path, archived.join(&name)).unwrap();
+    write_session(
+        &archived.join(format!("rollout-2026-08-15T00-00-01-{other}.jsonl")),
+        other,
+        "/work",
+        &[("user_message", "unrelated archived session")],
+    );
+
+    let failure = run(SyncRequest::new(&db, selector(&archived))).unwrap_err();
+    assert_eq!(failure.report.errors, 1);
+    assert!(
+        failure.report.error_details[0]
+            .message
+            .contains("duplicate")
+    );
+    assert_eq!(
+        source_file_paths(&db),
+        vec![hot_path.to_string_lossy().into_owned()]
+    );
+
+    let mut request = SyncRequest::new(&db, selector(&archived));
+    request.best_effort = true;
+    let report = run(request).unwrap();
+    assert_eq!((report.errors, report.added), (1, 1));
+    let reader = IndexReader::open(&db).unwrap();
+    assert!(reader.check_invariants().unwrap().is_valid());
+    assert_eq!(source_file_paths(&db).len(), 2);
+    assert!(
+        source_file_paths(&db).contains(&hot_path.to_string_lossy().into_owned()),
+        "the original binding is kept"
+    );
+}
+
+/// Claude Code shares the write path: a transcript moved to another root is
+/// rebound to its new path as the same session.
+#[test]
+fn claude_code_moved_transcript_rebinds_the_session() {
+    let temp = tempdir().unwrap();
+    let hot = temp.path().join("projects");
+    let cold = temp.path().join("claude-archive");
+    let id = "33333333-3333-4333-8333-333333333333";
+    let line = |kind: &str, text: &str, second: u64| {
+        serde_json::json!({
+            "type": kind,
+            "sessionId": id,
+            "cwd": "/work/move",
+            "timestamp": format!("2026-09-26T00:00:{second:02}Z"),
+            "message": {"content": text},
+        })
+        .to_string()
+    };
+    let hot_path = hot.join("-work-move").join(format!("{id}.jsonl"));
+    let cold_path = cold.join("-work-move").join(format!("{id}.jsonl"));
+    fs::create_dir_all(hot_path.parent().unwrap()).unwrap();
+    fs::create_dir_all(cold_path.parent().unwrap()).unwrap();
+    fs::write(&hot_path, format!("{}\n", line("user", "question", 1))).unwrap();
+    let claude = |root: &Path| Selector::All {
+        source: SourceId::ClaudeCode,
+        root: root.to_string_lossy().into_owned(),
+    };
+    let db = temp.path().join("index.sqlite");
+    run(SyncRequest::new(&db, claude(&hot))).unwrap();
+
+    let mut file = OpenOptions::new().append(true).open(&hot_path).unwrap();
+    writeln!(file, "{}", line("assistant", "answer", 2)).unwrap();
+    drop(file);
+    fs::rename(&hot_path, &cold_path).unwrap();
+
+    let report = run(SyncRequest::new(&db, claude(&cold))).unwrap();
+    assert_eq!(report.errors, 0, "{:?}", report.error_details);
+    let reader = IndexReader::open(&db).unwrap();
+    assert!(reader.check_invariants().unwrap().is_valid());
+    assert_eq!(reader.stats(SourceId::ClaudeCode).unwrap().session_count, 1);
+    assert_eq!(
+        source_file_paths(&db),
+        vec![cold_path.to_string_lossy().into_owned()]
+    );
+    assert_eq!(
+        session_file_path(&db),
+        vec![(
+            cold_path.to_string_lossy().into_owned(),
+            cold.to_string_lossy().into_owned()
+        )]
+    );
+}
+
+/// One Codex rollout's storage on disk: the plain file and/or its compressed
+/// twin, each holding the first `n` messages of the same session.
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
+struct RolloutForms {
+    plain: Option<usize>,
+    compressed: Option<usize>,
+}
+
+const ROLLOUT_MESSAGES: [(&str, &str); 2] = [
+    ("user_message", "storage move question"),
+    ("agent_message", "storage move answer"),
+];
+
+fn rollout_bytes(id: &str, messages: usize) -> Vec<u8> {
+    let scratch = tempdir().unwrap();
+    let path = scratch.path().join("rollout.jsonl");
+    write_session(&path, id, "/work", &ROLLOUT_MESSAGES[..messages]);
+    fs::read(path).unwrap()
+}
+
+/// Codex's own encoding: one zstd stream of the plain bytes, published by
+/// rename so a compressed file is never observed half written.
+fn write_compressed_rollout(path: &Path, plain: &[u8]) {
+    let staging = path.with_extension("zst.compress.tmp");
+    fs::write(&staging, zstd::stream::encode_all(plain, 3).unwrap()).unwrap();
+    fs::rename(&staging, path).unwrap();
+}
+
+fn apply_rollout_forms(plain_path: &Path, id: &str, forms: RolloutForms) {
+    fs::create_dir_all(plain_path.parent().unwrap()).unwrap();
+    let compressed_path = PathBuf::from(format!("{}.zst", plain_path.to_string_lossy()));
+    match forms.plain {
+        Some(messages) => {
+            let wanted = rollout_bytes(id, messages);
+            match fs::read(plain_path) {
+                Ok(current) if current == wanted => {}
+                // Codex appends to a live rollout in place.
+                Ok(current) if wanted.starts_with(&current) => {
+                    OpenOptions::new()
+                        .append(true)
+                        .open(plain_path)
+                        .unwrap()
+                        .write_all(&wanted[current.len()..])
+                        .unwrap();
+                }
+                _ => {
+                    let staging = plain_path.with_extension("materialize.tmp");
+                    fs::write(&staging, wanted).unwrap();
+                    fs::rename(&staging, plain_path).unwrap();
+                }
+            }
+        }
+        None => {
+            let _ = fs::remove_file(plain_path);
+        }
+    }
+    match forms.compressed {
+        Some(messages) => {
+            let wanted = rollout_bytes(id, messages);
+            let current = fs::read(&compressed_path)
+                .ok()
+                .and_then(|bytes| zstd::stream::decode_all(&bytes[..]).ok());
+            if current.as_deref() != Some(&wanted[..]) {
+                write_compressed_rollout(&compressed_path, &wanted);
+            }
+        }
+        None => {
+            let _ = fs::remove_file(&compressed_path);
+        }
+    }
+}
+
+/// Everything sync persists for a selector except row ids, write times and
+/// file mtimes: session rows, every document with its raw locator, and every
+/// source cursor with its digests and linked session.
+fn persisted_projection(db: &Path) -> Vec<String> {
+    let connection = Connection::open(db).unwrap();
+    let mut rows = Vec::new();
+    for sql in [
+        "SELECT 'session', native_session_id, file_path, source_root, title, summary_text, \
+         cwd, model, started_at, ended_at, path_date, message_count, document_count, \
+         raw_file_size FROM session_rows ORDER BY native_session_id",
+        "SELECT 'document', s.native_session_id, d.kind, d.seq, d.role, d.timestamp, \
+         d.body_text, d.title_text, d.summary_text, d.raw_start, d.raw_end \
+         FROM documents d JOIN session_rows s ON s.id=d.session_id \
+         ORDER BY s.native_session_id, d.kind, d.seq",
+        "SELECT 'source_file', sf.file_path, sf.size, sf.indexed_bytes, sf.next_seq, \
+         sf.head_digest, sf.boundary_digest, sf.cwd, sf.path_date, sf.extra_fingerprint, \
+         s.native_session_id FROM source_files sf LEFT JOIN session_rows s \
+         ON s.id=sf.session_id ORDER BY sf.file_path",
+    ] {
+        let mut statement = connection.prepare(sql).unwrap();
+        let columns = statement.column_count();
+        let mut query = statement.query([]).unwrap();
+        while let Some(row) = query.next().unwrap() {
+            let fields = (0..columns)
+                .map(|index| format!("{:?}", row.get::<_, rusqlite::types::Value>(index).unwrap()))
+                .collect::<Vec<_>>();
+            rows.push(fields.join("|"));
+        }
+    }
+    rows
+}
+
+/// Bounded exhaustive check of the `incremental == full replay` invariant over
+/// Codex storage moves. A rollout's on-disk state is its plain file and/or its
+/// compressed twin, each with one or two messages, or nothing at all. Every
+/// two-step sequence of those states, and every three-step sequence of the
+/// states Codex itself produces (live plain file, appended plain file,
+/// compressed file, both during compression or resume), is synced step by
+/// step into one index. After every step the index must equal a fresh full
+/// sync of the same files, keep its invariants, and hold at most one session
+/// read from at most one file.
+#[test]
+fn codex_storage_moves_match_full_replay_for_every_bounded_sequence() {
+    let forms = [None, Some(1), Some(2)];
+    let every = forms
+        .iter()
+        .flat_map(|plain| {
+            forms.iter().map(|compressed| RolloutForms {
+                plain: *plain,
+                compressed: *compressed,
+            })
+        })
+        .collect::<Vec<_>>();
+    let present = every
+        .iter()
+        .copied()
+        .filter(|state| state.plain.is_some() || state.compressed.is_some())
+        .collect::<Vec<_>>();
+    let codex_written = [
+        RolloutForms {
+            plain: Some(1),
+            compressed: None,
+        },
+        RolloutForms {
+            plain: Some(2),
+            compressed: None,
+        },
+        RolloutForms {
+            plain: None,
+            compressed: Some(2),
+        },
+        RolloutForms {
+            plain: Some(2),
+            compressed: Some(2),
+        },
+    ];
+    let temp = tempdir().unwrap();
+    let mut full_replay = HashMap::new();
+    let mut checked = 0;
+    // Without prune a vanished rollout keeps its projection by design, so only
+    // prune runs may visit the empty state.
+    for (prune, states, length) in [
+        (false, &present[..], 2),
+        (true, &every[..], 2),
+        (false, &codex_written[..], 3),
+        (true, &codex_written[..], 3),
+    ] {
+        for sequence in state_sequences(states, length) {
+            check_storage_sequence(temp.path(), prune, &sequence, &mut full_replay);
+            checked += 1;
+        }
+    }
+    assert_eq!(checked, 8 * 8 + 9 * 9 + 2 * 4 * 4 * 4);
+}
+
+fn state_sequences(states: &[RolloutForms], length: usize) -> Vec<Vec<RolloutForms>> {
+    (0..length).fold(vec![Vec::new()], |prefixes, _| {
+        prefixes
+            .iter()
+            .flat_map(|prefix| {
+                states.iter().map(move |state| {
+                    let mut next = prefix.clone();
+                    next.push(*state);
+                    next
+                })
+            })
+            .collect()
+    })
+}
+
+fn check_storage_sequence(
+    workspace: &Path,
+    prune: bool,
+    sequence: &[RolloutForms],
+    full_replay: &mut HashMap<RolloutForms, Vec<String>>,
+) {
+    let id = "dddddddd-dddd-4ddd-8ddd-dddddddddddd";
+    let root = workspace.join("sessions");
+    let plain_path = root.join(format!("2026/08/15/rollout-2026-08-15T00-00-00-{id}.jsonl"));
+    let _ = fs::remove_dir_all(&root);
+    let db = workspace.join("incremental.sqlite");
+    let _ = fs::remove_file(&db);
+    for (step, state) in sequence.iter().enumerate() {
+        apply_rollout_forms(&plain_path, id, *state);
+        let mut request = SyncRequest::new(&db, selector(&root));
+        request.prune = prune;
+        run(request)
+            .unwrap_or_else(|failure| panic!("prune={prune} {sequence:?} step {step}: {failure}"));
+        let expected = full_replay.entry(*state).or_insert_with(|| {
+            let fresh = workspace.join("full.sqlite");
+            let _ = fs::remove_file(&fresh);
+            run(SyncRequest::new(&fresh, selector(&root))).unwrap();
+            let projection = persisted_projection(&fresh);
+            let count = |kind: &str| {
+                projection
+                    .iter()
+                    .filter(|row| row.starts_with(&format!("Text(\"{kind}\")")))
+                    .count()
+            };
+            let present = usize::from(state.plain.is_some() || state.compressed.is_some());
+            assert_eq!((count("session"), count("source_file")), (present, present));
+            projection
+        });
+        let reader = IndexReader::open(&db).unwrap();
+        assert!(reader.check_invariants().unwrap().is_valid());
+        assert_eq!(
+            &persisted_projection(&db),
+            expected,
+            "prune={prune} {sequence:?} step {step}"
+        );
+    }
+}
+
+#[test]
+fn archiving_into_a_compressed_rollout_moves_the_session_instead_of_duplicating_it() {
+    let temp = tempdir().unwrap();
+    let sessions = temp.path().join("sessions");
+    let archived = temp.path().join("archived_sessions");
+    fs::create_dir_all(&archived).unwrap();
+    let moved = "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee";
+    let only_compressed = "ffffffff-ffff-4fff-8fff-ffffffffffff";
+    let name = format!("rollout-2026-08-15T00-00-00-{moved}.jsonl");
+    let hot = sessions.join("2026/08/15").join(&name);
+    write_session(&hot, moved, "/work", &ROLLOUT_MESSAGES);
+    let db = temp.path().join("index.sqlite");
+    run(SyncRequest::new(&db, selector(&sessions))).unwrap();
+    let before = projection_view(&db, moved);
+
+    // Codex archives the rollout into the flat archive root and later
+    // compresses it there; a second session is only ever seen compressed.
+    write_compressed_rollout(
+        &archived.join(format!("{name}.zst")),
+        &fs::read(&hot).unwrap(),
+    );
+    fs::remove_file(&hot).unwrap();
+    write_compressed_rollout(
+        &archived.join(format!(
+            "rollout-2026-08-16T00-00-00-{only_compressed}.jsonl.zst"
+        )),
+        &rollout_bytes(only_compressed, 1),
+    );
+    // A compression temp file and an unrelated `.zst` are never decoded.
+    fs::write(
+        archived.join("rollout-x.jsonl.zst.compress.1.tmp"),
+        b"partial",
+    )
+    .unwrap();
+    fs::write(archived.join("notes.zst"), b"not a rollout").unwrap();
+
+    let report = run(SyncRequest::new(&db, selector(&archived))).unwrap();
+    assert_eq!((report.scanned, report.added, report.updated), (2, 2, 0));
+    let after = projection_view(&db, moved);
+    assert_eq!(after.1, before.1);
+    assert_eq!(after.0.id, before.0.id);
+    assert_eq!(
+        after.0.file_path,
+        archived.join(format!("{name}.zst")).to_string_lossy()
+    );
+    assert_eq!(projection_view(&db, only_compressed).1.len(), 1);
+
+    // Pruning the hot root drops only its stale cursor, never the session.
+    let mut request = SyncRequest::new(&db, selector(&sessions));
+    request.prune = true;
+    assert_eq!(run(request).unwrap().removed, 0);
+    let reader = IndexReader::open(&db).unwrap();
+    assert!(reader.check_invariants().unwrap().is_valid());
+    assert_eq!(reader.stats(SourceId::Codex).unwrap().session_count, 2);
+    assert_eq!(projection_view(&db, moved).1, before.1);
+    let cursors = Connection::open(&db)
+        .unwrap()
+        .query_row("SELECT COUNT(*) FROM source_files", [], |row| {
+            row.get::<_, i64>(0)
+        })
+        .unwrap();
+    assert_eq!(cursors, 2);
+
+    // A compressed rollout is immutable; a no-op sync re-reads nothing.
+    let noop = run(SyncRequest::new(&db, selector(&archived))).unwrap();
+    assert_eq!((noop.added, noop.updated, noop.skipped), (0, 0, 2));
+}
+
+#[test]
+fn compressing_an_indexed_rollout_in_place_counts_as_an_update() {
+    let temp = tempdir().unwrap();
+    let root = temp.path().join("sessions");
+    let id = "abababab-abab-4bab-8bab-abababababab";
+    let plain = root.join(format!("2026/08/15/rollout-2026-08-15T00-00-00-{id}.jsonl"));
+    write_session(&plain, id, "/work", &ROLLOUT_MESSAGES);
+    let db = temp.path().join("index.sqlite");
+    run(SyncRequest::new(&db, selector(&root))).unwrap();
+    write_compressed_rollout(
+        &PathBuf::from(format!("{}.zst", plain.to_string_lossy())),
+        &fs::read(&plain).unwrap(),
+    );
+    fs::remove_file(&plain).unwrap();
+    let report = run(SyncRequest::new(&db, selector(&root))).unwrap();
+    assert_eq!((report.added, report.updated), (0, 1));
+    assert!(report.coverage.written);
+}
+
+/// An index written before segment identity came from the filename holds an
+/// older `<base>_<segment>` rollout (no `history_base`) under the base id,
+/// while the base itself was invisible as `.jsonl.zst`. Upgrading must replay
+/// that cursor as the segment's own session and then index the base, instead
+/// of refusing the base as a duplicate of the still-present segment. With the
+/// base elsewhere (archived, outside the synced root) nothing takes the old
+/// session over, so the segment's replace must drop it itself.
+#[test]
+fn upgrade_rekeys_a_segment_indexed_under_its_base_identity() {
+    check_segment_rekey_upgrade(true);
+    check_segment_rekey_upgrade(false);
+}
+
+fn check_segment_rekey_upgrade(base_in_root: bool) {
+    let temp = tempdir().unwrap();
+    let root = temp.path().join("sessions");
+    let base = "acacacac-acac-4cac-8cac-acacacacacac";
+    let segment = "bdbdbdbd-bdbd-4dbd-8dbd-bdbdbdbdbdbd";
+    let segment_path = root.join(format!(
+        "2026/08/30/rollout-2026-08-30T00-00-00-{base}_{segment}.jsonl"
+    ));
+    write_session(
+        &segment_path,
+        base,
+        "/work",
+        &[("user_message", "segment evidence")],
+    );
+    let db = temp.path().join("index.sqlite");
+    run(SyncRequest::new(&db, selector(&root))).unwrap();
+
+    // Rewrite what the current adapter stored into what the v3 adapter
+    // stored: the segment's session under the base id, a v3 cursor.
+    let connection = Connection::open(&db).unwrap();
+    connection
+        .execute(
+            "UPDATE session_rows SET native_session_id=?1, session_uuid=?1, \
+             session_key='codex:' || ?1 WHERE native_session_id=?2",
+            [base, segment],
+        )
+        .unwrap();
+    connection
+        .execute(
+            "UPDATE source_files SET \
+             extra_fingerprint=replace(extra_fingerprint, 'accepted-v4:', 'accepted-v3:'), \
+             reducer_checkpoint=CAST(replace(CAST(reducer_checkpoint AS TEXT), \
+               'accepted-v4:', 'accepted-v3:') AS BLOB)",
+            [],
+        )
+        .unwrap();
+    drop(connection);
+    assert_eq!(
+        projection_view(&db, base).0.file_path,
+        segment_path.to_string_lossy()
+    );
+
+    if base_in_root {
+        let base_dir = root.join("2026/08/01");
+        fs::create_dir_all(&base_dir).unwrap();
+        write_compressed_rollout(
+            &base_dir.join(format!("rollout-2026-08-01T00-00-00-{base}.jsonl.zst")),
+            &rollout_bytes(base, 1),
+        );
+    }
+    let upgraded = run(SyncRequest::new(&db, selector(&root))).unwrap();
+    assert_eq!(
+        (upgraded.errors, upgraded.added, upgraded.updated),
+        (0, u64::from(base_in_root), 1)
+    );
+    assert!(upgraded.coverage.written);
+    let full = temp.path().join("full.sqlite");
+    run(SyncRequest::new(&full, selector(&root))).unwrap();
+    assert_eq!(persisted_projection(&db), persisted_projection(&full));
+
+    append_message(&segment_path, "agent_message", "segment append", 9);
+    let appended = run(SyncRequest::new(&db, selector(&root))).unwrap();
+    assert_eq!((appended.errors, appended.updated), (0, 1));
+    let full = temp.path().join("full-appended.sqlite");
+    run(SyncRequest::new(&full, selector(&root))).unwrap();
+    assert_eq!(persisted_projection(&db), persisted_projection(&full));
+    assert!(
+        IndexReader::open(&db)
+            .unwrap()
+            .check_invariants()
+            .unwrap()
+            .is_valid()
+    );
+}
+
+/// While a resumed rollout exists in both forms the scan selects only the
+/// plain file. If that file is left out of the write (deferred while Codex
+/// appends to it, or refused under `--best-effort`), `--prune` must still see
+/// the session's raw file as present and keep the session bound to the
+/// compressed twin.
+#[test]
+fn prune_keeps_a_session_whose_compressed_twin_is_shadowed_by_an_omitted_plain_file() {
+    let temp = tempdir().unwrap();
+    let root = temp.path().join("sessions");
+    let id = "cececece-cece-4ece-8ece-cececececece";
+    let name = format!("rollout-2026-08-15T00-00-00-{id}.jsonl");
+    let plain = root.join("2026/08/15").join(&name);
+    fs::create_dir_all(plain.parent().unwrap()).unwrap();
+    write_compressed_rollout(
+        &PathBuf::from(format!("{}.zst", plain.to_string_lossy())),
+        &rollout_bytes(id, 1),
+    );
+    let db = temp.path().join("index.sqlite");
+    run(SyncRequest::new(&db, selector(&root))).unwrap();
+    let before = projection_view(&db, id);
+
+    // Resume materializes the plain twin; a stray copy of it elsewhere in the
+    // root makes both plain files refused duplicates of one session.
+    fs::write(&plain, rollout_bytes(id, 2)).unwrap();
+    let copy = root.join("2026/08/16").join(&name);
+    fs::create_dir_all(copy.parent().unwrap()).unwrap();
+    fs::copy(&plain, &copy).unwrap();
+    let mut request = SyncRequest::new(&db, selector(&root));
+    request.best_effort = true;
+    request.prune = true;
+    let report = run(request).unwrap();
+    assert_eq!((report.errors, report.removed), (2, 0));
+    let after = projection_view(&db, id);
+    assert_eq!(after, before);
+    assert!(
+        IndexReader::open(&db)
+            .unwrap()
+            .check_invariants()
+            .unwrap()
+            .is_valid()
+    );
 }

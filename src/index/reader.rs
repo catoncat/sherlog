@@ -302,6 +302,28 @@ impl IndexReader {
         self.query_source_files(&sql, values)
     }
 
+    /// Every raw file path the index currently binds to `identity`: the
+    /// session row's own `file_path` plus each source-file cursor attached to
+    /// it, across all roots. Empty when the session is not indexed.
+    pub fn session_file_bindings(&self, identity: &SessionIdentity) -> IndexResult<Vec<String>> {
+        self.require_v8("session_file_bindings")?;
+        let mut statement = self.connection.prepare_cached(
+            "SELECT s.file_path FROM session_rows s \
+             WHERE s.source_id=?1 AND s.native_session_id=?2 \
+             UNION \
+             SELECT sf.file_path FROM source_files sf JOIN session_rows s ON s.id=sf.session_id \
+             WHERE s.source_id=?1 AND s.native_session_id=?2 \
+             ORDER BY 1",
+        )?;
+        let paths = statement
+            .query_map(
+                params![identity.source_id.as_str(), identity.native_session_id],
+                |row| row.get::<_, String>(0),
+            )?
+            .collect::<Result<Vec<_>, _>>()?;
+        Ok(paths)
+    }
+
     pub fn cold_roots(&self, source: Option<SourceId>) -> IndexResult<Vec<ColdRoot>> {
         self.require_v8("cold_roots")?;
         let (sql, values) = match source {

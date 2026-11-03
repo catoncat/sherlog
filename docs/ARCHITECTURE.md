@@ -117,7 +117,7 @@ acquire writer lock
 - `--best-effort`：可以提交成功文件并返回 per-file errors，但不会写 complete coverage；
 - 默认不删除 raw 已消失的历史 projection；
 - `--prune` 才删除同 source 中 hot snapshot 与 registered cold 都不存在的 session；
-- cold-present session 只被保护，不从 `.jsonl.zst` 重新建索引。
+- cold-present session 只被保护，不从 registered cold root 重新建索引；被 sync 的 root 下 Codex `.jsonl.zst` 是 hot raw，会被解压索引。
 
 ## Retrieval
 

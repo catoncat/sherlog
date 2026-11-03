@@ -106,6 +106,7 @@ impl SourceCatalog {
             ));
         }
 
+        let mut candidates = Vec::new();
         for item in WalkDir::new(&root).follow_links(false) {
             let entry = item.map_err(|error| {
                 let path = error
@@ -120,34 +121,40 @@ impl SourceCatalog {
                         .unwrap_or_else(|| std::io::Error::other("source traversal failed")),
                 )
             })?;
-            if !entry.file_type().is_file() || !source_file_accepted(source_id, entry.path()) {
-                continue;
+            if entry.file_type().is_file() && source_file_accepted(source_id, entry.path()) {
+                candidates.push(entry.into_path());
             }
-            if entry.path().to_str().is_none() {
+        }
+        if source_id == SourceId::Codex {
+            drop_shadowed_codex_twins(&mut candidates);
+        }
+
+        for path in candidates {
+            if path.to_str().is_none() {
                 failures.push(scan_failure(
-                    entry.path(),
+                    &path,
                     "decode source path",
-                    SourceError::NonUtf8Path(entry.path().to_path_buf()),
+                    SourceError::NonUtf8Path(path.clone()),
                 ));
                 continue;
             }
 
-            let metadata = match fs::metadata(entry.path()) {
+            let metadata = match fs::metadata(&path) {
                 Ok(metadata) => metadata,
                 Err(source) => {
                     failures.push(scan_failure(
-                        entry.path(),
+                        &path,
                         "stat source file",
-                        io_error("stat source file", entry.path().to_path_buf(), source),
+                        io_error("stat source file", path.clone(), source),
                     ));
                     continue;
                 }
             };
             let (mtime_ns, mtime_ms) = metadata_times(&metadata);
             let size = metadata.len();
-            let identity = file_identity(entry.path(), &metadata);
+            let identity = file_identity(&path, &metadata);
             let accepted = if let Some(cached) = cache
-                .matching(source_id, entry.path(), mtime_ns, size, &identity)
+                .matching(source_id, &path, mtime_ns, size, &identity)
                 .filter(|cached| {
                     accepted_fingerprint_is_current(source_id, &cached.accepted_fingerprint)
                 }) {
@@ -157,16 +164,12 @@ impl SourceCatalog {
                     fingerprint: cached.accepted_fingerprint.clone(),
                 }))
             } else {
-                accepted_metadata(source_id, entry.path())
+                accepted_metadata(source_id, &path)
             };
             let accepted = match accepted {
                 Ok(accepted) => accepted,
                 Err(error) => {
-                    failures.push(scan_failure(
-                        entry.path(),
-                        "read accepted source metadata",
-                        error,
-                    ));
+                    failures.push(scan_failure(&path, "read accepted source metadata", error));
                     continue;
                 }
             };
@@ -177,7 +180,7 @@ impl SourceCatalog {
 
             files.push(SourceFile {
                 source_id,
-                file_path: entry.path().to_path_buf(),
+                file_path: path,
                 path_date: accepted.path_date,
                 cwd: accepted.cwd,
                 mtime_ms,
@@ -219,6 +222,17 @@ impl SourceCatalog {
         })
     }
 
+    /// Another storage path of the same raw session that `file` replaces: a
+    /// stored cursor or projection under that path is stale once `file` is
+    /// projected. Only Codex has one (`x.jsonl` <-> `x.jsonl.zst`); the scan
+    /// never selects both, so the twin is never itself a current source file.
+    pub fn superseded_path(&self, source_id: SourceId, path: &Path) -> Option<PathBuf> {
+        match source_id {
+            SourceId::Codex => codex::rollout_twin(path),
+            SourceId::ClaudeCode | SourceId::Pi | SourceId::Dsh => None,
+        }
+    }
+
     pub fn project(
         &self,
         file: &SourceFile,
@@ -241,8 +255,27 @@ fn source_file_accepted(source_id: SourceId, path: &Path) -> bool {
         // accepted file as zstd, so accepting a plain `.jsonl` here would turn
         // format drift into a hard sync failure instead of a skip.
         SourceId::Dsh => matches!(extension, Some("zstd" | "zst")),
-        _ => extension == Some("jsonl"),
+        // Codex rollouts are plain `.jsonl` or, once idle, `.jsonl.zst`. Only
+        // that exact compressed suffix is decoded as zstd.
+        SourceId::Codex => codex::is_rollout_file(path),
+        SourceId::ClaudeCode | SourceId::Pi => extension == Some("jsonl"),
     }
+}
+
+/// Codex keeps one live form per rollout but briefly has both while it
+/// compresses (publish `.zst`, then remove the plain file) or resumes
+/// (materialize the plain file, then remove the `.zst`). Like Codex, read the
+/// plain file and ignore its compressed twin, so one rollout is one source
+/// file and the choice does not depend on traversal order.
+fn drop_shadowed_codex_twins(candidates: &mut Vec<PathBuf>) {
+    let present = candidates
+        .iter()
+        .cloned()
+        .collect::<std::collections::HashSet<_>>();
+    candidates.retain(|path| {
+        !codex::is_compressed_rollout(path)
+            || codex::rollout_twin(path).is_none_or(|plain| !present.contains(&plain))
+    });
 }
 
 fn accepted_metadata(

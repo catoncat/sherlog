@@ -52,7 +52,7 @@ curl -fsSL https://github.com/catoncat/sherlog/releases/latest/download/install.
 
 Codex 分页续段是独立的可检索段；按 find 返回的 `sessionRef` 读取，不把父会话 UUID 当作所有段的读取入口。
 
-默认 sync 只处理默认热目录。已经归档的 plain JSONL 可用 `shlog sync --source codex --root /path/to/archive` 同步，查询时也保留该 `--root`；`cold add` / `--cold-root` 只影响保留策略，不会读取归档正文。压缩 Codex cold 文件仅保护既有投影，本版不提供压缩正文重建。
+默认 sync 只处理默认热目录。Codex 压缩后的 `rollout-*.jsonl.zst` 与 plain `.jsonl` 一样会被 sync 索引；同一 rollout 两种形式同时存在时读 plain。已经归档的 rollout（plain 或 `.jsonl.zst`，例如 `~/.codex/archived_sessions`）可用 `shlog sync --source codex --root /path/to/archive` 同步，查询时也保留该 `--root`；`cold add` / `--cold-root` 只影响保留策略，不会读取归档正文。
 
 ## 固定命令面
 
@@ -297,4 +297,4 @@ CLI parse error（例如漏掉 `find` query）写 stderr，保持命令行兼容
 
 ## Raw fallback
 
-只有 `read-*` projection 明确无法保留完整 tool call、patch、长代码或原始事件时，才先用 Sherlog 定位 session，再由 agent 读取对应 hot plain JSONL 或 cold per-file zstd。raw fallback 不是 `shlog` subcommand，不应绕过 source adapter 的 privacy projection来做常规搜索。
+只有 `read-*` projection 明确无法保留完整 tool call、patch、长代码或原始事件时，才先用 Sherlog 定位 session，再由 agent 读取对应 raw rollout（plain JSONL，或 `zstd -d` 解压的 `.jsonl.zst`）。raw fallback 不是 `shlog` subcommand，不应绕过 source adapter 的 privacy projection来做常规搜索。

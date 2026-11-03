@@ -71,4 +71,4 @@ shlog sync --cwd <repo> --json   # 仅限当前 repo 的问题
 
 0.5.4 起可读取新版 `response_item/message`，并自动重放旧解释留下的空/非空游标。升级 CLI 后，对原查询的 source/root/selector/DB 执行一次 sync 再读回；不要删除 index 或手工编辑 cursor。已迁移的库不要再交给旧 CLI 写入。
 
-分页续段使用独立 `sessionRef`，以 find 返回值为准。默认 sync 不扫描归档目录；目标历史已归档为 plain JSONL 时，对该 root 显式 sync，查询时也保留该 `--root`。cold registration 只保护现有投影，压缩 Codex cold 文件不会因此重新索引。
+分页续段使用独立 `sessionRef`，以 find 返回值为准。sync 会索引 Codex 压缩后的 `rollout-*.jsonl.zst`。默认 sync 不扫描归档目录；目标历史已归档（plain 或 `.jsonl.zst`，如 `~/.codex/archived_sessions`）时，对该 root 显式 sync，查询时也保留该 `--root`。cold registration 只保护现有投影，不读取也不索引登记目录中的文件。

@@ -198,7 +198,7 @@ shlog --version</code></pre>
     <section>
       <h2><span class="en">3. Include archived history when needed</span><span class="zh">3. 按需恢复归档历史</span></h2>
       <pre><code>shlog sync --source codex --root /path/to/archived_sessions</code></pre>
-      <p><span class="en">Use the directory that contains your archived plain JSONL files, and keep that <code>--root</code> when searching. Default sync only scans the default active directory. Cold-root registration protects existing projections from pruning; compressed Codex cold files are not reindexed.</span><span class="zh">替换为存放归档 plain JSONL 的目录，查询时也保留该 <code>--root</code>。默认 sync 只扫描默认活动目录；登记 cold root 只保护已有投影不被清理，压缩 Codex cold 文件不会重新索引。</span></p>
+      <p><span class="en">Use the directory that contains your archived rollouts (plain <code>.jsonl</code> or Codex-compressed <code>.jsonl.zst</code>), and keep that <code>--root</code> when searching. Default sync only scans the default active directory. Cold-root registration only protects existing projections from pruning; it never reads the registered files.</span><span class="zh">替换为存放归档 rollout（plain <code>.jsonl</code> 或 Codex 压缩的 <code>.jsonl.zst</code>）的目录，查询时也保留该 <code>--root</code>。默认 sync 只扫描默认活动目录；登记 cold root 只保护已有投影不被清理，不读取登记目录中的文件。</span></p>
       <p><span class="en">Search, then execute the returned evidence read. Paginated continuations have separate <code>sessionRef</code> values.</span><span class="zh">搜索后执行返回的证据读取命令。分页续段各自使用独立的 <code>sessionRef</code>。</span></p>
     </section>
   </main>

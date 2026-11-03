@@ -36,7 +36,7 @@ shlog sync --source codex
 
 Version 0.5.4 reads both legacy and current Codex conversation records. The first sync after upgrading automatically replays outdated projections, including files previously indexed as empty. No index deletion is needed. Project-scoped and custom-root users should keep their existing `--cwd`, `--root`, and `--db` options.
 
-Paginated Codex continuations are independently searchable segments. Use the returned `sessionRef` to read each segment. For archived plain JSONL history, sync and search that directory explicitly with `--root`; registering a cold root only protects existing projections from prune. Compressed Codex cold files are retained, not reindexed.
+Paginated Codex continuations are independently searchable segments. Use the returned `sessionRef` to read each segment. Codex rollouts that Codex has compressed to `rollout-*.jsonl.zst` are indexed like plain `.jsonl` (the plain file wins while both exist). For archived history, plain or compressed, sync and search that directory explicitly with `--root`; registering a cold root only protects existing projections from prune and never reads them.
 
 ## Quick Start
 

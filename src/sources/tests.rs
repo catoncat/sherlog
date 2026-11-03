@@ -994,3 +994,210 @@ fn response_message_projection_accepts_only_classified_text_parts() {
         "accepted request"
     );
 }
+
+fn compress_like_codex(plain: &Path) -> PathBuf {
+    let compressed = PathBuf::from(format!("{}.zst", plain.to_string_lossy()));
+    fs::write(
+        &compressed,
+        zstd::stream::encode_all(&fs::read(plain).unwrap()[..], 3).unwrap(),
+    )
+    .unwrap();
+    compressed
+}
+
+#[test]
+fn codex_compressed_rollout_projects_exactly_like_its_plain_twin() {
+    let temp = tempdir().unwrap();
+    let id = "abcdefab-cdef-4abc-8def-abcdefabcdef";
+    let name = format!("rollout-2026-08-15T00-00-00-{id}.jsonl");
+    let plain_root = temp.path().join("plain/2026/08/15");
+    let compressed_root = temp.path().join("compressed/2026/08/15");
+    fs::create_dir_all(&plain_root).unwrap();
+    fs::create_dir_all(&compressed_root).unwrap();
+    let plain = plain_root.join(&name);
+    write_lines(
+        &plain,
+        &[
+            codex_line("session_meta", json!({"id":id,"cwd":"/safe/codex"})),
+            "{not json".to_owned(),
+            codex_line(
+                "response_item",
+                json!({"type":"message","role":"user","content":[{"type":"input_text","text":"compressed question"}]}),
+            ),
+            codex_line(
+                "event_msg",
+                json!({"type":"user_message","message":"compressed question"}),
+            ),
+            codex_line(
+                "response_item",
+                json!({"type":"function_call","name":"shell","arguments":"private tool call must not leak"}),
+            ),
+            codex_line(
+                "response_item",
+                json!({"type":"reasoning","summary":[{"text":"compressed reasoning"}]}),
+            ),
+            codex_line("compacted", json!({"message":"compressed handoff"})),
+            codex_line(
+                "event_msg",
+                json!({"type":"agent_message","message":"compressed answer"}),
+            ),
+        ],
+    );
+    // An unterminated tail is never evidence, in either form.
+    append_without_newline(
+        &plain,
+        &codex_line(
+            "event_msg",
+            json!({"type":"agent_message","message":"torn tail must not project"}),
+        ),
+    );
+    fs::rename(
+        compress_like_codex(&plain),
+        compressed_root.join(format!("{name}.zst")),
+    )
+    .unwrap();
+
+    let plain_scan = scan_all(SourceId::Codex, &temp.path().join("plain"));
+    let compressed_scan = scan_all(SourceId::Codex, &temp.path().join("compressed"));
+    let (plain_file, compressed_file) = (&plain_scan.files[0], &compressed_scan.files[0]);
+    assert_eq!(compressed_scan.files.len(), 1);
+    assert!(compressed_scan.failures.is_empty());
+    assert_eq!(
+        (
+            &compressed_file.cwd,
+            &compressed_file.path_date,
+            &compressed_file.accepted_fingerprint
+        ),
+        (
+            &plain_file.cwd,
+            &plain_file.path_date,
+            &plain_file.accepted_fingerprint
+        )
+    );
+
+    let plain_projection = expect_projected(project(plain_file, plain_file.size, None));
+    let compressed_projection =
+        expect_projected(project(compressed_file, compressed_file.size, None));
+    assert_eq!(compressed_projection.mode, ProjectionMode::Full);
+    assert_eq!(
+        compressed_projection.read_proof.safe_offset,
+        compressed_file.size
+    );
+    // Same session, same documents, same locators (offsets in the plain
+    // rollout bytes); only the file the session points at differs.
+    assert_eq!(compressed_projection.documents, plain_projection.documents);
+    let mut session = compressed_projection.session.clone();
+    session.file_path = plain_projection.session.file_path.clone();
+    assert_eq!(session, plain_projection.session);
+    assert_eq!(plain_projection.documents.len(), 2);
+    let searchable = serde_json::to_string(&compressed_projection).unwrap();
+    for rejected in [
+        "private tool call must not leak",
+        "torn tail must not project",
+    ] {
+        assert!(
+            !searchable.contains(rejected),
+            "compressed rollout leaked {rejected}"
+        );
+    }
+
+    // A compressed rollout never appends: an offered cursor asks for replay.
+    assert!(matches!(
+        project(
+            compressed_file,
+            compressed_file.size,
+            Some(&compressed_projection.checkpoint)
+        ),
+        ProjectionOutcome::FullRequired {
+            reason: FullProjectionReason::DeltaUnsupported,
+            ..
+        }
+    ));
+}
+
+#[test]
+fn codex_scan_reads_the_plain_twin_and_decodes_only_rollout_zst_files() {
+    let temp = tempdir().unwrap();
+    let root = temp.path().join("sessions");
+    fs::create_dir_all(&root).unwrap();
+    let rollout = |id: &str, text: &str| {
+        let path = root.join(format!("rollout-2026-08-15T00-00-00-{id}.jsonl"));
+        write_lines(
+            &path,
+            &[
+                codex_line("session_meta", json!({"id":id,"cwd":"/work"})),
+                codex_line("event_msg", json!({"type":"user_message","message":text})),
+            ],
+        );
+        path
+    };
+    // Mid-compression (or mid-resume) both forms exist; Codex reads the plain
+    // file, and so does the scan.
+    let both = rollout("11111111-1111-4111-8111-111111111111", "both forms");
+    compress_like_codex(&both);
+    let only = rollout("22222222-2222-4222-8222-222222222222", "compressed only");
+    let only = compress_like_codex(&only);
+    fs::remove_file(root.join(only.file_stem().unwrap())).unwrap();
+    for ignored in [
+        "rollout-2026-08-15T00-00-00-x.jsonl.zst.compress.1.tmp",
+        "notes.zst",
+        "rollout-2026-08-15T00-00-00-y.zst",
+    ] {
+        fs::write(root.join(ignored), b"never decoded").unwrap();
+    }
+    let corrupt =
+        root.join("rollout-2026-08-15T00-00-00-33333333-3333-4333-8333-333333333333.jsonl.zst");
+    fs::write(&corrupt, b"not zstd at all").unwrap();
+
+    let scan = scan_all(SourceId::Codex, &root);
+    let files = scan
+        .files
+        .iter()
+        .map(|file| file.file_path.clone())
+        .collect::<Vec<_>>();
+    assert_eq!(files, vec![both, only]);
+    // A corrupt compressed rollout is a per-file failure, never a silent skip.
+    assert_eq!(scan.failures.len(), 1);
+    assert_eq!(scan.failures[0].file_path, corrupt);
+    assert_eq!(scan.inventory.total_files, 3);
+}
+
+#[test]
+fn codex_rejects_a_torn_compressed_rollout_instead_of_indexing_a_prefix() {
+    let temp = tempdir().unwrap();
+    let root = temp.path().join("sessions");
+    fs::create_dir_all(&root).unwrap();
+    let plain = root.join("rollout-2026-08-15T00-00-00-0d0d0d0d-0d0d-4d0d-8d0d-0d0d0d0d0d0d.jsonl");
+    // A large final record pushes the earlier records into completed zstd
+    // blocks, so the cut file still decodes a complete-record prefix.
+    write_lines(
+        &plain,
+        &[
+            codex_line(
+                "session_meta",
+                json!({"id":"0d0d0d0d-0d0d-4d0d-8d0d-0d0d0d0d0d0d","cwd":"/work"}),
+            ),
+            codex_line(
+                "event_msg",
+                json!({"type":"user_message","message":"prefix evidence"}),
+            ),
+            codex_line(
+                "event_msg",
+                json!({"type":"agent_message","message":"x".repeat(200_000)}),
+            ),
+        ],
+    );
+    let compressed = compress_like_codex(&plain);
+    fs::remove_file(&plain).unwrap();
+    let file = scan_all(SourceId::Codex, &root).files.remove(0);
+
+    // Codex publishes `.jsonl.zst` whole by rename, so a torn frame means the
+    // file was cut (interrupted copy, disk-full restore), not that it is live.
+    let bytes = fs::read(&compressed).unwrap();
+    fs::write(&compressed, &bytes[..bytes.len() - 7]).unwrap();
+    let scan = scan_all(SourceId::Codex, &root);
+    assert!(scan.files.is_empty());
+    assert_eq!(scan.failures.len(), 1);
+    assert_eq!(scan.failures[0].file_path, compressed);
+    assert!(SourceCatalog.project(&file, file.size, None).is_err());
+}

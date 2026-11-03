@@ -1,4 +1,4 @@
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value};
@@ -8,7 +8,10 @@ use crate::identity::SourceId;
 use crate::model::{MessageRole, SourceKind};
 
 use super::catalog::AcceptedMetadata;
-use super::jsonl::{object, raw_string, read_bounded_lines, scan_json_records, string};
+use super::jsonl::{
+    TornFrame, object, raw_string, read_bounded_lines, read_bounded_zstd_lines, scan_json_records,
+    scan_zstd_json_records, string,
+};
 use super::{
     DocumentKind, EmptyProjection, FullProjectionReason, MessageProjection, ProjectedSource,
     ProjectionCheckpoint, ProjectionMode, ProjectionOutcome, SessionProjection, SourceDocument,
@@ -18,7 +21,49 @@ use super::{
 
 // One interpretation marker invalidates both inventory caches and reducer
 // checkpoints, including nonempty cursors created by an older adapter.
-pub(super) const ACCEPTED_PREFIX: &str = "accepted-v3:codex:";
+// v4: an older `<base>_<segment>` rollout without `history_base` is now its
+// own segment session, so cursors stored under the base identity must replay.
+pub(super) const ACCEPTED_PREFIX: &str = "accepted-v4:codex:";
+
+/// Codex compresses a rollout that has been idle for a while into a sibling
+/// `<name>.jsonl.zst` (a single zstd stream of the exact plain bytes), then
+/// removes the plain file; resuming the thread decompresses it back first.
+const COMPRESSED_SUFFIX: &str = ".jsonl.zst";
+
+/// A Codex rollout is either plain `rollout-*.jsonl` or its compressed form.
+pub(crate) fn is_rollout_file(path: &Path) -> bool {
+    path.file_name()
+        .and_then(|name| name.to_str())
+        .is_some_and(|name| name.ends_with(".jsonl") || name.ends_with(COMPRESSED_SUFFIX))
+}
+
+pub(crate) fn is_compressed_rollout(path: &Path) -> bool {
+    path.file_name()
+        .and_then(|name| name.to_str())
+        .is_some_and(|name| name.ends_with(COMPRESSED_SUFFIX))
+}
+
+/// The other storage form of the same rollout: `x.jsonl` <-> `x.jsonl.zst`.
+/// At most one of the pair is a live source at a time; Codex itself reads the
+/// plain file when both exist, and so does the scan.
+pub(crate) fn rollout_twin(path: &Path) -> Option<PathBuf> {
+    let name = path.file_name()?.to_str()?;
+    let twin = match name.strip_suffix(".zst") {
+        Some(plain) if plain.ends_with(".jsonl") => plain.to_owned(),
+        Some(_) => return None,
+        None if name.ends_with(".jsonl") => format!("{name}.zst"),
+        None => return None,
+    };
+    Some(path.with_file_name(twin))
+}
+
+/// File name without the rollout storage suffix, so a compressed rollout keeps
+/// the identity fallback of the plain file it replaced.
+fn rollout_stem(path: &Path) -> Option<&str> {
+    let name = path.file_name()?.to_str()?;
+    let name = name.strip_suffix(".zst").unwrap_or(name);
+    name.strip_suffix(".jsonl")
+}
 
 const INTERNAL_MARKERS: &[&str] = &[
     "The following is the Codex agent history whose request action you are assessing",
@@ -243,7 +288,7 @@ pub(crate) fn inventory_metadata(path: &Path) -> Result<AcceptedMetadata, Source
     let mut cwd = String::new();
     let mut hasher = Sha256::new();
     hasher.update(ACCEPTED_PREFIX.as_bytes());
-    scan_json_records(path, None, |record| {
+    let observe = |record: &Map<String, Value>| {
         let Some(record) = classify_record(record) else {
             return true;
         };
@@ -306,7 +351,14 @@ pub(crate) fn inventory_metadata(path: &Path) -> Result<AcceptedMetadata, Source
             CodexRecord::FilteredMessage => {}
         }
         true
-    })?;
+    };
+    // The fingerprint covers accepted records only, so a plain rollout and its
+    // compressed twin produce the same accepted metadata.
+    if is_compressed_rollout(path) {
+        scan_zstd_json_records(path, TornFrame::Reject, observe)?;
+    } else {
+        scan_json_records(path, None, observe)?;
+    }
     Ok(AcceptedMetadata {
         cwd,
         path_date: extract_path_date(path),
@@ -320,6 +372,18 @@ pub(crate) fn project(
     checkpoint: Option<&ProjectionCheckpoint>,
 ) -> Result<ProjectionOutcome, SourceError> {
     match checkpoint {
+        // A compressed rollout is written once and never appended; any change
+        // is a new file, so full replay is both correct and the only option.
+        Some(checkpoint) if is_compressed_rollout(&file.file_path) => {
+            Ok(ProjectionOutcome::FullRequired {
+                reason: if checkpoint.source_id == SourceId::Codex {
+                    FullProjectionReason::DeltaUnsupported
+                } else {
+                    FullProjectionReason::SourceMismatch
+                },
+                read_proof: None,
+            })
+        }
         Some(checkpoint) => project_delta(file, read_limit, checkpoint),
         None => project_full(file, read_limit),
     }
@@ -332,7 +396,10 @@ fn project_full(file: &SourceFile, read_limit: u64) -> Result<ProjectionOutcome,
         ..CodexReducerState::default()
     };
     let mut documents = Vec::new();
-    let read = read_bounded_lines(file, read_limit, 0, |record, raw_start, raw_end| {
+    // Locators of a compressed rollout are offsets in its decompressed stream,
+    // which is the plain rollout byte for byte, so both forms of one rollout
+    // project identical documents.
+    let callback = |record: &Map<String, Value>, raw_start, raw_end| {
         process_record(
             record,
             raw_start,
@@ -341,7 +408,12 @@ fn project_full(file: &SourceFile, read_limit: u64) -> Result<ProjectionOutcome,
             &mut state,
             &mut documents,
         )
-    })?;
+    };
+    let read = if is_compressed_rollout(&file.file_path) {
+        read_bounded_zstd_lines(file, read_limit, TornFrame::Reject, callback)?
+    } else {
+        read_bounded_lines(file, read_limit, 0, callback)?
+    };
 
     if read.proof.opened.identity != file.identity {
         return Ok(ProjectionOutcome::FullRequired {
@@ -440,19 +512,18 @@ fn finish_projection(
     // A paginated continuation shares the base session id with the segment it
     // resumes, but it is a distinct rollout file.  The index stores documents
     // against one file per session, so each segment needs its own identity
-    // instead of overwriting the conversation it continues.
-    let segment_id = if state.paginated_segment {
-        extract_trailing_filename_uuid(&file.file_path)
-            .filter(|segment| *segment != state.session_id)
-            .or_else(|| {
-                file.file_path
-                    .file_stem()
-                    .and_then(|stem| stem.to_str())
-                    .map(str::to_owned)
-            })
-    } else {
-        None
-    };
+    // instead of overwriting the conversation it continues.  The filename's
+    // trailing uuid names the segment whether or not its session_meta carries
+    // `history_base`; older paginated rollouts omit it.
+    let segment_id = extract_trailing_filename_uuid(&file.file_path)
+        .filter(|segment| *segment != state.session_id)
+        .or_else(|| {
+            state
+                .paginated_segment
+                .then(|| rollout_stem(&file.file_path))
+                .flatten()
+                .map(str::to_owned)
+        });
     if state.session_id.is_empty() && state.next_seq > 0 {
         state.session_id = fallback_session_id(file);
     }
