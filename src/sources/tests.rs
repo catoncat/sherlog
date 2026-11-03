@@ -1161,3 +1161,43 @@ fn codex_scan_reads_the_plain_twin_and_decodes_only_rollout_zst_files() {
     assert_eq!(scan.failures[0].file_path, corrupt);
     assert_eq!(scan.inventory.total_files, 3);
 }
+
+#[test]
+fn codex_rejects_a_torn_compressed_rollout_instead_of_indexing_a_prefix() {
+    let temp = tempdir().unwrap();
+    let root = temp.path().join("sessions");
+    fs::create_dir_all(&root).unwrap();
+    let plain = root.join("rollout-2026-08-15T00-00-00-0d0d0d0d-0d0d-4d0d-8d0d-0d0d0d0d0d0d.jsonl");
+    // A large final record pushes the earlier records into completed zstd
+    // blocks, so the cut file still decodes a complete-record prefix.
+    write_lines(
+        &plain,
+        &[
+            codex_line(
+                "session_meta",
+                json!({"id":"0d0d0d0d-0d0d-4d0d-8d0d-0d0d0d0d0d0d","cwd":"/work"}),
+            ),
+            codex_line(
+                "event_msg",
+                json!({"type":"user_message","message":"prefix evidence"}),
+            ),
+            codex_line(
+                "event_msg",
+                json!({"type":"agent_message","message":"x".repeat(200_000)}),
+            ),
+        ],
+    );
+    let compressed = compress_like_codex(&plain);
+    fs::remove_file(&plain).unwrap();
+    let file = scan_all(SourceId::Codex, &root).files.remove(0);
+
+    // Codex publishes `.jsonl.zst` whole by rename, so a torn frame means the
+    // file was cut (interrupted copy, disk-full restore), not that it is live.
+    let bytes = fs::read(&compressed).unwrap();
+    fs::write(&compressed, &bytes[..bytes.len() - 7]).unwrap();
+    let scan = scan_all(SourceId::Codex, &root);
+    assert!(scan.files.is_empty());
+    assert_eq!(scan.failures.len(), 1);
+    assert_eq!(scan.failures[0].file_path, compressed);
+    assert!(SourceCatalog.project(&file, file.size, None).is_err());
+}

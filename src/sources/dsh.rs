@@ -8,7 +8,7 @@ use crate::model::{MessageRole, SourceKind};
 
 use super::catalog::AcceptedMetadata;
 use super::jsonl::{
-    object, read_bounded_zstd_lines, scan_zstd_json_records, string, timestamp_date,
+    TornFrame, object, read_bounded_zstd_lines, scan_zstd_json_records, string, timestamp_date,
 };
 use super::{
     DocumentKind, EmptyProjection, FullProjectionReason, MessageProjection, ProjectedSource,
@@ -16,6 +16,9 @@ use super::{
     SourceError, SourceFile, build_session_summary, fallback_session_id, fallback_timestamp,
     first_user_title, time_range, truncate_chars,
 };
+
+// DSH appends frames to a live session file and repairs a torn tail itself.
+const TORN_FRAME: TornFrame = TornFrame::ProjectPrefix;
 
 #[derive(Debug)]
 struct AcceptedSession {
@@ -38,7 +41,7 @@ pub(crate) fn inventory_metadata(path: &Path) -> Result<Option<AcceptedMetadata>
     let mut hasher = Sha256::new();
     hasher.update(b"sherlog:dsh:accepted:v1");
 
-    scan_zstd_json_records(path, |record| {
+    scan_zstd_json_records(path, TORN_FRAME, |record| {
         if let Some(session) = accepted_session(record) {
             if cwd.is_empty() {
                 cwd = session.cwd.clone();
@@ -118,7 +121,7 @@ pub(crate) fn project(
     let mut session_timestamp = String::new();
     let mut title = String::new();
     // DSH keeps `0` locators; see docs/SOURCE_CONTRACTS.md.
-    let read = read_bounded_zstd_lines(file, read_limit, |record, _, _| {
+    let read = read_bounded_zstd_lines(file, read_limit, TORN_FRAME, |record, _, _| {
         if let Some(session) = accepted_session(record) {
             if session_id.is_empty() && !session.session_id.is_empty() {
                 session_id = session.session_id;

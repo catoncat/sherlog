@@ -9,7 +9,7 @@ use crate::model::{MessageRole, SourceKind};
 
 use super::catalog::AcceptedMetadata;
 use super::jsonl::{
-    object, raw_string, read_bounded_lines, read_bounded_zstd_lines, scan_json_records,
+    TornFrame, object, raw_string, read_bounded_lines, read_bounded_zstd_lines, scan_json_records,
     scan_zstd_json_records, string,
 };
 use super::{
@@ -353,7 +353,7 @@ pub(crate) fn inventory_metadata(path: &Path) -> Result<AcceptedMetadata, Source
     // The fingerprint covers accepted records only, so a plain rollout and its
     // compressed twin produce the same accepted metadata.
     if is_compressed_rollout(path) {
-        scan_zstd_json_records(path, observe)?;
+        scan_zstd_json_records(path, TornFrame::Reject, observe)?;
     } else {
         scan_json_records(path, None, observe)?;
     }
@@ -408,7 +408,7 @@ fn project_full(file: &SourceFile, read_limit: u64) -> Result<ProjectionOutcome,
         )
     };
     let read = if is_compressed_rollout(&file.file_path) {
-        read_bounded_zstd_lines(file, read_limit, callback)?
+        read_bounded_zstd_lines(file, read_limit, TornFrame::Reject, callback)?
     } else {
         read_bounded_lines(file, read_limit, 0, callback)?
     };

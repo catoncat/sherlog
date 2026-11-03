@@ -198,11 +198,24 @@ fn is_incomplete_zstd_frame(error: &std::io::Error) -> bool {
             .to_ascii_lowercase()
             .contains("incomplete frame")
 }
+/// What a truncated final zstd frame means for a source.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) enum TornFrame {
+    /// The writer appends frames in place and repairs a torn tail itself
+    /// (DSH): project the complete-record prefix.
+    ProjectPrefix,
+    /// The file is published whole by rename and never changes afterwards
+    /// (Codex `.jsonl.zst`): a torn frame is a truncated or corrupt file and
+    /// fails that file instead of indexing a silent prefix.
+    Reject,
+}
+
 /// Metadata scan over a zstd-compressed JSONL file. DSH sessions are stored
 /// as `session.jsonl.zstd`; the adapter treats the compressed file as the raw
 /// source and streams the decompressed records for privacy-reviewed metadata.
 pub(crate) fn scan_zstd_json_records(
     path: &Path,
+    torn_frame: TornFrame,
     callback: impl FnMut(&Map<String, Value>) -> bool,
 ) -> Result<(), SourceError> {
     let handle = File::open(path).map_err(|source| SourceError::Io {
@@ -223,6 +236,7 @@ pub(crate) fn scan_zstd_json_records(
         path,
         "read source metadata",
         true,
+        torn_frame,
         |record, _, _| callback(record),
     )
 }
@@ -243,6 +257,7 @@ fn for_each_zstd_record(
     path: &Path,
     operation: &'static str,
     accept_unterminated_tail: bool,
+    torn_frame: TornFrame,
     mut callback: impl FnMut(&Map<String, Value>, u64, u64) -> bool,
 ) -> Result<(), SourceError> {
     let mut reader = BufReader::new(reader);
@@ -258,7 +273,11 @@ fn for_each_zstd_record(
             // project the complete prefix; the next sync replays in full once
             // the file is repaired. Any other decode failure (corrupt block,
             // bad frame parameter, ...) stays a hard error.
-            Err(source) if is_incomplete_zstd_frame(&source) => break,
+            Err(source)
+                if torn_frame == TornFrame::ProjectPrefix && is_incomplete_zstd_frame(&source) =>
+            {
+                break;
+            }
             Err(source) => {
                 return Err(SourceError::Io {
                     operation,
@@ -307,6 +326,7 @@ fn for_each_zstd_record(
 pub(crate) fn read_bounded_zstd_lines(
     file: &SourceFile,
     requested_limit: u64,
+    torn_frame: TornFrame,
     mut callback: impl FnMut(&Map<String, Value>, u64, u64) -> Result<(), FullProjectionReason>,
 ) -> Result<BoundedRead, SourceError> {
     let handle = File::open(&file.file_path).map_err(|source| SourceError::Io {
@@ -354,6 +374,7 @@ pub(crate) fn read_bounded_zstd_lines(
         &file.file_path,
         "read source file",
         false,
+        torn_frame,
         |record, raw_start, raw_end| {
             if callback_failure.is_none() {
                 if let Err(reason) = callback(record, raw_start, raw_end) {
