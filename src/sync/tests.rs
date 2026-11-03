@@ -1397,7 +1397,7 @@ fn codex_response_item_rollouts_are_indexed_without_injected_context() {
 
 #[test]
 fn codex_interpretation_upgrade_replays_empty_and_nonempty_consumed_cursors() {
-    for (legacy_count, version) in [(0, "v1"), (1, "v1"), (1, "v2")] {
+    for (legacy_count, version) in [(0, "v1"), (1, "v1"), (1, "v2"), (1, "v3")] {
         let temp = tempdir().unwrap();
         let root = temp.path().join("sessions");
         let id = "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee";
@@ -2304,6 +2304,94 @@ fn compressing_an_indexed_rollout_in_place_counts_as_an_update() {
     let report = run(SyncRequest::new(&db, selector(&root))).unwrap();
     assert_eq!((report.added, report.updated), (0, 1));
     assert!(report.coverage.written);
+}
+
+/// An index written before segment identity came from the filename holds an
+/// older `<base>_<segment>` rollout (no `history_base`) under the base id,
+/// while the base itself was invisible as `.jsonl.zst`. Upgrading must replay
+/// that cursor as the segment's own session and then index the base, instead
+/// of refusing the base as a duplicate of the still-present segment. With the
+/// base elsewhere (archived, outside the synced root) nothing takes the old
+/// session over, so the segment's replace must drop it itself.
+#[test]
+fn upgrade_rekeys_a_segment_indexed_under_its_base_identity() {
+    check_segment_rekey_upgrade(true);
+    check_segment_rekey_upgrade(false);
+}
+
+fn check_segment_rekey_upgrade(base_in_root: bool) {
+    let temp = tempdir().unwrap();
+    let root = temp.path().join("sessions");
+    let base = "acacacac-acac-4cac-8cac-acacacacacac";
+    let segment = "bdbdbdbd-bdbd-4dbd-8dbd-bdbdbdbdbdbd";
+    let segment_path = root.join(format!(
+        "2026/08/30/rollout-2026-08-30T00-00-00-{base}_{segment}.jsonl"
+    ));
+    write_session(
+        &segment_path,
+        base,
+        "/work",
+        &[("user_message", "segment evidence")],
+    );
+    let db = temp.path().join("index.sqlite");
+    run(SyncRequest::new(&db, selector(&root))).unwrap();
+
+    // Rewrite what the current adapter stored into what the v3 adapter
+    // stored: the segment's session under the base id, a v3 cursor.
+    let connection = Connection::open(&db).unwrap();
+    connection
+        .execute(
+            "UPDATE session_rows SET native_session_id=?1, session_uuid=?1, \
+             session_key='codex:' || ?1 WHERE native_session_id=?2",
+            [base, segment],
+        )
+        .unwrap();
+    connection
+        .execute(
+            "UPDATE source_files SET \
+             extra_fingerprint=replace(extra_fingerprint, 'accepted-v4:', 'accepted-v3:'), \
+             reducer_checkpoint=CAST(replace(CAST(reducer_checkpoint AS TEXT), \
+               'accepted-v4:', 'accepted-v3:') AS BLOB)",
+            [],
+        )
+        .unwrap();
+    drop(connection);
+    assert_eq!(
+        projection_view(&db, base).0.file_path,
+        segment_path.to_string_lossy()
+    );
+
+    if base_in_root {
+        let base_dir = root.join("2026/08/01");
+        fs::create_dir_all(&base_dir).unwrap();
+        write_compressed_rollout(
+            &base_dir.join(format!("rollout-2026-08-01T00-00-00-{base}.jsonl.zst")),
+            &rollout_bytes(base, 1),
+        );
+    }
+    let upgraded = run(SyncRequest::new(&db, selector(&root))).unwrap();
+    assert_eq!(
+        (upgraded.errors, upgraded.added, upgraded.updated),
+        (0, u64::from(base_in_root), 1)
+    );
+    assert!(upgraded.coverage.written);
+    let full = temp.path().join("full.sqlite");
+    run(SyncRequest::new(&full, selector(&root))).unwrap();
+    assert_eq!(persisted_projection(&db), persisted_projection(&full));
+
+    append_message(&segment_path, "agent_message", "segment append", 9);
+    let appended = run(SyncRequest::new(&db, selector(&root))).unwrap();
+    assert_eq!((appended.errors, appended.updated), (0, 1));
+    let full = temp.path().join("full-appended.sqlite");
+    run(SyncRequest::new(&full, selector(&root))).unwrap();
+    assert_eq!(persisted_projection(&db), persisted_projection(&full));
+    assert!(
+        IndexReader::open(&db)
+            .unwrap()
+            .check_invariants()
+            .unwrap()
+            .is_valid()
+    );
 }
 
 /// While a resumed rollout exists in both forms the scan selects only the

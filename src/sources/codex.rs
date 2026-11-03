@@ -21,7 +21,9 @@ use super::{
 
 // One interpretation marker invalidates both inventory caches and reducer
 // checkpoints, including nonempty cursors created by an older adapter.
-pub(super) const ACCEPTED_PREFIX: &str = "accepted-v3:codex:";
+// v4: an older `<base>_<segment>` rollout without `history_base` is now its
+// own segment session, so cursors stored under the base identity must replay.
+pub(super) const ACCEPTED_PREFIX: &str = "accepted-v4:codex:";
 
 /// Codex compresses a rollout that has been idle for a while into a sibling
 /// `<name>.jsonl.zst` (a single zstd stream of the exact plain bytes), then

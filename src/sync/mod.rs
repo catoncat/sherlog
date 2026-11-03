@@ -830,7 +830,11 @@ fn resolve_session_moves(
         return Ok(moves);
     }
     let reader = IndexReader::open(db_path).map_err(|error| error.to_string())?;
-    for (path, identity) in candidates {
+    let staged_identity = candidates
+        .iter()
+        .map(|(path, identity)| (path.to_string_lossy().into_owned(), identity))
+        .collect::<HashMap<_, _>>();
+    for (path, identity) in &candidates {
         if moves.duplicate_paths.contains(path) {
             continue;
         }
@@ -851,6 +855,16 @@ fn resolve_session_moves(
                 continue;
             }
             if twin.as_deref() == Some(other.as_str()) {
+                gone.push(other);
+                continue;
+            }
+            // A bound path re-staged in this batch under another identity
+            // (identity rules changed since it was indexed) gives the session
+            // up; its own replace drops the projection it held.
+            if staged_identity
+                .get(&other)
+                .is_some_and(|restaged| restaged.session_key != identity.session_key)
+            {
                 gone.push(other);
                 continue;
             }
@@ -1148,6 +1162,19 @@ fn apply_staged(
                     }
                 }
                 ProjectionMode::Full => {
+                    // The file now projects another session than the one it
+                    // was indexed as: whatever it held under the old identity
+                    // is stale, exactly as a fresh full sync would never
+                    // create it. If the old session moved to another staged
+                    // file it no longer names this path and nothing is lost.
+                    if prior
+                        .and_then(|state| state.session.as_ref())
+                        .is_some_and(|stored| stored != &identity)
+                    {
+                        transaction
+                            .delete_session_by_file(record.file.source_id, &path)
+                            .map_err(|error| error.to_string())?;
+                    }
                     transaction
                         .replace_session(&session, &messages)
                         .map_err(|error| error.to_string())?;

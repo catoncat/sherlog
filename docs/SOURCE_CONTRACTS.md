@@ -74,9 +74,9 @@ The two message encodings can mirror one conversational message. Consecutive acc
 
 ### Identity and upgrade
 
-A normal rollout uses its session UUID. A `history_base` continuation keeps the base UUID inside the reducer but uses the trailing segment UUID as its searchable identity. If no distinct segment UUID exists, its filename stem is the fallback. Finishing a delta never mutates the base identity. Each segment has its own `sessionRef`, seq numbering and file locator; no cross-file message stitching is implied.
+A normal rollout uses its session UUID. A continuation segment keeps the base UUID inside the reducer but uses the trailing UUID of its filename (`rollout-<time>-<base>_<segment>.jsonl`) as its searchable identity whenever that differs from the session UUID, whether or not its `session_meta` carries `history_base` (older segments omit it). A `history_base` segment without a distinct filename UUID falls back to its filename stem. Finishing a delta never mutates the base identity. Each segment has its own `sessionRef`, seq numbering and file locator; no cross-file message stitching is implied.
 
-`ACCEPTED_PREFIX` is the single Codex interpretation marker. It versions both accepted-record fingerprints and serialized reducers. A changed marker invalidates inventory caches and makes all older reducers request full replay, including nonempty EOF cursors. Unchanged current files remain no-ops. A valid empty cursor may append its first message and create a session at seq zero without replaying an already understood prefix.
+`ACCEPTED_PREFIX` is the single Codex interpretation marker. It versions both accepted-record fingerprints and serialized reducers. A changed marker invalidates inventory caches and makes all older reducers request full replay, including nonempty EOF cursors. When that replay projects a file under a different session identity than it was indexed as (v4: older segments indexed under their base UUID), the old session held by that path is replaced, and its binding no longer makes another staged file with the old identity a duplicate. Unchanged current files remain no-ops. A valid empty cursor may append its first message and create a session at seq zero without replaying an already understood prefix.
 
 ### Storage forms
 
